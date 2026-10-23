@@ -15,7 +15,7 @@ const shots = process.env.NETPROBE_SHOTS || os.tmpdir();
     const calls = [];
     const now = Math.floor(Date.now()/1000);
     const row = {ts:now, score:88,avg_loss_pct:2,avg_latency_ms:31,avg_jitter_ms:4,avg_dns_latency_ms:null};
-    const settings = {enabled:true,loss_pct:10,latency_ms:150,jitter_ms:80,dns_ms:250,confirm_samples:2,recovery_samples:2};
+    const settings = {enabled:true,loss_pct:10,latency_ms:150,jitter_ms:80,dns_ms:250,confirm_samples:2,recovery_samples:2,turbo:false};
     const errors = [];
     page.on('pageerror',e=>errors.push(e.message));
     await page.route('**/*', async route => {
@@ -28,7 +28,7 @@ const shots = process.env.NETPROBE_SHOTS || os.tmpdir();
         url.pathname === '/api/history' ? {data:[{...row,ts:now-30,max_loss_pct:25},{...row,ts:now-300,avg_loss_pct:0,max_loss_pct:0}]} :
         url.pathname === '/api/targets/recent' ? {started_at:now-60,data:[{target:'192.0.2.1',address:'192.0.2.1',kind:'ping',ts:now,latency:0.4,jitter:0.1,loss:0,avg_latency:0.4,max_latency:0.6,avg_loss:0,samples:2,state:'OK'},{target:'192.0.2.2',address:'192.0.2.2',kind:'ping',ts:now,latency:0.9,jitter:0.2,loss:0,avg_latency:0.9,max_latency:1.2,avg_loss:0,samples:2,state:'OK'},{target:'dns:8.8.8.8',address:'8.8.8.8',kind:'dns',ts:now,latency:4.2,jitter:null,loss:null,avg_latency:4,max_latency:6,avg_loss:null,samples:2,state:'OK'},{target:'dns:1.1.1.1',address:'1.1.1.1',kind:'dns',ts:now,latency:3.1,jitter:null,loss:null,avg_latency:3,max_latency:5,avg_loss:null,samples:2,state:'OK'},{target:'edge.example',address:'192.0.2.7',kind:'ping',ts:now,latency:null,jitter:null,loss:100,avg_latency:31,max_latency:40,avg_loss:20,samples:2,state:edgeState,addresses:[{address:'192.0.2.7',samples:1,avg_latency:31,max_latency:40,avg_loss:20,max_loss:100},{address:'192.0.2.8',samples:1,avg_latency:35,max_latency:42,avg_loss:0,max_loss:0}]}]} :
         url.pathname === '/api/targets/history' ? {data:[{ts:now-30,latency:null,jitter:null,loss:20,max_loss:100,address:'192.0.2.7'},{ts:now,latency:31,jitter:4,loss:0,max_loss:0,address:'192.0.2.7'}]} :
-        url.pathname === '/api/loss' ? {truncated:false,data:{window:{from:now-3600,to:now},summary:{samples:100,lossy:4,avg_loss:2.5,max_loss:100,episodes:2},targets:[{target:'edge.example',samples:50,lossy:4,avg_loss:5,max_loss:100,episodes:2},{target:'192.0.2.2',samples:50,lossy:0,avg_loss:0,max_loss:0,episodes:0}],episodes:[{target:'edge.example',start:now-600,end:now-540,duration:60,peak:100,avg:75,samples:3},{target:'edge.example',start:now-3000,end:now-3000,duration:0,peak:25,avg:25,samples:1}]}} :
+        url.pathname === '/api/loss' ? {truncated:false,data:{outages:[{id:2,start_ts:now-900,end_ts:now-860,kind:'internet',status:'sent',duration:40},{id:1,start_ts:now-1800,end_ts:null,kind:'router',status:'open',duration:null}],window:{from:now-3600,to:now},summary:{samples:100,lossy:4,avg_loss:2.5,max_loss:100,episodes:2},targets:[{target:'edge.example',samples:50,lossy:4,avg_loss:5,max_loss:100,episodes:2},{target:'192.0.2.2',samples:50,lossy:0,avg_loss:0,max_loss:0,episodes:0}],episodes:[{target:'edge.example',start:now-600,end:now-540,duration:60,peak:100,avg:75,samples:3},{target:'edge.example',start:now-3000,end:now-3000,duration:0,peak:25,avg:25,samples:1}]}} :
         url.pathname === '/api/events' ? {data:[{id:1,ts:now,target:'edge.example',previous:'OK',state:'DOWN',reasons:['packet loss'],metrics:{loss:100}}]} :
         url.pathname === '/api/settings' ? {settings,storage:{bytes:1024,retention_days:null},started_at:now-60} :
         url.pathname === '/api/speedtest/latest' ? {result:null} :
@@ -68,6 +68,22 @@ const shots = process.env.NETPROBE_SHOTS || os.tmpdir();
     const saved = calls.find(c=>c.url==='/api/settings'&&c.method==='POST');
     assert.equal(saved.body.loss_pct,15);
     assert.equal(saved.headers['x-netprobe-request'],'settings');
+    assert.equal(saved.body.turbo,false,'turbo is part of every settings save');
+    // ---- Turbo mode: toggle is saved, the chip appears, the explanation opens in a dialog and closes with Esc
+    assert(!(await page.locator('#turboChip').isVisible()),'no Turbo chip while it is off');
+    await page.locator('#turbo').check();
+    await page.locator('#settingsForm button[type="submit"]').click();
+    await page.waitForFunction(()=>!document.getElementById('turboChip').hidden);
+    assert.equal(calls.filter(c=>c.url==='/api/settings'&&c.method==='POST').pop().body.turbo,true,'the Turbo toggle is sent in the POST body');
+    assert(!(await page.locator('#turboDialog').isVisible()));
+    await page.locator('#turboInfo').click();
+    assert(await page.locator('#turboDialog').isVisible(),'the info button opens the Turbo dialog');
+    assert.match(await page.locator('#turboDialog').textContent(),/5 секунд.*9 МБ/s);
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(()=>!document.getElementById('turboDialog').open);
+    assert.equal(await page.evaluate(()=>document.activeElement.id),'turboInfo','focus returns to the info button');
+    await page.locator('#turboInfo').click(); await page.locator('#turboClose').click();
+    await page.waitForFunction(()=>!document.getElementById('turboDialog').open);
     row.ts=now-1000;
     await page.locator('#refreshBtn').click();
     await page.waitForFunction(()=>document.getElementById('sourceTag').textContent.includes('STALE'));
@@ -142,6 +158,8 @@ const shots = process.env.NETPROBE_SHOTS || os.tmpdir();
     assert.equal((await page.locator('#rangeError').textContent()).trim(),'');
     // loss report: summary, per-target table, episodes, zoom to an episode
     const loss = await page.evaluate(()=>({sum:document.getElementById('lossSummary').textContent,rows:document.querySelectorAll('#lossTargets tr').length,episodes:document.querySelectorAll('#lossEpisodes [data-episode]').length,text:document.getElementById('lossCard').textContent}));
+    assert.match(await page.locator('#lossOutages').textContent(),/Обрыв интернета.*уведомление отправлено.*40 с/s,'Turbo outages are listed in the loss card');
+    assert.match(await page.locator('#lossOutages').textContent(),/Роутер не отвечал.*идёт сейчас/s);
     assert.match(loss.sum,/2\.5/); assert.match(loss.sum,/100/); assert.equal(loss.rows,2); assert.equal(loss.episodes,2); assert.match(loss.text,/edge\.example/);
     await page.locator('#lossEpisodes [data-episode="0"]').click(); await page.waitForTimeout(250);
     assert.equal(await page.locator('#periodSelect').inputValue(),'custom');
@@ -181,6 +199,8 @@ const shots = process.env.NETPROBE_SHOTS || os.tmpdir();
     assert.equal(await page.locator('#refreshBtn').textContent(),'Refresh');
     assert.deepEqual(await russian(),[],'English mode must not contain Russian text');
     assert.match(await page.locator('#eventList').textContent(),/OK → Down/);
+    assert.match(await page.locator('#turboDialog').textContent(),/every 5 seconds.*9 MB.*Off by default/s,'the Turbo dialog is translated');
+    assert.match(await page.locator('#lossOutages').textContent(),/Internet outage/);
     await page.locator('#langSelect').selectOption('ru');
     await page.waitForFunction(()=>document.querySelector('h1').textContent==='Состояние сети');
     await page.locator('#langSelect').selectOption('en');
@@ -193,7 +213,7 @@ const shots = process.env.NETPROBE_SHOTS || os.tmpdir();
       const lum=({r,g,b})=>{const f=v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)};return .2126*f(r)+.7152*f(g)+.0722*f(b)};
       const bgOf=e=>{let n=e,acc=null;while(n){const c=parse(getComputedStyle(n).backgroundColor);if(c.a>0){if(c.a>=.99)return acc?{r:acc.r*acc.a+c.r*(1-acc.a),g:acc.g*acc.a+c.g*(1-acc.a),b:acc.b*acc.a+c.b*(1-acc.a)}:c;acc=acc||c}n=n.parentElement}return acc||{r:255,g:255,b:255}};
       const bad=[];
-      for(const sel of ['.metric-label','.metric-val','.metric-footer','.card-sub','.pill','.table td','.table th','.status-text','.status-sub','.node-name','.node-sub','.link-ms','nav a.selected','.tag','.btn','.chart-footer','h2','summary','.info-note','.sub','.muted','.kv dt','.kv dd','.tile-label','.tile-ms','.uptime-head','.chip-val','.counter','.link-btn','#unifiTabs button','.thr-chip','.chk-label','.chk-pct','.mini-label','.mini-ms','.site-pill','.net-tab']){
+      for(const sel of ['.metric-label','.metric-val','.metric-footer','.card-sub','.pill','.table td','.table th','.status-text','.status-sub','.turbo-chip','.check','.node-name','.node-sub','.link-ms','nav a.selected','.tag','.btn','.chart-footer','h2','summary','.info-note','.sub','.muted','.kv dt','.kv dd','.tile-label','.tile-ms','.uptime-head','.chip-val','.counter','.link-btn','#unifiTabs button','.thr-chip','.chk-label','.chk-pct','.mini-label','.mini-ms','.site-pill','.net-tab']){
         for(const e of document.querySelectorAll(sel)){
           if(!e.offsetParent||!e.textContent.trim()||/^[\s—]*$/.test(e.textContent))continue;
           const cs=getComputedStyle(e),fg=parse(cs.color),bg=bgOf(e),size=parseFloat(cs.fontSize),bold=parseInt(cs.fontWeight)>=700;

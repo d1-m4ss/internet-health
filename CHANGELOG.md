@@ -3,6 +3,14 @@
 The project is called **NetProbe Enhanced** (container, image, file and table names keep the upstream `netprobe` /
 `np_` names so existing installations are unaffected).
 
+## Unreleased
+
+- **Turbo mode** (opt-in, off by default): a 5-second ICMP watcher for the router and up to two public IPs that
+  reports outages from about 10 s which the regular checks miss — one message after recovery, at most 3 per hour,
+  silent when the regular monitor already alerted. New setting `turbo`, new table `np_outages`, `outages` in
+  `/api/loss`, explanation dialog in the UI and a *Short outages (Turbo)* list in the loss report.
+- Notifications whose second is already taken in the queue move to the next free second instead of being dropped.
+
 ## 0.1.0 — 2026-10-23
 
 First public version.

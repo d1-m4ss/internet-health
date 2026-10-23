@@ -404,6 +404,16 @@
     .ep-ico { grid-row:1 / span 2;font-size:15px } .ep-main { font-weight:600;font-size:13px;overflow-wrap:anywhere } .ep-sub { grid-column:2;color:var(--mute);font-size:11px }
     .ep-peak { grid-row:1 / span 2;grid-column:3;font-weight:700;font-variant-numeric:tabular-nums;border-radius:6px;padding:2px 8px;font-size:12px;background:var(--warn-bg);color:var(--warn) } .ep-peak.bad { background:var(--bad-bg);color:var(--bad) }
     .loss-empty { color:var(--mute);padding:10px 2px }
+    .ep.outage { cursor:default } .ep.outage:hover { background:var(--panel);border-color:var(--line) }
+    .turbo-row { display:flex;align-items:center;gap:6px;flex-wrap:wrap } .turbo-row .check { margin-top:10px }
+    .info-btn { margin-top:10px;width:24px;height:24px;border-radius:50%;border:1px solid var(--btn-line);background:var(--btn-bg);color:var(--btn-ink);font-size:13px;line-height:1;cursor:pointer;padding:0 }
+    .info-btn:hover { background:var(--btn-hover) }
+    .turbo-chip { display:inline-block;margin-top:4px;border:1px solid var(--ok-line);background:var(--ok-bg);color:var(--ok);border-radius:999px;padding:1px 8px;font-size:11px;font-weight:650 }
+    .turbo-chip[hidden], #turboUnavailable[hidden] { display:none }
+    dialog.turbo-dialog { max-width:min(520px,calc(100vw - 32px));width:100%;border:1px solid var(--line);border-radius:var(--rad);background:var(--panel);color:var(--text);padding:18px 20px;box-sizing:border-box }
+    dialog.turbo-dialog::backdrop { background:rgba(0,0,0,.55) }
+    .turbo-dialog h2 { margin:0 0 10px;font-size:17px } .turbo-dialog p { margin:0 0 10px;font-size:13px;line-height:1.5;color:var(--text2);overflow-wrap:anywhere } .turbo-dialog b { color:var(--text) }
+    .turbo-dialog .settings-actions { justify-content:flex-end }
     @media(max-width:700px) { .loss-sum { grid-template-columns:repeat(2,minmax(0,1fr)) } }
     html[data-style="unifi"] .grid-content[data-tab="loss"] #lossCard { display:block }
     @media (prefers-reduced-motion: reduce) { *,*::before,*::after { transition:none!important;animation:none!important;scroll-behavior:auto!important } }
@@ -450,7 +460,7 @@
     </div>
     <section class="main-status">
       <div class="status-left"><span id="statusDot" class="status-dot offline"></span><div><div id="statusName" class="status-text">…</div><div class="status-sub" id="statusDescription"></div></div></div>
-      <div class="status-right"><span data-i18n="status.last">Последний замер</span><strong id="updatedAt">—</strong></div>
+      <div class="status-right"><span data-i18n="status.last">Последний замер</span><strong id="updatedAt">—</strong><span class="turbo-chip" id="turboChip" hidden data-i18n-attr="title:turbo.chipTitle">⚡ Turbo</span></div>
     </section>
     <section class="card path" id="pathCard" data-i18n-attr="aria-label:path.title">
       <div class="path-head"><h2 data-i18n="path.title">Путь до интернета</h2><span class="card-sub" id="pathNote"></span></div>
@@ -504,6 +514,8 @@
           <div class="table-wrap"><table class="table"><thead><tr><th data-i18n="th.target2">Цель</th><th data-i18n="loss.th.samples">Проб</th><th data-i18n="loss.th.lossy">С потерями</th><th data-i18n="loss.th.avg">Средние / макс.</th><th data-i18n="loss.th.eps">Эпизодов</th></tr></thead><tbody id="lossTargets"><tr><td colspan="5" class="muted">…</td></tr></tbody></table></div>
           <h3 class="loss-h" data-i18n="loss.episodes">Эпизоды потерь</h3>
           <div class="loss-episodes" id="lossEpisodes"></div><div class="section-status" id="lossStatus" role="status"></div>
+          <h3 class="loss-h" data-i18n="loss.outages">Короткие обрывы (Turbo)</h3>
+          <div class="loss-episodes" id="lossOutages"></div>
         </section>
         <section class="card" id="speedtest">
           <div class="card-head"><div><h2>Speedtest</h2><div class="card-sub" id="speedTime"></div></div><button class="btn primary" id="speedBtn" disabled>…</button></div>
@@ -517,13 +529,22 @@
       <div class="stack">
         <section class="card" id="dnsCard"><div class="card-head"><div><h2 data-i18n="dns.title">DNS-серверы</h2><div class="card-sub" data-i18n="dns.sub">Ответ на DNS-запросы</div></div></div><div id="dnsList"><p class="muted">…</p></div></section>
         <section class="card" id="eventsCard"><div class="card-head"><div><h2 data-i18n="events.title">События</h2><div class="card-sub" data-i18n="events.sub">Подтверждённые изменения состояния</div></div></div><div class="events" id="eventList"><p class="muted">…</p></div><div id="eventsStatus" class="section-status"></div><div class="info-note" data-i18n="events.note">Предупреждения и восстановление передаются через штатные уведомления Unraid.</div></section>
-        <section class="card" id="settingsCard"><details id="alertSettings" style="margin:0;padding:0;border:0"><summary data-i18n="set.title">Пороги уведомлений</summary><p class="card-sub" data-i18n="set.note">Изменение подтверждается последовательными замерами. Короткий сбой между пробами может остаться незамеченным.</p><form id="settingsForm"><fieldset id="settingsFields" disabled style="border:0;padding:0;margin:0"><label class="check"><input type="checkbox" id="enabled"> <span data-i18n="set.enabled">Уведомления включены</span></label><div class="setting-grid" style="margin-top:12px"><label><span data-i18n="set.loss">Потеря пакетов, %</span><input id="loss_pct" type="number" min="0" max="100" step="any" required></label><label><span>RTT, ms</span><input id="latency_ms" type="number" min="0" max="60000" step="any" required></label><label><span data-i18n="set.jitter">Джиттер, ms</span><input id="jitter_ms" type="number" min="0" max="60000" step="any" required></label><label><span>DNS, ms</span><input id="dns_ms" type="number" min="0" max="60000" step="any" required></label><label><span data-i18n="set.confirm">Замеров для тревоги</span><input id="confirm_samples" type="number" min="1" max="20" step="1" required></label><label><span data-i18n="set.recovery">Замеров для восстановления</span><input id="recovery_samples" type="number" min="1" max="20" step="1" required></label></div><div class="settings-actions"><button class="btn" type="submit" data-i18n="set.save">Сохранить</button><span class="card-sub" id="settingsMessage" role="status"></span></div></fieldset></form><div id="settingsStatus" class="section-status"></div><div class="info-note" id="storageInfo"></div></details></section>
+        <section class="card" id="settingsCard"><details id="alertSettings" style="margin:0;padding:0;border:0"><summary data-i18n="set.title">Пороги уведомлений</summary><p class="card-sub" data-i18n="set.note">Изменение подтверждается последовательными замерами. Короткий сбой между пробами может остаться незамеченным.</p><form id="settingsForm"><fieldset id="settingsFields" disabled style="border:0;padding:0;margin:0"><label class="check"><input type="checkbox" id="enabled"> <span data-i18n="set.enabled">Уведомления включены</span></label><div class="turbo-row"><label class="check"><input type="checkbox" id="turbo"> <span data-i18n="set.turbo">⚡ Turbo-режим: ловить короткие обрывы</span></label><button type="button" class="info-btn" id="turboInfo" aria-haspopup="dialog" aria-controls="turboDialog" data-i18n-attr="aria-label:turbo.about;title:turbo.about">ⓘ</button></div><p class="card-sub" id="turboUnavailable" hidden data-i18n="turbo.unavailable"></p><div class="setting-grid" style="margin-top:12px"><label><span data-i18n="set.loss">Потеря пакетов, %</span><input id="loss_pct" type="number" min="0" max="100" step="any" required></label><label><span>RTT, ms</span><input id="latency_ms" type="number" min="0" max="60000" step="any" required></label><label><span data-i18n="set.jitter">Джиттер, ms</span><input id="jitter_ms" type="number" min="0" max="60000" step="any" required></label><label><span>DNS, ms</span><input id="dns_ms" type="number" min="0" max="60000" step="any" required></label><label><span data-i18n="set.confirm">Замеров для тревоги</span><input id="confirm_samples" type="number" min="1" max="20" step="1" required></label><label><span data-i18n="set.recovery">Замеров для восстановления</span><input id="recovery_samples" type="number" min="1" max="20" step="1" required></label></div><div class="settings-actions"><button class="btn" type="submit" data-i18n="set.save">Сохранить</button><span class="card-sub" id="settingsMessage" role="status"></span></div></fieldset></form><div id="settingsStatus" class="section-status"></div><div class="info-note" id="storageInfo"></div></details></section>
         <section class="card" id="diagCard"><div class="card-head"><div><h2 data-i18n="diag.title">Диагностика</h2><div class="card-sub" data-i18n="diag.sub">Логи и активные настройки NetProbe</div></div></div><details id="detailsLog"><summary data-i18n="diag.logs">Логи приложения</summary><pre class="log-box" id="logOutput"></pre><div class="section-status" id="logStatus" role="status"></div></details><details><summary data-i18n="diag.config">Конфигурация (без секретов)</summary><pre class="log-box" id="configOutput">…</pre></details></section>
       </div>
     </div>
     <div class="footer">NETPROBE · SQLite history · <span id="footerMode">—</span></div>
   </main>
 </div>
+<dialog class="turbo-dialog" id="turboDialog" aria-labelledby="turboTitle">
+  <h2 id="turboTitle" data-i18n="turbo.title">⚡ Turbo-режим</h2>
+  <p data-i18n="turbo.what"></p>
+  <p data-i18n="turbo.get"></p>
+  <p data-i18n="turbo.cost"></p>
+  <p data-i18n="turbo.risk"></p>
+  <p data-i18n="turbo.default"></p>
+  <form method="dialog" class="settings-actions"><button class="btn" id="turboClose" data-i18n="turbo.close">Закрыть</button></form>
+</dialog>
 <script>
 (() => {
   'use strict';
@@ -570,6 +591,15 @@
       'speed.idDigits':'ID сервера должен содержать только цифры.','speed.started':'Тест запущен. Измерение потребляет трафик и может занять несколько минут.','speed.got':'Реальный результат получен · {when}','speed.error':'Ошибка Speedtest: {e}. При тайм-ауте проверьте логи перед повторным запуском.',
       'sh.time':'Время','sh.server':'Backend / сервер',
       'set.title':'Пороги уведомлений','set.note':'Изменение подтверждается последовательными замерами. Короткий сбой между пробами может остаться незамеченным.','set.enabled':'Уведомления включены','set.loss':'Потеря пакетов, %','set.jitter':'Джиттер, ms','set.confirm':'Замеров для тревоги','set.recovery':'Замеров для восстановления','set.save':'Сохранить',
+      'set.turbo':'⚡ Turbo-режим: ловить короткие обрывы','turbo.about':'Что такое Turbo-режим','turbo.chipTitle':'Turbo-режим включён: обрывы от ~10 с',
+      'turbo.title':'⚡ Turbo-режим','turbo.unavailable':'Turbo недоступен: среди SITES и DNS-серверов нет публичного IP-адреса. Добавьте, например, 1.1.1.1 в SITES.','turbo.close':'Закрыть',
+      'turbo.what':'Что делает: каждые 5 секунд отправляет один ping роутеру и двум IP-адресам в интернете (IP-цели из SITES или публичные DNS-серверы) — независимо от обычного цикла проверок.',
+      'turbo.get':'Что даёт: обрывы интернета от ~10 секунд, которые обычные проверки (цикл ~1 мин, нужны два подряд) пропускают. Одно сообщение на обрыв — после восстановления, с длительностью; не более 3 в час. Если обычный мониторинг уже прислал тревогу об этом обрыве, Turbo промолчит.',
+      'turbo.cost':'Цена: около 9 МБ ICMP-трафика в сутки и пара коротких процессов ping каждые 5 секунд.',
+      'turbo.risk':'Риск ложных тревог: некоторые провайдеры ограничивают ICMP. Чтобы отсечь это, обрыв засчитывается, только если ВСЕ интернет-адреса не ответили два раунда подряд.',
+      'turbo.default':'По умолчанию выключен. Настройка сохраняется и переживает перезапуск контейнера.',
+      'loss.outages':'Короткие обрывы (Turbo)','loss.noOutages':'Turbo-обрывов за период нет','out.internet':'Обрыв интернета','out.router':'Роутер не отвечал','out.open':'идёт сейчас',
+      'out.st.sent':'уведомление отправлено','out.st.pending':'ждёт отправки','out.st.covered':'тревога уже была от основного мониторинга','out.st.off':'уведомления выключены','out.st.capped':'лимит 3 в час','out.st.counted':'учтён в следующем сообщении','out.st.stopped':'Turbo выключен во время обрыва','out.st.open':'',
       'set.invalid':'Проверьте значения порогов.','set.saving':'Сохранение…','set.saved':'Сохранено на сервере.','set.notSaved':'Не сохранено: {e}','set.dirty':'Изменения ещё не сохранены.','set.storage':'SQLite: {mb} MiB · {ret}','set.noRetention':'Без автоматического удаления истории','set.retention':'Хранение: {d} дней','set.noStorage':'Хранилище: нет данных API',
       'diag.title':'Диагностика','diag.sub':'Логи и активные настройки NetProbe','diag.logs':'Логи приложения','diag.config':'Конфигурация (без секретов)','diag.logHint':'Для просмотра разверните раздел.','diag.noLines':'В текущем буфере нет строк.','diag.lastRead':'Последнее чтение · {when}','diag.logsUnavailable':'Логи недоступны · {e}','diag.configUnavailable':'Конфигурация API недоступна.',
       'err.apiDown':'API недоступен · {kept}{e}','err.kept':'сохранены последние полученные данные · ','err.timeout':'Время ожидания истекло','err.badResponse':'Некорректный ответ','err.badHistory':'Некорректный ответ истории','err.badLogs':'Некорректный ответ логов'
@@ -614,6 +644,15 @@
       'speed.idDigits':'The server ID must contain digits only.','speed.started':'Test started. It uses bandwidth and may take a few minutes.','speed.got':'Real result received · {when}','speed.error':'Speedtest error: {e}. After a timeout check the logs before running it again.',
       'sh.time':'Time','sh.server':'Backend / server',
       'set.title':'Notification thresholds','set.note':'A change is confirmed by consecutive samples. A short glitch between probes may go unnoticed.','set.enabled':'Notifications enabled','set.loss':'Packet loss, %','set.jitter':'Jitter, ms','set.confirm':'Samples to raise an alert','set.recovery':'Samples to recover','set.save':'Save',
+      'set.turbo':'⚡ Turbo mode: catch short outages','turbo.about':'What is Turbo mode','turbo.chipTitle':'Turbo mode is on: outages from ~10 s',
+      'turbo.title':'⚡ Turbo mode','turbo.unavailable':'Turbo is unavailable: SITES and the DNS servers contain no public IP address. Add, for example, 1.1.1.1 to SITES.','turbo.close':'Close',
+      'turbo.what':'What it does: every 5 seconds it sends one ping to the router and to two internet IP addresses (IP targets from SITES, or public DNS servers), independently of the regular checks.',
+      'turbo.get':'What you get: internet outages of about 10 seconds or longer that the regular checks (a ~1 min cycle, two in a row needed) miss. One message per outage, after recovery, with its duration; at most 3 per hour. If the regular monitor already alerted for that outage, Turbo stays silent.',
+      'turbo.cost':'Cost: about 9 MB of ICMP traffic per day and a couple of short ping processes every 5 seconds.',
+      'turbo.risk':'False-alarm risk: some ISPs rate-limit ICMP. To filter that out, an outage counts only when ALL internet addresses fail two rounds in a row.',
+      'turbo.default':'Off by default. The setting is saved and survives container restarts.',
+      'loss.outages':'Short outages (Turbo)','loss.noOutages':'No Turbo outages in this period','out.internet':'Internet outage','out.router':'Router did not answer','out.open':'ongoing',
+      'out.st.sent':'notification sent','out.st.pending':'waiting to be sent','out.st.covered':'the regular monitor already alerted','out.st.off':'notifications disabled','out.st.capped':'3 per hour limit','out.st.counted':'counted in the next message','out.st.stopped':'Turbo was switched off during the outage','out.st.open':'',
       'set.invalid':'Check the threshold values.','set.saving':'Saving…','set.saved':'Saved on the server.','set.notSaved':'Not saved: {e}','set.dirty':'Changes are not saved yet.','set.storage':'SQLite: {mb} MiB · {ret}','set.noRetention':'History is never deleted automatically','set.retention':'Retention: {d} days','set.noStorage':'Storage: no API data',
       'diag.title':'Diagnostics','diag.sub':'NetProbe logs and active settings','diag.logs':'Application logs','diag.config':'Configuration (no secrets)','diag.logHint':'Expand the section to view.','diag.noLines':'The current buffer has no lines.','diag.lastRead':'Last read · {when}','diag.logsUnavailable':'Logs unavailable · {e}','diag.configUnavailable':'API configuration is unavailable.',
       'err.apiDown':'API unavailable · {kept}{e}','err.kept':'showing the last received data · ','err.timeout':'Request timed out','err.badResponse':'Invalid response','err.badHistory':'Invalid history response','err.badLogs':'Invalid log response'
@@ -891,10 +930,12 @@
   }
   function renderSettings() {
     if (state.settings && !state.settingsInitialized) {
-      for (const [key, v] of Object.entries(state.settings)) { const input = $(key); if (input) { if (key === 'enabled') input.checked = v; else input.value = v; } }
+      for (const [key, v] of Object.entries(state.settings)) { const input = $(key); if (input) { if (typeof v === 'boolean') input.checked = v; else input.value = v; } }
       state.settingsInitialized = true;
     }
     $('settingsFields').disabled = !state.settingsInitialized;
+    $('turboChip').hidden = state.settings?.turbo !== true || state.turboAvailable === false;
+    $('turboUnavailable').hidden = state.turboAvailable !== false;
     statusLabel('settings', 'settingsStatus');
     const bytes = state.storage?.bytes;
     $('storageInfo').textContent = numeric(bytes) ? t('set.storage', {mb: (bytes/1024/1024).toFixed(2), ret: state.storage.retention_days === null ? t('set.noRetention') : t('set.retention', {d: state.storage.retention_days})}) : t('set.noStorage');
@@ -996,7 +1037,7 @@
     if (state.lossTarget && !pingTargets.some(x => x.target === state.lossTarget)) $('lossTarget').insertAdjacentHTML('beforeend', `<option value="${escape(state.lossTarget)}">${escape(state.lossTarget)}</option>`);
     $('lossTarget').value = state.lossTarget;
     statusLabel('loss', 'lossStatus');
-    if (!r) { box.innerHTML = ''; $('lossWindow').textContent = ''; $('lossTargets').innerHTML = `<tr><td colspan="5" class="muted">${escape(state.loaded.has('loss') ? t('loss.noSamples') : t('loss.unavailable'))}</td></tr>`; $('lossEpisodes').innerHTML = ''; return; }
+    if (!r) { box.innerHTML = ''; $('lossWindow').textContent = ''; $('lossTargets').innerHTML = `<tr><td colspan="5" class="muted">${escape(state.loaded.has('loss') ? t('loss.noSamples') : t('loss.unavailable'))}</td></tr>`; $('lossEpisodes').innerHTML = ''; $('lossOutages').innerHTML = ''; return; }
     const s = r.summary;
     $('lossWindow').textContent = `${when(r.window.from)} — ${when(r.window.to)}`;
     const sev = v => v >= 50 ? 'bad' : v > 0 ? 'warn' : 'ok';
@@ -1007,6 +1048,9 @@
     $('lossEpisodes').innerHTML = r.episodes.length ? r.episodes.map((e, i) => `<button type="button" class="ep" data-episode="${i}" title="${escape(t('loss.show'))}"><span class="ep-ico" aria-hidden="true">${e.peak >= 50 ? '🔴' : '🟠'}</span><span class="ep-main">${escape(e.target)} · ${escape(when(e.start))}${e.end > e.start ? ' → ' + escape(hms(e.end)) : ''}</span><span class="ep-sub">${escape(e.end > e.start ? durText(e.duration) + ' · ' : '')}${escape(t('loss.samples', {n: e.samples}))} · ${escape(t('loss.show'))}</span><span class="ep-peak ${e.peak >= 50 ? 'bad' : ''}">${escape(pctText(e.peak))}</span></button>`).join('')
         + (state.lossRowsCapped ? `<div class="loss-empty">${escape(t('loss.rowsCapped'))}</div>` : '') + (state.lossTruncated ? `<div class="loss-empty">${escape(t('loss.truncated', {n: r.episodes.length}))}</div>` : '')
       : `<div class="loss-empty">${escape(s.samples ? '✅ ' + t('loss.none') : t('loss.noSamples'))}</div>`;
+    const outages = r.outages || [];
+    $('lossOutages').innerHTML = outages.length ? outages.map(o => `<div class="ep outage"><span class="ep-ico" aria-hidden="true">${o.kind === 'router' ? '🔴' : '🟠'}</span><span class="ep-main">${escape(t(o.kind === 'router' ? 'out.router' : 'out.internet'))} · ${escape(when(o.start_ts))}${o.end_ts ? ' → ' + escape(hms(o.end_ts)) : ''}</span><span class="ep-sub">${escape([o.end_ts ? '' : t('out.open'), t('out.st.' + o.status)].filter(Boolean).join(' · '))}</span><span class="ep-peak ${o.kind === 'router' ? 'bad' : ''}">${escape(o.duration === null ? '…' : durText(o.duration))}</span></div>`).join('')
+      : `<div class="loss-empty">${escape(t('loss.noOutages'))}</div>`;
   }
   function zoomEpisode(index) {
     const e = state.loss?.episodes?.[index]; if (!e) return;
@@ -1040,7 +1084,7 @@
       ['events', '/api/events?' + query, r => { if (!Array.isArray(r.data)) throw bad(); state.events = r.data; }],
       ['loss', '/api/loss?' + query + (state.lossTarget ? '&target=' + encodeURIComponent(state.lossTarget) : ''), r => { if (!r.data || !Array.isArray(r.data.targets) || !Array.isArray(r.data.episodes)) throw bad(); state.loss = r.data; state.lossTruncated = Boolean(r.truncated); state.lossRowsCapped = r.data.rows_capped === true; }],
       ...(state.win ? [['live', '/api/targets/recent?range=300', r => { if (!Array.isArray(r.data)) throw bad(); state.liveTargets = r.data; }]] : []),
-      ['settings', '/api/settings', r => { if (!r.settings) throw bad(); state.settings = r.settings; state.storage = r.storage; state.startedAt = r.started_at ?? state.startedAt; }],
+      ['settings', '/api/settings', r => { if (!r.settings) throw bad(); state.settings = r.settings; state.storage = r.storage; state.turboAvailable = r.turbo_available; state.startedAt = r.started_at ?? state.startedAt; }],
       ['speed', '/api/speedtest/latest', r => { if (!Object.prototype.hasOwnProperty.call(r, 'result')) throw bad(); state.speed = r.result; }],
       ['speedHistory', '/api/speedtest/history?limit=10', r => { if (!Array.isArray(r.tests)) throw bad(); state.speedHistory = r.tests; }]
     ];
@@ -1055,7 +1099,7 @@
   }
   async function saveSettings(event) {
     event.preventDefault();
-    const settings = {enabled: $('enabled').checked};
+    const settings = {enabled: $('enabled').checked, turbo: $('turbo').checked};
     for (const key of ['loss_pct','latency_ms','jitter_ms','dns_ms','confirm_samples','recovery_samples']) {
       const raw = $(key).value.trim(), n = Number(raw);
       if (!raw || !Number.isFinite(n) || n <= 0 || (key.endsWith('_ms') && n > 60000) || (key === 'loss_pct' && n > 100) || (key.endsWith('_samples') && (!Number.isInteger(n) || n < 1 || n > 20))) { say('settingsMessage', 'set.invalid'); return; }
@@ -1064,7 +1108,7 @@
     $('settingsFields').disabled = true; say('settingsMessage', 'set.saving');
     try {
       const result = await api('/api/settings', {method:'POST', headers:{'Content-Type':'application/json', 'X-NetProbe-Request':'settings'}, body:JSON.stringify(settings)});
-      state.settings = result.settings; state.storage = result.storage; state.settingsInitialized = false; state.settingsDirty = false; delete state.errors.settings;
+      state.settings = result.settings; state.storage = result.storage; state.turboAvailable = result.turbo_available; state.settingsInitialized = false; state.settingsDirty = false; delete state.errors.settings;
       renderSettings(); say('settingsMessage', 'set.saved');
     } catch (e) { say('settingsMessage', 'set.notSaved', {e: errorText(e)}); }
     finally { $('settingsFields').disabled = false; }
@@ -1134,6 +1178,8 @@
   $('refreshBtn').addEventListener('click', refresh); $('speedBtn').addEventListener('click', runSpeed); $('speedBackend').addEventListener('change', updateSpeedControls); $('forceAuto').addEventListener('change', updateSpeedControls);
   $('settingsForm').addEventListener('submit', saveSettings); $('settingsForm').addEventListener('input', () => { state.settingsDirty = true; say('settingsMessage', 'set.dirty'); });
   $('detailsLog').addEventListener('toggle', loadLogs);
+  $('turboInfo').addEventListener('click', () => $('turboDialog').showModal());
+  $('turboDialog').addEventListener('close', () => $('turboInfo').focus());
   $('langSelect').addEventListener('change', () => { lang = $('langSelect').value === 'en' ? 'en' : 'ru'; store('netprobe.lang', lang); applyStatic(); draw(); });
   $('styleSelect').addEventListener('change', () => { styleName = $('styleSelect').value === 'unifi' ? 'unifi' : 'netprobe'; store('netprobe.style', styleName); document.documentElement.dataset.style = styleName; applyStatic(); renderChart(); renderUnifi(); });
   new ResizeObserver(() => renderChart()).observe($('primaryChart'));

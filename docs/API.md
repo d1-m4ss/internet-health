@@ -20,10 +20,10 @@ Every history endpoint accepts either
 | `GET /api/targets/history?target=HOST[&address=IP]` | time-bucketed samples of one target (≤ 600 buckets): `ts`, `latency`, `jitter`, `loss`, `max_loss`, `address` |
 | `GET /api/history` | native aggregate rows (bucketed ≤ 600) with `max_loss_pct` and `dns_per_server` |
 | `GET /api/events` | latest 200 confirmed state changes: `ts`, `target`, `previous`, `state`, `reasons[]`, `metrics` |
-| `GET /api/loss[&target=HOST]` | packet-loss report: `data.summary` (`samples`, `lossy`, `avg_loss`, `max_loss`, `episodes`), `data.targets[]`, `data.episodes[]` (`target`, `start`, `end`, `duration`, `peak`, `avg`, `samples`; newest first, ≤ 100) and `truncated` |
+| `GET /api/loss[&target=HOST]` | packet-loss report: `data.summary` (`samples`, `lossy`, `avg_loss`, `max_loss`, `episodes`), `data.targets[]`, `data.episodes[]` (`target`, `start`, `end`, `duration`, `peak`, `avg`, `samples`; newest first, ≤ 100), `data.outages[]` (Turbo-mode outages overlapping the window: `id`, `start_ts`, `end_ts` (`null` while ongoing), `duration`, `kind` `internet`/`router`, `status` `open`/`pending`/`sent`/`covered`/`off`/`capped`/`counted`/`stopped`; newest first, ≤ 100) and `truncated` |
 | `GET /api/export/targets.csv` | raw target samples as CSV (formula-injection safe, capped at 50 000 rows, `X-Export-Truncated` header) |
 | `GET /api/settings` | `{settings, storage, started_at}` |
-| `POST /api/settings` | partial update of `enabled`, `loss_pct`, `latency_ms`, `jitter_ms`, `dns_ms`, `confirm_samples`, `recovery_samples`; strict validation (unknown / null / blank / non-finite → `400`); same-origin browser requests with header `X-NetProbe-Request: settings` only |
+| `POST /api/settings` | partial update of `enabled`, `turbo` (booleans; the response also carries `turbo_available` — whether the watcher runs), `loss_pct`, `latency_ms`, `jitter_ms`, `dns_ms`, `confirm_samples`, `recovery_samples`; strict validation (unknown / null / blank / non-finite → `400`); same-origin browser requests with header `X-NetProbe-Request: settings` only |
 | `GET /api/config` | upstream config plus `router_name` |
 
 An *episode* is a run of samples with loss > 0 that is not interrupted by a clean sample or by a gap longer than

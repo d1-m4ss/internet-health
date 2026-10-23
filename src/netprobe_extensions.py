@@ -1,4 +1,5 @@
 """Additive storage and state-change alerts for the installed NetProbe app."""
+from concurrent.futures import ThreadPoolExecutor
 import csv
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -13,6 +14,7 @@ import re
 from pathlib import Path
 import secrets
 import sqlite3
+import subprocess
 import tempfile
 import threading
 import time
@@ -20,7 +22,8 @@ from urllib.parse import urlsplit
 
 
 DEFAULTS = dict(enabled=True, loss_pct=10.0, latency_ms=150.0,
-                jitter_ms=80.0, dns_ms=250.0, confirm_samples=2, recovery_samples=2)
+                jitter_ms=80.0, dns_ms=250.0, confirm_samples=2, recovery_samples=2, turbo=False)
+SWITCHES = ("enabled", "turbo")  # booleans; toggling them never restarts confirmation streaks
 MAX_RANGE = 31 * 86400
 # Flood control: a target that changes confirmed state more than FLAP_MAX times in
 # FLAP_WINDOW seconds is muted (events are still recorded) until it stays unchanged
@@ -34,11 +37,45 @@ MAX_MESSAGE = 3500
 LOSS_GAP = 180        # seconds between lossy samples that still belong to one episode
 LOSS_EPISODES = 100   # episodes returned per request (the summary still counts all of them)
 LOSS_ROWS = 400000    # raw rows scanned per request
+# Turbo mode: one echo every TURBO_INTERVAL s to the router and up to TURBO_HOSTS internet IPs, independent of
+# the regular probe loop. An outage needs TURBO_CONFIRM failed rounds and ends after TURBO_RECOVER good ones;
+# it is reported once, after recovery, unless the regular monitor already alerted for it.
+TURBO_INTERVAL = 5
+TURBO_CONFIRM = 2
+TURBO_RECOVER = 2
+TURBO_HOSTS = 2
+TURBO_MAX_PER_HOUR = 3
+TURBO_WAIT_MAX = 300  # longest wait for the regular cycle that was running at recovery
+TURBO_LOOKBACK = 120  # a regular alert stamped up to this long before the outage start still covers it
+TURBO_EXPIRE = 3600   # a recovered outage not decided within an hour (turbo off, no watcher) is never sent
+TURBO_OUTAGES = 100   # outages returned by /api/loss
+TURBO_ICON = "⚡"
 logger = logging.getLogger(__name__)
 CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f\\]+")  # also drops backslashes: Unraid agents expand \\n escapes
 NEWLINE = "\\n"  # Unraid email/Telegram agents split the message on the two characters backslash + n
 STATE_ICON = {"DOWN": "🔴", "DEGRADED": "🟠", "OK": "🟢"}
 STATE_TEXT = {"DOWN": "not responding", "DEGRADED": "working with interruptions", "OK": "working"}
+
+
+def turbo_targets(router_ip, sites, dns_servers):
+    """(router or None, internet IPs): IP-literal SITES first, else public DNS servers; never private addresses."""
+    def public(value):
+        try:
+            return ipaddress.ip_address(value).is_global
+        except ValueError:
+            return False
+    router = (router_ip or "").strip() or None
+    internet = [s for s in sites if public(s) and s != router] or [s for s in dns_servers if public(s) and s != router]
+    return router, list(dict.fromkeys(internet))[:TURBO_HOSTS]
+
+
+def system_ping(address):
+    """True when one ICMP echo is answered within a second (-q: no reverse DNS lookups)."""
+    try:
+        return subprocess.run(["ping", "-q", "-c", "1", "-W", "1", address], stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL, timeout=3, check=False).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
 
 
 def ping_address(host, output):
@@ -64,6 +101,10 @@ class Extension:
         if not self.settings_path.exists():
             self._write_settings(DEFAULTS)
         self.token = self._load_token(self.data_dir / "notify-token")
+        self.turbo_router, self.turbo_hosts = None, []
+        self.turbo = dict(fails=0, oks=0, first_fail=None, first_ok=None, kind=None, open_id=None)
+        self.last_record_at = None  # wall time the regular loop last recorded a cycle
+        self.turbo_available = False  # True once the watcher thread runs
         with self.db() as conn:
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS np_targets (
@@ -92,7 +133,17 @@ class Extension:
                 CREATE TABLE IF NOT EXISTS np_flap (
                     target TEXT PRIMARY KEY, muted INTEGER NOT NULL,
                     last_change_ts INTEGER NOT NULL, cleared_ts INTEGER NOT NULL DEFAULT 0);
+
+                -- status: open -> pending (waiting for the regular cycle) -> sent | covered (the regular monitor
+                -- alerted) | off (alerts disabled) | capped (flood limit; later "counted" in the next message);
+                -- stopped: turbo was switched off or the process restarted while the outage was open.
+                CREATE TABLE IF NOT EXISTS np_outages (
+                    id INTEGER PRIMARY KEY, start_ts INTEGER NOT NULL, end_ts INTEGER,
+                    last_ts INTEGER NOT NULL, kind TEXT NOT NULL, status TEXT NOT NULL, sent_ts INTEGER);
+                CREATE INDEX IF NOT EXISTS np_outages_start ON np_outages(start_ts);
             """)
+            conn.execute("UPDATE np_outages SET status='stopped',end_ts=last_ts WHERE status='open'")
+            self.turbo_pending = bool(conn.execute("SELECT 1 FROM np_outages WHERE status='pending'").fetchone())
 
     @staticmethod
     def _load_token(path):
@@ -158,9 +209,9 @@ class Extension:
         if not isinstance(values, dict) or set(values) - set(DEFAULTS):
             raise ValueError("Unknown or invalid settings")
         for key, value in values.items():
-            if key == "enabled":
+            if key in SWITCHES:
                 if type(value) is not bool:
-                    raise ValueError("enabled must be a boolean")
+                    raise ValueError(key + " must be a boolean")
             elif key in ("confirm_samples", "recovery_samples"):
                 if type(value) is not int or not 1 <= value <= 20:
                     raise ValueError(key + " must be an integer from 1 to 20")
@@ -189,8 +240,8 @@ class Extension:
             values = dict(old, **patch)
             self._write_settings(values)
             # Only a changed threshold/count invalidates in-flight confirmation streaks.
-            # Toggling "enabled" must neither reset them nor discard queued notifications.
-            if any(values[k] != old[k] for k in DEFAULTS if k != "enabled"):
+            # Toggling "enabled" or "turbo" must neither reset them nor discard queued notifications.
+            if any(values[k] != old[k] for k in DEFAULTS if k not in SWITCHES):
                 with self.db() as conn:
                     conn.execute("UPDATE np_state SET candidate=active, streak=0")
         return values
@@ -279,9 +330,185 @@ class Extension:
             if changes and cfg["enabled"]:
                 states = {r["target"]: (r["active"], json.loads(r["reasons"])) for r in
                           conn.execute("SELECT target,active,reasons FROM np_state WHERE last_ts=?", (ts,))}
-                level, subject, description, message = self.compose(changes, states, ts)
-                conn.execute("INSERT OR IGNORE INTO np_notifications(ts,level,subject,message,description) VALUES (?,?,?,?,?)",
-                             (ts, level, subject, message, description))
+                self.queue(conn, ts, *self.compose(changes, states, ts))
+            self.last_record_at = self.clock()
+
+    @staticmethod
+    def queue(conn, ts, level, subject, description, message):
+        """Insert a notification; np_notifications.ts is unique, so a taken second moves to the next free one."""
+        for offset in range(10):
+            if conn.execute("INSERT OR IGNORE INTO np_notifications(ts,level,subject,message,description) VALUES (?,?,?,?,?)",
+                            (ts + offset, level, subject, message, description)).rowcount:
+                return ts + offset
+        logger.error("Notification dropped: seconds %d..%d are all taken", ts, ts + 9)
+        return None
+
+    # ---- turbo mode ----------------------------------------------------------------
+    def turbo_configure(self, router_ip, internet):
+        self.turbo_router, self.turbo_hosts = router_ip or None, list(internet)
+
+    def start_turbo(self, router_ip, sites, dns_servers):
+        """Start the turbo watcher thread. It sends no pings while the setting is off."""
+        self.turbo_configure(*turbo_targets(router_ip, sites, dns_servers))
+        if not self.turbo_hosts:
+            logger.warning("Turbo mode unavailable: no public IP among SITES or the DNS servers")
+            return None
+        thread = threading.Thread(target=self.turbo_run, args=(system_ping, time.sleep), name="netprobe-turbo", daemon=True)
+        thread.start()
+        self.turbo_available = True
+        return thread
+
+    def turbo_run(self, pinger, sleep, rounds=None):
+        done = 0
+        while rounds is None or done < rounds:
+            try:
+                self.turbo_tick(pinger)
+            except Exception:
+                logger.exception("Turbo round failed")
+            done += 1
+            sleep(TURBO_INTERVAL)
+
+    def turbo_tick(self, pinger):
+        """One round: re-read the setting, ping everything in parallel, advance the outage state machine."""
+        now = int(self.clock())
+        if not self.effective_settings()["turbo"]:
+            if self.turbo["open_id"] is not None or self.turbo["fails"] or self.turbo_pending:
+                self.turbo_stop(now)  # also decides outages that recovered just before turbo was switched off
+            return
+        if not self.turbo_hosts:
+            return
+        addresses = ([self.turbo_router] if self.turbo_router else []) + self.turbo_hosts
+        def safe(address):
+            try:
+                return bool(pinger(address))
+            except Exception:
+                return False
+        with ThreadPoolExecutor(max_workers=len(addresses)) as pool:
+            answers = dict(zip(addresses, pool.map(safe, addresses)))
+        self.turbo_step(now, answers.get(self.turbo_router) if self.turbo_router else None,
+                        [answers[a] for a in self.turbo_hosts])
+
+    def turbo_stop(self, now):
+        with self.lock, self.db() as conn:
+            if self.turbo["open_id"] is not None:
+                conn.execute("UPDATE np_outages SET status='stopped',end_ts=? WHERE id=?", (now, self.turbo["open_id"]))
+            self.turbo.update(fails=0, oks=0, first_fail=None, first_ok=None, kind=None, open_id=None)
+            self.turbo_flush(conn, now)
+
+    def turbo_step(self, now, router_ok, internet):
+        """Advance the outage state machine with one round. internet: one bool per internet IP."""
+        if not internet:
+            return
+        st = self.turbo
+        with self.lock, self.db() as conn:
+            if any(internet):
+                st.update(fails=0, first_fail=None)
+                if st["open_id"] is None:
+                    st["kind"] = None  # a lone failed round must not colour a later outage
+                else:
+                    st["oks"] += 1
+                    st["first_ok"] = st["first_ok"] or now
+                    if st["oks"] >= TURBO_RECOVER:
+                        conn.execute("UPDATE np_outages SET status='pending',end_ts=? WHERE id=?", (st["first_ok"], st["open_id"]))
+                        self.turbo_pending = True
+                        st.update(oks=0, first_ok=None, kind=None, open_id=None)
+            else:
+                kind = "router" if router_ok is False else "internet"
+                st.update(oks=0, first_ok=None)
+                if st["open_id"] is not None:
+                    st["kind"] = "router" if "router" in (st["kind"], kind) else kind  # report the worst seen
+                    conn.execute("UPDATE np_outages SET last_ts=?,kind=? WHERE id=?", (now, st["kind"], st["open_id"]))
+                else:
+                    st["fails"] += 1
+                    st["first_fail"] = st["first_fail"] or now
+                    st["kind"] = "router" if "router" in (st["kind"], kind) else kind
+                    if st["fails"] >= TURBO_CONFIRM:
+                        st["open_id"] = conn.execute("INSERT INTO np_outages(start_ts,last_ts,kind,status) VALUES (?,?,?,'open')",
+                                                     (st["first_fail"], now, st["kind"])).lastrowid
+                        st.update(fails=0, first_fail=None)
+            self.turbo_flush(conn, now)
+
+    def turbo_flush(self, conn, now):
+        """Decide closed outages once the regular cycle that was running at recovery has been recorded."""
+        rows = conn.execute("SELECT * FROM np_outages WHERE status='pending' ORDER BY id").fetchall()
+        self.turbo_pending = False
+        for row in rows:
+            waited = now - row["end_ts"] >= TURBO_WAIT_MAX
+            if not waited and (self.last_record_at is None or self.last_record_at <= row["end_ts"]):
+                self.turbo_pending = True
+                continue
+            cfg = self.effective_settings()
+            if now - row["end_ts"] > TURBO_EXPIRE:
+                status = "stopped"
+            elif not cfg["enabled"]:
+                status = "off"
+            elif self.turbo_covered(conn, row):
+                status = "covered"
+            elif conn.execute("SELECT COUNT(*) FROM np_outages WHERE status='sent' AND sent_ts>?",
+                              (now - 3600,)).fetchone()[0] >= TURBO_MAX_PER_HOUR:
+                status = "capped"
+            else:
+                status = "sent"
+                capped = conn.execute("SELECT COUNT(*),MIN(start_ts) FROM np_outages WHERE status='capped'").fetchone()
+                self.queue(conn, now, *self.compose_outage(row, capped[0], capped[1], now))
+                conn.execute("UPDATE np_outages SET status='counted' WHERE status='capped'")
+            conn.execute("UPDATE np_outages SET status=?,sent_ts=? WHERE id=?", (status, now if status == "sent" else None, row["id"]))
+
+    def turbo_covered(self, conn, row):
+        """True when the regular monitor alerted for this outage, or already considered one of the turbo addresses
+        DOWN when it began (an alert sent before a restart or before turbo was switched on is never repeated)."""
+        if conn.execute("""SELECT 1 FROM np_notifications WHERE level IN ('alert','warning') AND subject NOT LIKE ?
+                AND ts>=? AND ts<=?""", (TURBO_ICON + "%", row["start_ts"] - TURBO_LOOKBACK, row["end_ts"])).fetchone():
+            return True
+        for target in [t for h in self.turbo_hosts for t in (h, "dns:" + h)]:
+            last = conn.execute("SELECT state FROM np_events WHERE target=? AND ts<=? ORDER BY ts DESC,id DESC LIMIT 1",
+                                (target, row["start_ts"])).fetchone()
+            if last and last["state"] == "DOWN":
+                return True
+        return False
+
+    @staticmethod
+    def short_duration_text(seconds):
+        seconds = int(seconds)
+        if seconds < 60:
+            return "%d s" % seconds
+        if seconds < 3600:
+            return "%d min %d s" % divmod(seconds, 60) if seconds % 60 else "%d min" % (seconds // 60)
+        return Extension.duration_text(seconds)
+
+    def compose_outage(self, row, more, more_since, ts):
+        """-> (level, subject, description, message) for one short outage caught by turbo mode."""
+        duration = self.short_duration_text(row["end_ts"] - row["start_ts"])
+        clock = lambda t: time.strftime("%H:%M:%S", time.localtime(t))
+        hosts = CONTROL_CHARS.sub(" ", ", ".join(self.turbo_hosts))
+        if row["kind"] == "router":
+            title = "Short router outage: " + duration
+            failed = "the router (%s) and the internet hosts (%s) did not answer" % (
+                CONTROL_CHARS.sub(" ", self.label(self.turbo_router or "")), hosts)
+        else:
+            title = "Short internet outage: " + duration
+            failed = ("the router answered, but no internet host did (%s)" if self.turbo_router
+                      else "no internet host answered (%s)") % hosts
+        hint = "Too short for the regular checks; caught by Turbo mode."
+        lines = ["%s %s" % (TURBO_ICON, title), "",
+                 "• From %s to %s (%s)" % (clock(row["start_ts"]), clock(row["end_ts"]), duration),
+                 "• What failed: " + failed, "", hint]
+        if more:
+            lines.append("+%d more short outage%s since %s (Turbo sends at most %d messages per hour)." % (
+                more, "s" if more > 1 else "", time.strftime("%H:%M" if ts - more_since < 12 * 3600 else "%H:%M, %d.%m",
+                                                             time.localtime(more_since)), TURBO_MAX_PER_HOUR))
+        lines += ["", "Time: " + time.strftime("%H:%M, %d.%m.%Y %Z", time.localtime(ts))]
+        message = NEWLINE.join(lines)[:MAX_MESSAGE]
+        return "warning", ("%s NetProbe: %s" % (TURBO_ICON, title))[:120], (title + ". " + hint)[:240], message
+
+    def outages(self, start, upper):
+        with self.db() as conn:
+            rows = [dict(r) for r in conn.execute("""SELECT id,start_ts,end_ts,kind,status FROM np_outages
+                WHERE start_ts<=? AND COALESCE(end_ts,last_ts)>=? ORDER BY start_ts DESC,id DESC LIMIT ?""",
+                (upper, start, TURBO_OUTAGES))]
+        for row in rows:
+            row["duration"] = row["end_ts"] - row["start_ts"] if row["end_ts"] is not None else None
+        return rows
 
     def route_event(self, conn, event, changes):
         """Decide whether a confirmed state change becomes a user message (flood control)."""
@@ -578,7 +805,8 @@ class Extension:
         # `truncated`: the episode list was cut at LOSS_EPISODES. `rows_capped`: scanning stopped at LOSS_ROWS rows, so
         # later targets (alphabetically) are missing or partial -- the whole report is incomplete, not just the list.
         return dict(window=dict(**{"from": end_ts - seconds, "to": end_ts}), summary=summary, targets=targets,
-                    episodes=episodes[:LOSS_EPISODES], rows_capped=rows_capped), len(episodes) > LOSS_EPISODES
+                    episodes=episodes[:LOSS_EPISODES], rows_capped=rows_capped,
+                    outages=self.outages(start, upper)), len(episodes) > LOSS_EPISODES
 
     def events(self, seconds, end=None):
         start, upper = self.window_bounds(seconds, end)
@@ -673,7 +901,8 @@ def install_routes(app, ext):
         except (ValueError, OSError):
             return jsonify(error="Persistent settings cannot be read"), 503
         size = sum(p.stat().st_size for p in [Path(ext.db_path), Path(ext.db_path + "-wal")] if p.exists())
-        return jsonify(settings=values, storage=dict(bytes=size, retention_days=None), started_at=ext.started_at())
+        return jsonify(settings=values, storage=dict(bytes=size, retention_days=None), started_at=ext.started_at(),
+                       turbo_available=ext.turbo_available)
 
     @app.get("/api/export/targets.csv")
     def np_csv():

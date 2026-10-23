@@ -4,7 +4,7 @@
 +# Derived from NetProbe_Python (https://github.com/bmartino1/NetProbe_Python), MIT License,
 +# Copyright (c) 2025-2026 Brandon Martino -- see THIRD_PARTY_NOTICES.md.
 +# Modified: optional netprobe_extensions integration (per-target history, alerts, loss report), ROUTER_NAME,
-+# DNS reply tracking for alerting. Every change is listed in app.py.patch.
++# DNS reply tracking for alerting, Turbo mode watcher. Every change is listed in app.py.patch.
  import json
  import logging
  import os
@@ -47,7 +47,7 @@
          logger.error(
              "ping to %s failed: %s; stdout=%r stderr=%r",
              host,
-@@ -869,7 +886,40 @@
+@@ -869,9 +886,42 @@
              "latency": THRESHOLD_LATENCY * 2,
              "jitter": THRESHOLD_JITTER * 2,
              "loss": 100.0,
@@ -55,8 +55,8 @@
 +            "measured": False,
 +            "sample_ts": int(time.time()),
          }
-+
-+
+ 
+ 
 +KNOWN_SITE_NAMES = {"google.com": "Google", "cloudflare.com": "Cloudflare", "fast.com": "Netflix Fast.com",
 +                    "youtube.com": "YouTube", "netflix.com": "Netflix", "github.com": "GitHub",
 +                    "1.1.1.1": "Cloudflare IP", "1.0.0.1": "Cloudflare IP", "8.8.8.8": "Google IP",
@@ -85,9 +85,11 @@
 +# current probe cycle. The native latency/score values are unchanged; this only feeds alerting,
 +# because a refused/timed-out query still yields an "elapsed time".
 +_dns_answers = {}
- 
- 
++
++
  def measure_dns_latency(domain, server, count):
+     resolver = dns.resolver.Resolver(configure=False)
+     resolver.nameservers = [server]
 @@ -881,6 +931,9 @@
          start = time.perf_counter()
          try:
@@ -136,7 +138,7 @@
          sites=SITES,
          dns_test_site=DNS_TEST_SITE,
          dns_test_sites=DNS_TEST_SITES,
-@@ -1766,6 +1829,15 @@
+@@ -1766,6 +1829,16 @@
  # Start probe loop when imported (for gunicorn worker start).
  ensure_db()
  ensure_speedtests_schema()
@@ -145,6 +147,7 @@
 +        raise ImportError("netprobe_extensions is not available")
 +    custom_extension = Extension(DB_PATH, os.path.dirname(DB_PATH))
 +    install_routes(app, custom_extension)
++    custom_extension.start_turbo(ROUTER_IP, SITES, DNS_SERVERS)  # idle (no pings) until enabled in the UI
 +except Exception:
 +    # The extension is additive: if it cannot start, native monitoring and UI keep running.
 +    logger.exception("Persistent target history / alerts disabled: extension failed to start")

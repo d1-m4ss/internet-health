@@ -1,7 +1,7 @@
 # Derived from NetProbe_Python (https://github.com/bmartino1/NetProbe_Python), MIT License,
 # Copyright (c) 2025-2026 Brandon Martino -- see THIRD_PARTY_NOTICES.md.
 # Modified: optional netprobe_extensions integration (per-target history, alerts, loss report), ROUTER_NAME,
-# DNS reply tracking for alerting. Every change is listed in app.py.patch.
+# DNS reply tracking for alerting, Turbo mode watcher. Every change is listed in app.py.patch.
 import json
 import logging
 import os
@@ -1834,6 +1834,7 @@ try:
         raise ImportError("netprobe_extensions is not available")
     custom_extension = Extension(DB_PATH, os.path.dirname(DB_PATH))
     install_routes(app, custom_extension)
+    custom_extension.start_turbo(ROUTER_IP, SITES, DNS_SERVERS)  # idle (no pings) until enabled in the UI
 except Exception:
     # The extension is additive: if it cannot start, native monitoring and UI keep running.
     logger.exception("Persistent target history / alerts disabled: extension failed to start")

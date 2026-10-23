@@ -29,6 +29,9 @@ bind-mounted read-only over it. Removing the mounts brings the stock NetProbe ba
 - **No notification floods.** A change needs 2 consecutive bad samples; a steady outage sends one message, not
   one per probe; a target that keeps flapping is muted and summarised. 3 hours of flapping produce 5–6 messages
   instead of hundreds (see the simulator below).
+- **Turbo mode (opt-in) for short outages.** A light watcher pings the router and two internet IPs every 5 s and
+  reports outages from about 10 s that the regular checks miss: one message after recovery with the duration, at
+  most 3 per hour, and silence when the regular monitor already alerted. Off by default; ⓘ in the settings explains it.
 - **Packet-loss report for any period** — summary, per-target table and a list of loss episodes; click an
   episode to zoom the chart onto it. Periods from 1 minute to a month, or a custom *from–to* window.
 - **Compare mode** — several metrics and several targets (for example all DNS servers) on one chart, with a
@@ -133,7 +136,11 @@ To look at the dashboard without Unraid or a real network, run `python tests/dem
   checks, then a 30 s pause) and about 100 s during an outage, because every dead target waits for its timeout.
   A change must be seen in **two consecutive cycles**, so an outage shorter than about 1.5 minutes is never reported
   and one of about 2.5 minutes (plus up to a minute for the cron bridge) always is. Setting `confirm_samples` to 1
-  in the thresholds lowers that to about 40 s at the price of alerts for single blips.
+  in the thresholds lowers that to about 40 s at the price of alerts for single blips. **Turbo mode** (off by
+  default) catches outages from about 10 s instead; it costs about 9 MB of ICMP per day, and an ISP that rate-limits
+  ICMP to *all* internet targets at once can cause a false report (one lost echo or one silent host is never enough).
+  Its message waits for the regular cycle that was running at recovery (up to about 1.5 min) so the same outage is
+  never reported twice.
 - If the internet and the LAN are both completely down, Unraid cannot deliver email/Telegram. An external watcher
   is needed for a full-site outage.
 - Real delivery through the Unraid agents is exercised only by your first real event; automated tests use a fake `notify`.

@@ -122,11 +122,16 @@ bad probe cycles in a row; a cycle takes about 50 s (about 100 s while the inter
 shorter than about 1.5 minutes is never reported and one of about 2.5 minutes always is — by design, short ones are treated as blips (see [NOTIFICATIONS.md](NOTIFICATIONS.md)). You should receive one
 "No internet" message, and one "back to normal" message with the outage duration when the cable is back.
 
+To test **Turbo mode**, enable *⚡ Turbo mode* in the thresholds, save, and unplug the cable for 30–60 s. About
+10 s after the cable is back (plus up to ~1.5 min for the regular cycle that was running, and up to a minute for the
+cron bridge) you get one "⚡ Short internet outage" message with the duration; the outage also appears under
+*Short outages (Turbo)* in the loss report.
+
 ## 7. Tuning later (all in the data folder)
 
 | Want to… | Do this |
 |---|---|
-| change alert thresholds (loss %, RTT, jitter, DNS, number of samples to alert/recover, alerts on/off) | UI → *Notification thresholds → Configure*, or edit `$D/alert-settings.json` (the bridge reads the same file); no restart needed |
+| change alert thresholds (loss %, RTT, jitter, DNS, number of samples to alert/recover, alerts on/off, Turbo mode) | UI → *Notification thresholds → Configure*, or edit `$D/alert-settings.json` (the bridge reads the same file); no restart needed |
 | change targets, router name, DNS servers, probe interval | edit the `environment:` block and run `docker compose up -d` again |
 | update the extension files | copy new files into `$D/custom/` and `docker restart NetProbe` (templates are cached, so a restart is required) |
 | see/clear history | everything is in `$D/netprobe.sqlite` (extension tables are prefixed `np_`) |
