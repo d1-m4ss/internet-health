@@ -1,0 +1,23 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+node_modules/
+.DS_Store
+.env
+# runtime data and secrets must never be committed
+*.sqlite
+*.sqlite-journal
+*.tar.gz
+notify-token
+alert-settings.json
+notify-bridge-state.json
+*.sqlite-wal
+*.sqlite-shm
+*.db
+ookla-eula-accepted.txt
+container-inspect.json
+my-NetProbe.xml
+backups/
+.notify-token-*
+.alert-settings-*

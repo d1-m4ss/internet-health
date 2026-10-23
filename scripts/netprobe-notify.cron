@@ -1,0 +1,3 @@
+# Save as /boot/config/plugins/dynamix/netprobe-notify.cron on the Unraid host, then run: update_cron
+# (Unraid concatenates every *.cron file from that directory into the system crontab; it survives reboots.)
+* * * * * /usr/bin/bash /boot/config/custom/netprobe-unraid-notify.sh 2>&1 | /usr/bin/logger -t netprobe-notify

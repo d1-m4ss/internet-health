@@ -1,0 +1,12 @@
+{
+  "name": "netprobe-enhanced",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Browser tests for the NetProbe Enhanced UI",
+  "scripts": {
+    "test:ui": "node tests/test_ui.cjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.50.0"
+  }
+}

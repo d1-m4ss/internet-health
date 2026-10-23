@@ -1,0 +1,1145 @@
+<!doctype html>
+<html lang="ru" data-style="netprobe">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark" id="colorSchemeMeta">
+  <title>NetProbe Enhanced · Network Health</title>
+  <script>
+    /* Apply the saved language and style before the first paint (no flash). Storage may be unavailable. */
+    (function () {
+      var lang = null, style = null;
+      try { lang = localStorage.getItem('netprobe.lang'); style = localStorage.getItem('netprobe.style'); } catch (e) {}
+      if (lang !== 'ru' && lang !== 'en') lang = /^(ru|uk|be|kk)/i.test(navigator.language || '') ? 'ru' : 'en';
+      if (style !== 'netprobe' && style !== 'unifi') style = 'netprobe';
+      var root = document.documentElement;
+      root.lang = lang; root.dataset.style = style;
+      document.getElementById('colorSchemeMeta').content = style === 'unifi' ? 'light dark' : 'dark';
+    })();
+  </script>
+  <style>
+    /* ===== Style "netprobe" (default, dark) — design tokens ===== */
+    :root {
+      --page:#0c1118;--side:#101720;--panel:#151e28;--line:#283440;--line2:#26323d;
+      --text:#eaf2f7;--text2:#aab9c6;--mute:#8799aa;--accent:#4edbc0;--accent-ink:#e7f7f2;
+      --nav-hover:#1c2b35;--btn-bg:#233340;--btn-line:#38505a;--btn-hover:#2a4151;--btn-ink:#e1ecf2;
+      --primary-bg:#277d74;--primary-line:#339a8e;--primary-hover:#319b8c;--primary-ink:#fff;
+      --input-bg:#101923;--input-line:#3b4c57;--tabs-bg:#101923;--tab-active:#31434e;--tab-ink:#8fa3b2;--tab-active-ink:#f0faf9;
+      --ok:#4edbc0;--warn:#f0bf78;--bad:#ef8b91;--unk:#8799aa;
+      --ok-bg:#1b3a37;--warn-bg:#3a3222;--bad-bg:#3b2429;--unk-bg:#22313a;
+      --ok-line:#2f6b62;--warn-line:#66573c;--bad-line:#74434b;--unk-line:#334851;
+      --chart-line:#4edbc0;--chart-fill-opacity:0;--chart-peak:#f0bf78;--chart-grid:#2a3944;--chart-text:#8799aa;
+      --log-bg:#0d141b;--status-bg:linear-gradient(110deg,#1b2932,#18232c 60%);--sel-row:#1d343a;
+      --rad:15px;--rad-sm:9px;--pad:21px 22px;--shadow:none;
+    }
+    * { box-sizing:border-box }
+    body { margin:0;background:var(--page);color:var(--text);font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;letter-spacing:.01em }
+    button,input,select { font:inherit }
+    button { cursor:pointer }
+    .layout { display:grid;grid-template-columns:230px minmax(0,1fr);min-height:100vh }
+    aside { position:sticky;top:0;height:100vh;background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:30px 17px 20px }
+    .brand { display:flex;align-items:center;gap:11px;font-size:18px;font-weight:750;letter-spacing:-.5px;padding:0 11px 37px }
+    .brand-icon { width:31px;height:31px;display:grid;place-items:center;border:1px solid #3a7b76;border-radius:10px;color:var(--accent);background:#14332f;font-size:20px;font-weight:500 }
+    .brand small { display:block;color:var(--mute);font-size:10px;letter-spacing:1.4px;font-weight:600;margin-top:-5px }
+    .nav-head { margin:0 11px 10px;color:#687d90;font-size:10px;text-transform:uppercase;letter-spacing:1.7px;font-weight:700 }
+    nav { display:grid;gap:5px }
+    nav a { display:flex;gap:12px;align-items:center;color:#a1b0bd;padding:11px 12px;text-decoration:none;border-radius:10px;font-weight:550 }
+    nav a:hover,nav a.selected { background:var(--nav-hover);color:var(--accent-ink) }
+    nav a.selected { box-shadow:inset 3px 0 var(--accent) }
+    .nav-icon { display:inline-flex;width:21px;font-size:17px;justify-content:center;font-weight:400 }
+    .side-foot { margin-top:auto;border-top:1px solid var(--line);padding:18px 10px 0;color:var(--mute);font-size:12px }
+    .pulse { width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:7px;background:var(--mute) }
+    .side-foot strong { color:#dde8ed;font-weight:600 }
+    main { max-width:1750px;width:100%;margin:0 auto;padding:29px 36px 48px;min-width:0 }
+    .head { display:flex;justify-content:space-between;gap:18px;align-items:center;margin-bottom:23px;flex-wrap:wrap }
+    .eyebrow { color:var(--mute);font-size:11px;letter-spacing:1.8px;font-weight:650;text-transform:uppercase }
+    h1 { margin:2px 0 0;font-size:27px;line-height:1.3;letter-spacing:-.8px;font-weight:720 }
+    h2 { margin:0;font-size:16px;font-weight:690;letter-spacing:-.2px }
+    .head-actions { display:flex;align-items:center;gap:10px;flex-wrap:wrap }
+    .tag { border:1px solid var(--ok-line);background:var(--ok-bg);color:#bfe9df;border-radius:999px;padding:8px 13px;font-size:12px;white-space:nowrap }
+    .tag.offline { border-color:var(--bad-line);color:#f7b9c0;background:var(--bad-bg) }
+    .btn { display:inline-flex;align-items:center;justify-content:center;gap:9px;padding:9px 14px;border-radius:var(--rad-sm);background:var(--btn-bg);border:1px solid var(--btn-line);color:var(--btn-ink);font-weight:600 }
+    .btn:hover { background:var(--btn-hover) }
+    .btn.primary { background:var(--primary-bg);border-color:var(--primary-line);color:var(--primary-ink) }
+    .btn.primary:hover { background:var(--primary-hover) }
+    .btn:disabled { opacity:.45;cursor:not-allowed }
+    a.btn { text-decoration:none }
+    .pick { display:inline-flex;align-items:center;gap:6px;color:var(--mute);font-size:12px }
+    .pick select { background:var(--input-bg);color:var(--text);border:1px solid var(--input-line);border-radius:var(--rad-sm);padding:8px 9px;max-width:100% }
+    .main-status { display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:17px;border:1px solid var(--line);background:var(--status-bg);border-radius:var(--rad);padding:19px 22px }
+    .status-left { display:flex;align-items:center;gap:13px }
+    .status-dot { width:12px;height:12px;background:var(--ok);border-radius:50%;box-shadow:0 0 0 7px #4edbc01a;flex:none }
+    .status-dot.warning { background:var(--warn);box-shadow:0 0 0 7px #f0bf781a }
+    .status-dot.offline { background:var(--bad);box-shadow:0 0 0 7px #ef8b911a }
+    .status-text { font-size:18px;font-weight:690;letter-spacing:-.35px }
+    .muted { color:var(--mute) }
+    .status-sub { font-size:12px;color:var(--text2);margin-top:1px }
+    .status-right { text-align:right;font-size:12px;color:var(--text2) }
+    .status-right strong { display:block;color:var(--text);font-size:15px;font-weight:620 }
+    /* path: Unraid -> router -> Internet */
+    .path { margin-bottom:17px }
+    .path-head { display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px }
+    .path-row { display:grid;grid-template-columns:minmax(0,1fr) minmax(70px,.7fr) minmax(0,1fr) minmax(70px,.7fr) minmax(0,1fr);align-items:stretch;gap:0 }
+    .node { display:flex;align-items:center;gap:12px;min-width:0;padding:12px 14px;border:1px solid var(--line);border-radius:var(--rad-sm);background:var(--panel) }
+    .node[data-s="ok"] { border-color:var(--ok-line) } .node[data-s="warn"] { border-color:var(--warn-line) } .node[data-s="bad"] { border-color:var(--bad-line) }
+    .node-icon { flex:none;width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:var(--unk-bg);color:var(--unk) }
+    .node[data-s="ok"] .node-icon { background:var(--ok-bg);color:var(--ok) } .node[data-s="warn"] .node-icon { background:var(--warn-bg);color:var(--warn) } .node[data-s="bad"] .node-icon { background:var(--bad-bg);color:var(--bad) }
+    .node-icon svg { width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round }
+    .node-text { min-width:0;display:grid;gap:1px }
+    .node-name { font-weight:680;font-size:14px;overflow-wrap:anywhere }
+    .node-sub { font-size:11px;color:var(--mute);overflow-wrap:anywhere }
+    .link { display:grid;justify-items:center;align-content:center;gap:3px;padding:0 6px;min-width:0 }
+    .link-ms { font-size:12px;font-weight:650;font-variant-numeric:tabular-nums;color:var(--unk);white-space:nowrap }
+    .link-line { height:0;width:100%;border-top:2px dashed var(--unk) }
+    .link[data-s="ok"] .link-ms { color:var(--ok) } .link[data-s="ok"] .link-line { border-top-color:var(--ok);border-top-style:solid }
+    .link[data-s="warn"] .link-ms { color:var(--warn) } .link[data-s="warn"] .link-line { border-top-color:var(--warn) }
+    .link[data-s="bad"] .link-ms { color:var(--bad) } .link[data-s="bad"] .link-line { border-top-color:var(--bad) }
+    .link-cap { font-size:10px;color:var(--mute);text-align:center;line-height:1.2 }
+    .metrics-title { display:none }
+    .metrics { display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-bottom:17px }
+    .metric,.card { background:var(--panel);border:1px solid var(--line);border-radius:var(--rad);box-shadow:var(--shadow) }
+    .metric { padding:17px 20px 16px;min-height:126px }
+    .metric-label { color:#99a9b6;font-size:12px;margin-bottom:14px }
+    .metric-val { font-size:29px;font-weight:730;letter-spacing:-1px;line-height:1.2;font-variant-numeric:tabular-nums;color:var(--text) }
+    .metric-val small { font-size:14px;font-weight:500;letter-spacing:0;color:#90a7b6 }
+    .metric-footer { font-size:11px;color:#94a8b7;margin-top:10px }
+    .card { padding:var(--pad);min-width:0 }
+    .card-head { display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:18px }
+    .card-sub { color:var(--mute);font-size:12px;margin-top:3px }
+    .flex-tabs { display:flex;align-items:center;gap:4px;border-radius:var(--rad-sm);background:var(--tabs-bg);padding:4px }
+    .flex-tabs button { background:none;border:0;border-radius:7px;color:var(--tab-ink);padding:7px 10px;white-space:nowrap;font-size:12px }
+    .flex-tabs button.active { background:var(--tab-active);color:var(--tab-active-ink) }
+    .flex-tabs button:disabled { opacity:.3;cursor:not-allowed }
+    .chart-top { display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px }
+    #primaryChart { width:100%;height:240px;display:block;overflow:visible;touch-action:pan-y }
+    .c-line { stroke:var(--chart-line);fill:none } .c-area { fill:var(--chart-line);fill-opacity:var(--chart-fill-opacity);stroke:none }
+    .c-dot { fill:var(--chart-line);fill-opacity:.6 } .c-peak { fill:var(--chart-peak) }
+    .c-grid { stroke:var(--chart-grid) } .c-text { fill:var(--chart-text);font-size:11px }
+    .chart-footer { border-top:1px solid var(--line2);padding-top:11px;display:flex;gap:16px;justify-content:space-between;font-size:11px;color:var(--mute) }
+    .chart-legend { display:flex;align-items:center;gap:8px }
+    .legend-line { background:var(--chart-line);width:22px;height:3px;border-radius:3px }
+    .grid-content { display:grid;grid-template-columns:minmax(0,1.5fr) minmax(305px,.8fr);gap:16px;margin-top:16px }
+    .table { width:100%;border-collapse:collapse;text-align:left }
+    .table th { font-size:10px;color:#8294a4;letter-spacing:1px;text-transform:uppercase;font-weight:700;padding:13px 6px;border-bottom:1px solid var(--line) }
+    .table td { font-size:12px;padding:13px 6px;border-bottom:1px solid var(--line2) }
+    .table tbody tr:last-child td { border-bottom:0 }
+    .table .host { font-weight:650;font-size:13px;color:var(--text);overflow-wrap:anywhere }
+    .table .sub,.sub { font-size:11px;color:var(--mute) }
+    .pill { display:inline-flex;align-items:center;border-radius:99px;padding:4px 9px;background:var(--unk-bg);color:#a9c5cf;font-size:10px;border:1px solid var(--unk-line);white-space:nowrap }
+    .pill.DOWN { color:var(--bad);border-color:var(--bad-line);background:var(--bad-bg) } .pill.DEGRADED { color:var(--warn);border-color:var(--warn-line);background:var(--warn-bg) } .pill.OK { color:var(--ok);border-color:var(--ok-line);background:var(--ok-bg) }
+    .info-note { border-top:1px solid var(--line);padding-top:12px;color:var(--mute);font-size:11px;margin-top:6px }
+    .stack { display:grid;gap:16px;align-content:start }
+    .dns-row { display:flex;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid var(--line2);font-size:12px }
+    .dns-row:last-child { border:0;padding-bottom:0 }
+    .mono { font-variant-numeric:tabular-nums;font-feature-settings:"tnum" }
+    .events { display:grid;gap:11px }
+    .event { display:flex;gap:11px;align-items:flex-start;color:var(--text2);font-size:12px }
+    .event-dot { width:7px;height:7px;margin-top:5px;border-radius:50%;flex:none;background:#4d7883 }
+    .event-dot.negative { background:var(--warn) } .event-dot.down { background:var(--bad) } .event-dot.recovered { background:var(--ok) }
+    .event-icon { display:none;flex:none;line-height:1.4 }
+    .event .event-time { color:#718798;font-size:11px }
+    .speed-row { display:flex;gap:14px;align-items:baseline;flex-wrap:wrap }
+    .speed-number { font-weight:710;font-size:29px;letter-spacing:-.8px;font-variant-numeric:tabular-nums }
+    .speed-number small { font-size:11px;font-weight:500;color:var(--mute) }
+    .speedbox { display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap }
+    details { border-top:1px solid var(--line);margin-top:15px;padding-top:10px }
+    summary { color:#a9c1c7;font-weight:600;font-size:12px;cursor:pointer }
+    .form-line { display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:12px }
+    .form-line label { display:grid;gap:5px;font-size:11px;color:#92a6b3 }
+    .form-line input,.form-line select { min-width:0;width:100%;padding:9px;border-radius:8px;border:1px solid var(--input-line);color:var(--text);background:var(--input-bg) }
+    .check { display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);margin-top:10px }
+    .check input { accent-color:#3bb59f }
+    .log-box { font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#a0b9c3;background:var(--log-bg);padding:15px;border-radius:var(--rad-sm);max-height:210px;overflow:auto;white-space:pre-wrap;margin-top:12px;min-height:65px }
+    .footer { text-align:right;color:#657d8e;font-size:11px;padding-top:20px }
+    .hide { display:none!important }
+    button:focus-visible,a:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visible { outline:2px solid var(--accent);outline-offset:3px }
+    .table-wrap { overflow-x:auto } .table { min-width:510px } .table th,.table td { padding:10px 6px }
+    .target-button { border:0;background:none;color:inherit;text-align:left;padding:0;font:inherit;cursor:pointer;overflow-wrap:anywhere } .target-button:hover { color:var(--accent) }
+    .table tr.selected { background:var(--sel-row) }
+    .chart-select { max-width:100%;min-width:170px;background:var(--input-bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px }
+    .chart-controls { min-width:0;max-width:100%;display:flex;gap:9px;align-items:center;flex-wrap:wrap }
+    .notice { color:var(--warn);font-size:12px } .section-status { font-size:11px;color:var(--warn);min-height:1em;margin-top:7px }
+    .setting-grid { display:grid;grid-template-columns:1fr 1fr;gap:10px } .setting-grid label { display:grid;gap:4px;font-size:11px;color:var(--mute) }
+    .setting-grid input { width:100%;min-width:0;background:var(--input-bg);color:var(--text);border:1px solid var(--input-line);border-radius:7px;padding:8px }
+    .settings-actions { display:flex;align-items:center;gap:12px;margin-top:13px } .event-content { min-width:0;overflow-wrap:anywhere }
+    .nav-label { white-space:nowrap }
+    @media(max-width:1250px) { .metrics{grid-template-columns:repeat(3,minmax(0,1fr))} .grid-content{grid-template-columns:minmax(0,1fr) 305px} }
+    @media(max-width:930px) { .layout{grid-template-columns:1fr} aside{position:static;height:auto;padding:13px 18px;flex-direction:row;align-items:center;justify-content:space-between} .brand{padding:0;font-size:16px} .brand small,.nav-head,.side-foot{display:none} nav{display:flex;flex-wrap:wrap} nav a{padding:7px 10px;font-size:12px} .nav-icon{display:none} main{padding:20px 16px} .grid-content{grid-template-columns:1fr} }
+    @media(max-width:700px) { .path-row{grid-template-columns:1fr;gap:0} .link{grid-template-columns:auto 1fr;justify-items:start;align-items:center;gap:10px;padding:6px 0 6px 30px} .link-line{width:0;height:20px;border-top:0!important;border-left:2px dashed var(--unk);order:-1} .link[data-s="ok"] .link-line{border-left:2px solid var(--ok)} .link[data-s="warn"] .link-line{border-left-color:var(--warn)} .link[data-s="bad"] .link-line{border-left-color:var(--bad)} .link-cap{text-align:left} }
+    @media(max-width:560px) { .metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px} .metric{padding:15px} .metric-val{font-size:25px} .main-status{padding:16px;align-items:flex-start} .status-right{display:none} .card{padding:17px} .head h1{font-size:23px} .flex-tabs{max-width:100%;overflow-x:auto} .table{min-width:0} .table th:nth-child(3),.table td:nth-child(3){display:none} .metrics .metric:first-child{grid-column:span 2} .chart-select{width:100%} .head-actions .tag{max-width:100%;white-space:normal} .head-actions{width:100%} .setting-grid{gap:9px} .brand{margin-right:15px} aside{flex-wrap:wrap;gap:12px} nav a{padding:5px 8px} }
+
+    /* ===== Style "unifi": calm neutral palette, one blue accent, flat bordered cards, icon rail ===== */
+    html[data-style="unifi"] {
+      --page:#f4f6f9;--side:#ffffff;--panel:#ffffff;--line:#dde2e9;--line2:#e9edf2;
+      --text:#18212d;--text2:#3d4a5a;--mute:#566274;--accent:#0a62d0;--accent-ink:#0a4fa6;
+      --nav-hover:#eaf1fb;--btn-bg:#ffffff;--btn-line:#c9d1db;--btn-hover:#f1f4f8;--btn-ink:#18212d;
+      --primary-bg:#0a62d0;--primary-line:#0a62d0;--primary-hover:#0852b0;--primary-ink:#ffffff;
+      --input-bg:#ffffff;--input-line:#c9d1db;--tabs-bg:#eef1f5;--tab-active:#ffffff;--tab-ink:#4a5668;--tab-active-ink:#0a4fa6;
+      --ok:#0f7a37;--warn:#8a5a00;--bad:#b3261e;--unk:#566274;
+      --ok-bg:#e3f4e9;--warn-bg:#fdf1d5;--bad-bg:#fbe7e5;--unk-bg:#edf0f4;
+      --ok-line:#a6d9b7;--warn-line:#ecd08a;--bad-line:#efb4af;--unk-line:#ccd3dc;
+      --chart-line:#0a62d0;--chart-fill-opacity:.12;--chart-peak:#c26a00;--chart-grid:#e3e8ee;--chart-text:#566274;
+      --log-bg:#f1f4f8;--status-bg:var(--panel);--sel-row:#eaf1fb;
+      --rad:10px;--rad-sm:8px;--pad:16px 18px;
+    }
+    @media (prefers-color-scheme: dark) {
+      html[data-style="unifi"] {
+        --page:#0f1318;--side:#151a21;--panel:#181e26;--line:#2a323d;--line2:#232a34;
+        --text:#e8edf3;--text2:#c2cbd6;--mute:#9aa6b5;--accent:#5aa2ff;--accent-ink:#9cc8ff;
+        --nav-hover:#1d2733;--btn-bg:#1d242d;--btn-line:#374150;--btn-hover:#252d38;--btn-ink:#e8edf3;
+        --primary-bg:#1f6fe0;--primary-line:#1f6fe0;--primary-hover:#2f7ff0;--primary-ink:#ffffff;
+        --input-bg:#12171d;--input-line:#374150;--tabs-bg:#12171d;--tab-active:#2a3441;--tab-ink:#a9b4c2;--tab-active-ink:#ffffff;
+        --ok:#54c47f;--warn:#f0b840;--bad:#f27b74;--unk:#9aa6b5;
+        --ok-bg:#16301f;--warn-bg:#35290f;--bad-bg:#3a1b19;--unk-bg:#232a34;
+        --ok-line:#2c6a42;--warn-line:#6e5416;--bad-line:#7a3a35;--unk-line:#3a4452;
+        --chart-line:#5aa2ff;--chart-fill-opacity:.16;--chart-peak:#f0b840;--chart-grid:#252d38;--chart-text:#9aa6b5;
+        --log-bg:#10151b;--status-bg:var(--panel);--sel-row:#1c2836;
+      }
+    }
+    html[data-style="unifi"] body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;letter-spacing:0 }
+    html[data-style="unifi"] .layout { grid-template-columns:64px minmax(0,1fr) }
+    html[data-style="unifi"] aside { padding:14px 8px;align-items:center }
+    html[data-style="unifi"] .brand { padding:0 0 18px }
+    html[data-style="unifi"] .brand-icon { width:36px;height:36px;border-radius:9px;background:var(--accent);border-color:var(--accent);color:#fff }
+    html[data-style="unifi"] .brand > span:last-child,html[data-style="unifi"] .nav-head,html[data-style="unifi"] .side-foot > div:last-child { display:none }
+    html[data-style="unifi"] nav { width:100%;gap:4px }
+    html[data-style="unifi"] nav a { justify-content:center;padding:11px 0;color:var(--text2);border-radius:var(--rad-sm) }
+    html[data-style="unifi"] nav a.selected { box-shadow:none;background:var(--nav-hover);color:var(--accent-ink) }
+    html[data-style="unifi"] .nav-icon { font-size:19px;width:auto }
+    html[data-style="unifi"] .nav-label { position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap }
+    html[data-style="unifi"] .side-foot { border:0;padding:0;margin-top:auto }
+    html[data-style="unifi"] .side-foot strong { position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0) }
+    html[data-style="unifi"] .pulse { margin:0;width:10px;height:10px;background:var(--ok) }
+    html[data-style="unifi"] main { padding:0 24px 40px }
+    html[data-style="unifi"] .head { position:sticky;top:0;z-index:5;background:var(--page);margin:0 -24px 16px;padding:10px 24px;border-bottom:1px solid var(--line) }
+    html[data-style="unifi"] .eyebrow { display:none }
+    html[data-style="unifi"] h1 { font-size:17px;letter-spacing:0;margin:0;font-weight:650 }
+    html[data-style="unifi"] h2 { font-size:15px;font-weight:650;letter-spacing:0 }
+    html[data-style="unifi"] .tag { display:inline-flex;align-items:center;gap:7px;background:var(--ok-bg);border-color:var(--ok-line);color:var(--ok);font-weight:650;border-radius:6px;padding:5px 10px }
+    html[data-style="unifi"] .tag::before { content:"";width:8px;height:8px;border-radius:50%;background:currentColor }
+    html[data-style="unifi"] .tag.offline { background:var(--bad-bg);border-color:var(--bad-line);color:var(--bad) }
+    html[data-style="unifi"] .btn { font-weight:550;padding:7px 12px }
+    html[data-style="unifi"] .main-status { border-left:4px solid var(--ok);padding:14px 18px }
+    html[data-style="unifi"] .main-status:has(.status-dot.warning) { border-left-color:var(--warn) }
+    html[data-style="unifi"] .main-status:has(.status-dot.offline) { border-left-color:var(--bad) }
+    html[data-style="unifi"] .status-dot { box-shadow:none;width:10px;height:10px }
+    html[data-style="unifi"] .status-text { font-size:15px;letter-spacing:0 }
+    html[data-style="unifi"] .metrics-title { display:block;grid-column:1/-1;font-weight:650;font-size:15px;padding:14px 18px 0;color:var(--text) }
+    html[data-style="unifi"] .metrics { gap:0;background:var(--panel);border:1px solid var(--line);border-radius:var(--rad);overflow:hidden }
+    html[data-style="unifi"] .metric { background:transparent;border:0;border-radius:0;border-right:1px solid var(--line2);min-height:0;padding:12px 18px 14px }
+    html[data-style="unifi"] .metric:last-child { border-right:0 }
+    html[data-style="unifi"] .metric-label { color:var(--mute);margin-bottom:6px }
+    html[data-style="unifi"] .metric-val { font-size:30px;letter-spacing:-.5px;font-weight:650 }
+    html[data-style="unifi"] .metric-val small { color:var(--mute) }
+    html[data-style="unifi"] .metric-footer { color:var(--mute);margin-top:4px }
+    html[data-style="unifi"] .table th { color:var(--mute);font-weight:600;letter-spacing:.4px;font-size:11px;padding:8px 6px }
+    html[data-style="unifi"] .table td { padding:8px 6px }
+    html[data-style="unifi"] .table tbody tr:hover { background:var(--sel-row) }
+    html[data-style="unifi"] .pill { border-radius:6px;font-weight:650;font-size:11px;padding:3px 8px }
+    html[data-style="unifi"] .metric-label,html[data-style="unifi"] .form-line label,html[data-style="unifi"] .setting-grid label { color:var(--mute) }
+    html[data-style="unifi"] .info-note,html[data-style="unifi"] .footer,html[data-style="unifi"] .event .event-time { color:var(--mute) }
+    html[data-style="unifi"] summary { color:var(--accent-ink) }
+    html[data-style="unifi"] .check input { accent-color:var(--accent) }
+    html[data-style="unifi"] .event-dot { display:none } html[data-style="unifi"] .event-icon { display:inline }
+    html[data-style="unifi"] .event { padding:7px 0;border-bottom:1px solid var(--line2) } html[data-style="unifi"] .event:last-child { border-bottom:0 }
+    html[data-style="unifi"] .events { gap:0 }
+    html[data-style="unifi"] .log-box { color:var(--text2) }
+    html[data-style="unifi"] .node { background:transparent }
+    html[data-style="unifi"] .node-icon { border-radius:50% }
+    html[data-style="unifi"] .link-ms { font-weight:600 }
+    html[data-style="unifi"] .brand-icon,html[data-style="unifi"] a.btn.primary,html[data-style="unifi"] .btn.primary { color:#fff }
+    @media(max-width:930px) { html[data-style="unifi"] .layout { grid-template-columns:1fr } html[data-style="unifi"] aside { padding:8px 12px;flex-direction:row;justify-content:flex-start;gap:14px } html[data-style="unifi"] .brand { padding:0 } html[data-style="unifi"] nav { display:flex;width:auto;flex:1;overflow-x:auto } html[data-style="unifi"] nav a { padding:8px 12px } html[data-style="unifi"] .nav-icon { display:inline-flex } html[data-style="unifi"] main { padding:0 16px 32px } html[data-style="unifi"] .head { margin:0 -16px 14px;padding:10px 16px } }
+    @media(max-width:560px) { html[data-style="unifi"] .metric { border-right:0;border-bottom:1px solid var(--line2) } html[data-style="unifi"] .metrics .metric:first-child { grid-column:auto } html[data-style="unifi"] .metrics { grid-template-columns:repeat(2,minmax(0,1fr)) } html[data-style="unifi"] .metric:nth-child(odd) { border-right:1px solid var(--line2) } }
+
+    /* ----- UniFi-only components (hidden in the NetProbe style) ----- */
+    .unifi-only { display:none }
+    .chip-val { display:none }
+    .event-time .why:not(:empty)::before { content:" · " }
+    .node-icon[data-s="ok"] { background:var(--ok-bg);color:var(--ok) } .node-icon[data-s="warn"] { background:var(--warn-bg);color:var(--warn) } .node-icon[data-s="bad"] { background:var(--bad-bg);color:var(--bad) }
+    .kv { display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px 14px;margin:14px 0 0;font-size:13px }
+    .kv dt { color:var(--mute) } .kv dd { margin:0;text-align:right;font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere }
+    .card-row { display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap }
+    .link-btn { border:0;background:none;color:var(--accent);padding:0;font-weight:600;cursor:pointer } .link-btn:hover { text-decoration:underline }
+    .dev-head { display:flex;align-items:center;gap:12px } .dev-head .node-icon { width:42px;height:42px;flex:none }
+    .dev-title { display:grid;flex:1;min-width:0 } .dev-title strong { font-size:16px }
+    .counters { display:flex;gap:6px 16px;flex-wrap:wrap;margin-top:14px;font-size:13px }
+    .counter { display:inline-flex;align-items:center;gap:6px;font-weight:600;color:var(--text2) }
+    .counter i { width:9px;height:9px;border-radius:50%;display:inline-block;background:var(--unk) } .counter i.ok { background:var(--ok) } .counter i.warn { background:var(--warn) } .counter i.bad { background:var(--bad) }
+    .mini-row { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:14px }
+    .mini { display:grid;justify-items:center;gap:2px;padding:8px 4px;border-radius:8px;background:var(--unk-bg);min-width:0 }
+    .mini-ms { font-weight:650;font-size:14px;font-variant-numeric:tabular-nums;color:var(--text2) } .mini-label { font-size:11px;color:var(--mute);overflow-wrap:anywhere;text-align:center }
+    .mini[data-s="ok"] { background:var(--ok-bg) } .mini[data-s="ok"] .mini-ms { color:var(--ok) } .mini[data-s="warn"] { background:var(--warn-bg) } .mini[data-s="warn"] .mini-ms { color:var(--warn) } .mini[data-s="bad"] { background:var(--bad-bg) } .mini[data-s="bad"] .mini-ms { color:var(--bad) }
+    .thr-chips { display:flex;flex-wrap:wrap;gap:6px;margin-top:12px }
+    .thr-chip { border:1px solid var(--line);border-radius:6px;padding:3px 8px;font-size:12px;background:var(--panel);color:var(--text2) }
+    .uptime-head { display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:14px;color:var(--text) } .uptime-head b { color:var(--ok) } .uptime-head b.warn-text { color:var(--warn) } .vsep { width:1px;height:16px;background:var(--line) }
+    .uptime-bar { display:flex;gap:1px;height:10px;border-radius:5px;overflow:hidden;margin-top:12px }
+    .seg { flex:1;min-width:2px;background:var(--line2) } .seg.ok { background:#3fc46a } .seg.warn { background:#f2c230 } .seg.bad { background:#e5484d } .seg.gap { background:var(--line2) }
+    .tiles-row { display:flex;flex-wrap:wrap;gap:10px 8px }
+    .tile { display:grid;justify-items:center;gap:3px;width:82px;border:0;background:none;padding:4px 2px;color:inherit;border-radius:8px } .tile:hover { background:var(--sel-row) }
+    .tile-icon { width:40px;height:40px;border-radius:10px;border:2px solid var(--unk-line);display:grid;place-items:center;font-weight:700;background:var(--unk-bg);color:var(--text2) }
+    .tile[data-s="ok"] .tile-icon { border-color:var(--ok-line);background:var(--ok-bg);color:var(--ok) } .tile[data-s="warn"] .tile-icon { border-color:var(--warn-line);background:var(--warn-bg);color:var(--warn) } .tile[data-s="bad"] .tile-icon { border-color:var(--bad-line);background:var(--bad-bg);color:var(--bad) }
+    .tile-label { font-size:11px;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2) } .tile-ms { font-size:11px;color:var(--mute);font-variant-numeric:tabular-nums }
+    .checks-grid { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px 18px;margin-top:12px } .chk { display:grid;gap:5px }
+    .chk-label { font-size:13px;color:var(--text2) } .chk-bar { height:8px;border-radius:4px;background:var(--line2);overflow:hidden } .chk-bar i { display:block;height:100%;border-radius:4px;background:#3fc46a }
+    .chk[data-s="warn"] .chk-bar i { background:#f2c230 } .chk[data-s="bad"] .chk-bar i { background:#e5484d } .chk[data-s="unknown"] .chk-bar i { background:var(--unk-line) }
+    .chk-pct { font-size:13px;font-weight:650;color:var(--ok) } .chk[data-s="warn"] .chk-pct { color:var(--warn) } .chk[data-s="bad"] .chk-pct { color:var(--bad) } .chk[data-s="unknown"] .chk-pct { color:var(--mute) }
+
+    /* ----- Style "unifi": a different screen — top bar, floating icon rail, left info cards, topology strip, health chips, uptime bar, tabs ----- */
+    html[data-style="unifi"] .unifi-only { display:block }
+    html[data-style="unifi"] .layout { grid-template-columns:76px minmax(0,1fr) }
+    html[data-style="unifi"] aside { margin:12px 0 12px 12px;height:calc(100vh - 24px);top:12px;border:1px solid var(--line);border-radius:12px }
+    html[data-style="unifi"] main { max-width:none;display:grid;grid-template-columns:minmax(300px,340px) minmax(0,1fr);grid-template-areas:"head head" "left status" "left path" "left chart" "left uptime" "left tiles" "left checks" "left tabs" "left foot";gap:12px;align-content:start;padding:12px 16px 32px 12px }
+    html[data-style="unifi"] .head { grid-area:head;position:relative;margin:0;top:0;z-index:5;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);align-items:center }
+    html[data-style="unifi"] .head > div:not(.unifi-top):not(.head-actions) { position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0) }
+    html[data-style="unifi"] .unifi-top { display:flex;align-items:center;gap:8px }
+    html[data-style="unifi"] .site-pill { display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:6px 12px;font-size:13px;font-weight:600;color:var(--text);background:var(--panel) }
+    html[data-style="unifi"] .site-dot { width:9px;height:9px;border-radius:50%;background:var(--unk) } .site-dot[data-s="ok"] { background:var(--ok) } .site-dot[data-s="warn"] { background:var(--warn) } .site-dot[data-s="bad"] { background:var(--bad) }
+    html[data-style="unifi"] .net-tab { display:inline-flex;align-items:center;gap:7px;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:650;color:var(--accent-ink);background:var(--nav-hover) }
+    html[data-style="unifi"] .net-tab svg { width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2 }
+    html[data-style="unifi"] .wordmark { display:block;position:absolute;left:50%;transform:translateX(-50%);font-weight:750;letter-spacing:.5px;color:var(--mute);opacity:.55;pointer-events:none }
+    @media(max-width:1599px) { html[data-style="unifi"] .wordmark { display:none } }
+    html[data-style="unifi"] .unifi-left { grid-area:left;display:grid;gap:12px;align-content:start;align-self:start;position:sticky;top:12px }
+    html[data-style="unifi"] .main-status { grid-area:status;margin:0 }
+    html[data-style="unifi"] #pathCard { grid-area:path;margin:0 }
+    html[data-style="unifi"] .metrics { display:none }
+    html[data-style="unifi"] #diagnostics { grid-area:chart }
+    html[data-style="unifi"] #uptimeCard { grid-area:uptime } html[data-style="unifi"] #tilesCard { grid-area:tiles } html[data-style="unifi"] #checksCard { grid-area:checks }
+    html[data-style="unifi"] .grid-content { grid-area:tabs;display:block;margin:0 }
+    html[data-style="unifi"] .footer { grid-area:foot;padding-top:4px }
+    html[data-style="unifi"] .stack { display:contents }
+    html[data-style="unifi"] .unifi-tabs { display:flex;flex-wrap:wrap;gap:2px;margin-bottom:12px;border-bottom:1px solid var(--line) }
+    html[data-style="unifi"] .unifi-tabs button { border:0;background:none;padding:9px 14px;color:var(--text2);font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px }
+    html[data-style="unifi"] .unifi-tabs button:hover { color:var(--accent-ink) }
+    html[data-style="unifi"] .unifi-tabs button.active { color:var(--accent-ink);border-bottom-color:var(--accent) }
+    html[data-style="unifi"] .grid-content section.card { display:none }
+    html[data-style="unifi"] .grid-content[data-tab="targets"] #targets, html[data-style="unifi"] .grid-content[data-tab="dns"] #dnsCard, html[data-style="unifi"] .grid-content[data-tab="events"] #eventsCard,
+    html[data-style="unifi"] .grid-content[data-tab="speedtest"] #speedtest, html[data-style="unifi"] .grid-content[data-tab="settings"] #settingsCard, html[data-style="unifi"] .grid-content[data-tab="diagnostics"] #diagCard { display:block }
+    /* topology strip: round icons, names under them, dotted links with the RTT in colour */
+    html[data-style="unifi"] .path-head h2 { font-size:14px }
+    html[data-style="unifi"] .node { flex-direction:column;border:0;text-align:center;background:none;padding:4px 6px }
+    html[data-style="unifi"] .node-text { justify-items:center }
+    html[data-style="unifi"] .node-icon { border-radius:50%;width:44px;height:44px }
+    html[data-style="unifi"] .link { padding:0 4px;align-self:start;margin-top:8px }
+    html[data-style="unifi"] .link-line { border-top-style:dotted;border-top-width:3px }
+    html[data-style="unifi"] .link[data-s="ok"] .link-line { border-top-style:dotted }
+    /* chart: hatched plot area, metric chips with a colour key and the live value */
+    html[data-style="unifi"] #metricTabs { background:none;padding:0;gap:6px;flex-wrap:wrap }
+    html[data-style="unifi"] #metricTabs button { border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:4px 10px;color:var(--text2);display:inline-flex;align-items:center;gap:0 }
+    html[data-style="unifi"] #metricTabs button::before { content:"";width:10px;height:3px;border-radius:2px;background:var(--chip,var(--accent));margin-right:7px }
+    html[data-style="unifi"] #metricTabs button.active { border-color:var(--accent);color:var(--accent-ink);background:var(--nav-hover) }
+    html[data-style="unifi"] .chip-val { display:inline;font-weight:650;font-variant-numeric:tabular-nums }
+    html[data-style="unifi"] #metricTabs [data-metric="avg_latency_ms"] { --chip:#7a4cdb } html[data-style="unifi"] #metricTabs [data-metric="avg_jitter_ms"] { --chip:#0e8f9b }
+    html[data-style="unifi"] #metricTabs [data-metric="avg_dns_latency_ms"] { --chip:#d6409f } html[data-style="unifi"] #metricTabs [data-metric="score"] { --chip:#1a8f4b }
+    html[data-style="unifi"] #primaryChart[data-metric="avg_latency_ms"] { --chart-line:#7a4cdb } html[data-style="unifi"] #primaryChart[data-metric="avg_jitter_ms"] { --chart-line:#0e8f9b }
+    html[data-style="unifi"] #primaryChart[data-metric="avg_dns_latency_ms"] { --chart-line:#d6409f } html[data-style="unifi"] #primaryChart[data-metric="score"] { --chart-line:#1a8f4b }
+    html[data-style="unifi"] .event { display:flex;padding:10px 4px } html[data-style="unifi"] .event-content { flex:1;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 16px }
+    html[data-style="unifi"] .event-time { display:contents }
+    html[data-style="unifi"] .event-time .when { grid-column:2;grid-row:1;text-align:right;white-space:nowrap }
+    html[data-style="unifi"] .event-time .why { grid-column:1;grid-row:2 } html[data-style="unifi"] .event-time .why:not(:empty)::before { content:none }
+    html[data-style="unifi"] .event-content > div:first-child { grid-column:1;grid-row:1;color:var(--text);font-weight:600 }
+    @media(max-width:1100px) {
+      html[data-style="unifi"] main { grid-template-columns:minmax(0,1fr);grid-template-areas:"head" "status" "path" "left" "chart" "uptime" "tiles" "checks" "tabs" "foot" }
+      html[data-style="unifi"] .wordmark { display:none }
+      html[data-style="unifi"] .unifi-left { grid-template-columns:repeat(auto-fit,minmax(260px,1fr));position:static }
+    }
+    @media(max-width:930px) { html[data-style="unifi"] aside { margin:8px 8px 0;height:auto;position:static;border-radius:12px } html[data-style="unifi"] .layout { grid-template-columns:1fr } html[data-style="unifi"] main { padding:8px 8px 24px } }
+    @media(max-width:700px) {
+      html[data-style="unifi"] .node { flex-direction:row;text-align:left;border:1px solid var(--line);padding:10px 12px } html[data-style="unifi"] .node-text { justify-items:start }
+      html[data-style="unifi"] .link { margin-top:0;align-self:auto }
+      html[data-style="unifi"] .checks-grid { grid-template-columns:repeat(2,minmax(0,1fr)) }
+      html[data-style="unifi"] .head { flex-wrap:wrap;gap:8px } html[data-style="unifi"] .head-actions { width:100% }
+      html[data-style="unifi"] .unifi-tabs button { padding:8px 9px;font-size:13px }
+    }
+
+    /* ----- compare mode: several metrics / several targets (e.g. DNS servers) on one chart ----- */
+    :root { --s1:#4edbc0;--s2:#6fcdf5;--s3:#f0bf78;--s4:#ef8b91;--s5:#b79bff;--s6:#7ee787;--s7:#ffa657;--s8:#ff7eb6;--s9:#79c0ff;--s10:#d2a8ff }
+    html[data-style="unifi"] { --s1:#0a62d0;--s2:#7a4cdb;--s3:#0e8f9b;--s4:#d6409f;--s5:#1a8f4b;--s6:#c26a00;--s7:#d12f35;--s8:#5b6b7f;--s9:#6d8a00;--s10:#0b86b3 }
+    @media (prefers-color-scheme: dark) { html[data-style="unifi"] { --s1:#5aa2ff;--s2:#a98bff;--s3:#4cc9d4;--s4:#f080c8;--s5:#54c47f;--s6:#f0a23a;--s7:#f27b74;--s8:#9aa6b5;--s9:#b4d44a;--s10:#52c1ec } }
+    .chart-wrap { position:relative }
+    .cmp-toggle { padding:6px 12px;font-size:12px }
+    #diagnostics[data-compare="1"] .cmp-toggle { background:var(--tab-active);color:var(--tab-active-ink);border-color:var(--accent) }
+    .cmp-picker { display:none;position:relative;border:0;margin:0;padding:0 }
+    #diagnostics[data-compare="1"] .cmp-picker { display:block }
+    #diagnostics[data-compare="1"] #chartTarget { display:none }
+    .cmp-picker summary { list-style:none;cursor:pointer;background:var(--input-bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 28px 8px 10px;font-weight:500;font-size:13px;min-width:170px;position:relative;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px }
+    .cmp-picker summary::-webkit-details-marker { display:none } .cmp-picker summary::after { content:"▾";position:absolute;right:10px;top:50% ;transform:translateY(-50%);color:var(--mute) }
+    .cmp-menu { position:absolute;left:0;top:calc(100% + 4px);z-index:8;width:min(330px,calc(100vw - 48px));max-height:300px;overflow:auto;padding:8px;border:1px solid var(--line);border-radius:10px;background:var(--panel);box-shadow:0 8px 24px #0006 }
+    .cmp-group { display:flex;justify-content:space-between;align-items:center;gap:8px;margin:8px 4px 2px;color:var(--mute);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px }
+    .cmp-group .link-btn { font-size:11px;text-transform:none;letter-spacing:0 }
+    .cmp-opt { display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:6px;font-size:13px;color:var(--text);cursor:pointer;overflow-wrap:anywhere } .cmp-opt:hover { background:var(--sel-row) }
+    .cmp-opt input { accent-color:var(--accent) }
+    .cmp-legend { display:flex;flex-wrap:wrap;gap:6px 14px;margin:10px 0 4px;font-size:12px }
+    .cmp-legend:empty { display:none }
+    .lg { display:inline-flex;align-items:center;gap:6px;color:var(--text2);min-width:0;overflow-wrap:anywhere } .lg b { color:var(--text);font-variant-numeric:tabular-nums } .lg small { color:var(--mute);font-size:11px }
+    .sw { width:12px;height:3px;border-radius:2px;display:inline-block;flex:none;background:var(--mute) }
+    .axis-note { color:var(--mute);font-size:11px;min-height:1em;margin-top:2px }
+    .chart-tip { position:absolute;z-index:7;pointer-events:none;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;box-shadow:0 6px 18px #0005;max-width:260px }
+    .chart-tip[hidden] { display:none }
+    .chart-tip .when { color:var(--mute);margin-bottom:4px } .chart-tip .row { display:flex;align-items:center;gap:6px;white-space:nowrap } .chart-tip .row b { margin-left:auto;padding-left:12px;font-variant-numeric:tabular-nums }
+    .c-cursor { stroke:var(--mute);stroke-dasharray:3 3;stroke-width:1 }
+    .c-series { fill:none;stroke-width:2;stroke-linejoin:round } .c-sdot { stroke:none }
+    path.s1,.sw.s1 { stroke:var(--s1) } .sw.s1 { background:var(--s1) } circle.s1 { fill:var(--s1) }
+    path.s2,.sw.s2 { stroke:var(--s2) } .sw.s2 { background:var(--s2) } circle.s2 { fill:var(--s2) }
+    path.s3,.sw.s3 { stroke:var(--s3) } .sw.s3 { background:var(--s3) } circle.s3 { fill:var(--s3) }
+    path.s4,.sw.s4 { stroke:var(--s4) } .sw.s4 { background:var(--s4) } circle.s4 { fill:var(--s4) }
+    path.s5,.sw.s5 { stroke:var(--s5) } .sw.s5 { background:var(--s5) } circle.s5 { fill:var(--s5) }
+    path.s6,.sw.s6 { stroke:var(--s6) } .sw.s6 { background:var(--s6) } circle.s6 { fill:var(--s6) }
+    path.s7,.sw.s7 { stroke:var(--s7) } .sw.s7 { background:var(--s7) } circle.s7 { fill:var(--s7) }
+    path.s8,.sw.s8 { stroke:var(--s8) } .sw.s8 { background:var(--s8) } circle.s8 { fill:var(--s8) }
+    path.s9,.sw.s9 { stroke:var(--s9) } .sw.s9 { background:var(--s9) } circle.s9 { fill:var(--s9) }
+    path.s10,.sw.s10 { stroke:var(--s10) } .sw.s10 { background:var(--s10) } circle.s10 { fill:var(--s10) }
+
+    /* ----- custom range + packet-loss report ----- */
+    .range-row { display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin:10px 0 2px }
+    .range-row[hidden] { display:none }
+    .range-row input { min-width:0;font-size:13px }
+    .loss-sum { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px }
+    .loss-tile { border:1px solid var(--line);border-radius:var(--rad-sm);padding:10px 12px;display:grid;gap:2px;min-width:0 }
+    .loss-tile span { color:var(--mute);font-size:11px } .loss-tile b { font-size:20px;font-variant-numeric:tabular-nums;color:var(--text) } .loss-tile small { color:var(--mute);font-size:11px }
+    .loss-tile.bad b { color:var(--bad) } .loss-tile.warn b { color:var(--warn) } .loss-tile.ok b { color:var(--ok) }
+    .loss-h { margin:16px 0 8px;font-size:13px;font-weight:650;color:var(--text) }
+    .loss-episodes { display:grid;gap:6px }
+    .ep { display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:2px 10px;align-items:center;text-align:left;width:100%;border:1px solid var(--line);border-radius:var(--rad-sm);background:var(--panel);color:var(--text);padding:8px 10px }
+    .ep:hover { background:var(--sel-row);border-color:var(--accent) }
+    .ep-ico { grid-row:1 / span 2;font-size:15px } .ep-main { font-weight:600;font-size:13px;overflow-wrap:anywhere } .ep-sub { grid-column:2;color:var(--mute);font-size:11px }
+    .ep-peak { grid-row:1 / span 2;grid-column:3;font-weight:700;font-variant-numeric:tabular-nums;border-radius:6px;padding:2px 8px;font-size:12px;background:var(--warn-bg);color:var(--warn) } .ep-peak.bad { background:var(--bad-bg);color:var(--bad) }
+    .loss-empty { color:var(--mute);padding:10px 2px }
+    @media(max-width:700px) { .loss-sum { grid-template-columns:repeat(2,minmax(0,1fr)) } }
+    html[data-style="unifi"] .grid-content[data-tab="loss"] #lossCard { display:block }
+    @media (prefers-reduced-motion: reduce) { *,*::before,*::after { transition:none!important;animation:none!important;scroll-behavior:auto!important } }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <aside>
+    <div class="brand"><span class="brand-icon" aria-hidden="true">⌁</span><span>NetProbe Enhanced<small data-i18n="brand.sub">NETWORK HEALTH</small></span></div>
+    <nav aria-label="Navigation" data-i18n-attr="aria-label:nav.aria">
+      <a href="#overview" class="selected" data-i18n-attr="title:nav.overview"><span class="nav-icon" aria-hidden="true">▥</span><span class="nav-label" data-i18n="nav.overview">Обзор</span></a>
+      <a href="#targets" data-i18n-attr="title:nav.targets"><span class="nav-icon" aria-hidden="true">◎</span><span class="nav-label" data-i18n="nav.targets">Цели</span></a>
+      <a href="#diagnostics" data-i18n-attr="title:nav.diagnostics"><span class="nav-icon" aria-hidden="true">≋</span><span class="nav-label" data-i18n="nav.diagnostics">Диагностика</span></a>
+      <a href="#speedtest" title="Speedtest"><span class="nav-icon" aria-hidden="true">⇅</span><span class="nav-label">Speedtest</span></a>
+    </nav>
+    <div class="side-foot"><div><span class="pulse"></span><strong id="sidebarMode">…</strong></div><div style="margin-top:7px">Unraid · NetProbe Enhanced</div></div>
+  </aside>
+  <main id="overview">
+    <header class="head">
+      <div class="unifi-top unifi-only"><span class="site-pill"><span class="site-dot" id="siteDot" data-s="unknown"></span><span>Unraid · NetProbe Enhanced</span></span><span class="net-tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="topbar.network">Сеть</span></span></div>
+      <span class="wordmark unifi-only" aria-hidden="true">NetProbe Enhanced</span>
+      <div><div class="eyebrow" data-i18n="head.eyebrow">Internet monitoring / Unraid</div><h1 data-i18n="head.title">Состояние сети</h1></div>
+      <div class="head-actions">
+        <label class="pick"><span data-i18n="ctl.language">Язык</span><select id="langSelect"><option value="ru">Русский</option><option value="en">English</option></select></label>
+        <label class="pick"><span data-i18n="ctl.style">Стиль</span><select id="styleSelect"><option value="netprobe">NetProbe</option><option value="unifi">UniFi</option></select></label>
+        <span class="tag" id="sourceTag">…</span><button class="btn" id="refreshBtn" data-i18n="head.refresh">Обновить данные</button>
+      </div>
+    </header>
+    <div class="unifi-left unifi-only" id="unifiLeft">
+      <section class="card" id="devCard">
+        <div class="dev-head"><span class="node-icon" id="devIcon" data-s="unknown" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3.5" y="12.5" width="17" height="7" rx="1.8"/><path d="M7.5 16h.01M11 16h.01M7 12.5 5 6M17 12.5l2-6M12 12.5V5.5"/></svg></span><div class="dev-title"><strong id="devName">Router</strong><span class="sub" id="devSub">—</span></div><span class="pill" id="devPill">—</span></div>
+        <div class="counters" id="devCounters"></div>
+        <dl class="kv" id="devKv"></dl>
+      </section>
+      <section class="card" id="netCard">
+        <div class="card-row"><strong data-i18n="net.title">Интернет</strong><button type="button" class="link-btn" id="goSpeed" data-i18n="net.speedLink">Speedtest</button></div>
+        <dl class="kv" id="netKv"></dl>
+        <div class="mini-row" id="miniRow"></div>
+      </section>
+      <section class="card" id="thrCard">
+        <div class="card-row"><strong data-i18n="thr.title">Пороги уведомлений</strong><button type="button" class="link-btn" id="goSettings" data-i18n="thr.configure">Настроить</button></div>
+        <div class="thr-chips" id="thrChips"></div>
+      </section>
+    </div>
+    <section class="main-status">
+      <div class="status-left"><span id="statusDot" class="status-dot offline"></span><div><div id="statusName" class="status-text">…</div><div class="status-sub" id="statusDescription"></div></div></div>
+      <div class="status-right"><span data-i18n="status.last">Последний замер</span><strong id="updatedAt">—</strong></div>
+    </section>
+    <section class="card path" id="pathCard" data-i18n-attr="aria-label:path.title">
+      <div class="path-head"><h2 data-i18n="path.title">Путь до интернета</h2><span class="card-sub" id="pathNote"></span></div>
+      <div class="path-row">
+        <div class="node" id="nodeUnraid" data-s="unknown">
+          <span class="node-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="3.5" width="16" height="7" rx="1.6"/><rect x="4" y="13.5" width="16" height="7" rx="1.6"/><path d="M7.5 7h.01M7.5 17h.01M12 7h5M12 17h5"/></svg></span>
+          <span class="node-text"><span class="node-name">Unraid</span><span class="node-sub" id="nodeUnraidSub">—</span><span><span class="pill" id="nodeUnraidPill">—</span></span></span>
+        </div>
+        <div class="link" id="linkUnraid" data-s="unknown"><span class="link-ms" id="linkUnraidMs">—</span><span class="link-line"></span><span class="link-cap" id="linkUnraidCap"></span></div>
+        <div class="node" id="nodeRouter" data-s="unknown">
+          <span class="node-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3.5" y="12.5" width="17" height="7" rx="1.8"/><path d="M7.5 16h.01M11 16h.01M7 12.5 5 6M17 12.5l2-6M12 12.5V5.5"/></svg></span>
+          <span class="node-text"><span class="node-name" id="nodeRouterName">Router</span><span class="node-sub" id="nodeRouterSub">—</span><span><span class="pill" id="nodeRouterPill">—</span></span></span>
+        </div>
+        <div class="link" id="linkRouter" data-s="unknown"><span class="link-ms" id="linkRouterMs">—</span><span class="link-line"></span><span class="link-cap" id="linkRouterCap"></span></div>
+        <div class="node" id="nodeInternet" data-s="unknown">
+          <span class="node-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.6 3.6 5.4 3.6 8.5s-1 5.9-3.6 8.5c-2.6-2.6-3.6-5.4-3.6-8.5s1-5.9 3.6-8.5z"/></svg></span>
+          <span class="node-text"><span class="node-name" data-i18n="path.internet">Интернет</span><span class="node-sub" id="nodeInternetSub">—</span><span><span class="pill" id="nodeInternetPill">—</span></span></span>
+        </div>
+      </div>
+    </section>
+    <section class="metrics" data-i18n-attr="aria-label:metrics.aria">
+      <div class="metrics-title" data-i18n="metrics.title">Интернет</div>
+      <div class="metric"><div class="metric-label" data-i18n="metric.score">Качество соединения</div><div class="metric-val value-ok"><span id="scoreValue">—</span><small> / 100</small></div><div class="metric-footer" data-i18n="mf.score">Комплексная оценка NetProbe</div></div>
+      <div class="metric"><div class="metric-label" data-i18n="metric.loss">Потеря пакетов</div><div class="metric-val"><span id="lossValue">—</span><small> %</small></div><div class="metric-footer" data-i18n="mf.loss">Среднее по всем ICMP-целям</div></div>
+      <div class="metric"><div class="metric-label" data-i18n="metric.latency">Задержка</div><div class="metric-val"><span id="latencyValue">—</span><small> ms</small></div><div class="metric-footer" data-i18n="mf.latency">Средняя RTT</div></div>
+      <div class="metric"><div class="metric-label" data-i18n="metric.jitter">Джиттер</div><div class="metric-val"><span id="jitterValue">—</span><small> ms</small></div><div class="metric-footer" data-i18n="mf.jitter">NetProbe: max − min RTT</div></div>
+      <div class="metric"><div class="metric-label" data-i18n="metric.dns">Ответ DNS</div><div class="metric-val"><span id="dnsValue">—</span><small> ms</small></div><div class="metric-footer" data-i18n="mf.dns">Среднее по DNS-серверам</div></div>
+    </section>
+    <section class="card" id="diagnostics" data-compare="0">
+      <div class="chart-top"><div><h2 id="chartTitle">…</h2><div class="card-sub" id="chartSubtitle"></div></div><label class="pick"><span class="hide" data-i18n="chart.periodLabel">Период</span><select id="periodSelect" class="chart-select" data-i18n-attr="aria-label:chart.periodLabel"><option value="60" data-i18n="period.1m">1 минута</option><option value="300" data-i18n="period.5m">5 минут</option><option value="900" data-i18n="period.15m">15 минут</option><option value="3600" selected data-i18n="period.1h">1 час</option><option value="21600" data-i18n="period.6h">6 часов</option><option value="86400" data-i18n="period.24h">24 часа</option><option value="259200" data-i18n="period.3d">3 дня</option><option value="604800" data-i18n="period.1w">Неделя</option><option value="2592000" data-i18n="period.1mo">Месяц (30 дн.)</option><option value="custom" data-i18n="period.custom">Свой период…</option></select></label></div>
+      <div class="chart-top" style="margin-bottom:0"><div class="chart-controls"><label class="hide" for="chartTarget" data-i18n="chart.targetLabel">Цель графика</label><select id="chartTarget" class="chart-select"><option value="">…</option></select><details id="comparePicker" class="cmp-picker"><summary><span id="cmpSummary">…</span></summary><div class="cmp-menu" id="cmpMenu"></div></details><div class="flex-tabs" id="metricTabs"><button data-metric="avg_loss_pct" class="active"><span data-i18n="mt.loss">Потери</span><span class="chip-val" data-chip="avg_loss_pct"></span></button><button data-metric="avg_latency_ms"><span data-i18n="mt.latency">Задержка</span><span class="chip-val" data-chip="avg_latency_ms"></span></button><button data-metric="avg_jitter_ms"><span data-i18n="mt.jitter">Джиттер</span><span class="chip-val" data-chip="avg_jitter_ms"></span></button><button data-metric="avg_dns_latency_ms"><span>DNS</span><span class="chip-val" data-chip="avg_dns_latency_ms"></span></button><button data-metric="score"><span data-i18n="mt.score">Качество</span><span class="chip-val" data-chip="score"></span></button></div><button type="button" class="btn cmp-toggle" id="compareToggle" aria-pressed="false" data-i18n="cmp.toggle">Сравнение</button><button type="button" class="link-btn" id="goLoss" data-i18n="loss.goto">Потери за период →</button></div></div>
+      <div class="range-row" id="customRange" hidden><label class="pick"><span data-i18n="range.from">С</span><input type="datetime-local" id="rangeFrom" class="chart-select"></label><label class="pick"><span data-i18n="range.to">По</span><input type="datetime-local" id="rangeTo" class="chart-select"></label><button type="button" class="btn" id="rangeApply" data-i18n="range.apply">Применить</button><span class="section-status" id="rangeError" role="status"></span></div>
+      <div class="cmp-legend" id="compareLegend"></div><div class="chart-wrap"><svg id="primaryChart" role="img" data-i18n-attr="aria-label:chart.aria" viewBox="0 0 900 250" preserveAspectRatio="none"></svg><div class="chart-tip" id="chartTip" hidden></div></div><div class="axis-note" id="axisNote"></div>
+      <div class="chart-footer"><span class="chart-legend"><span class="legend-line"></span><span id="seriesLabel">…</span></span><span id="periodInfo"></span></div><div id="chartStatus" class="section-status" role="status"></div>
+    </section>
+    <section class="card unifi-only" id="uptimeCard"><div class="uptime-head"><strong data-i18n="up.title">Работа интернета</strong><span class="vsep" aria-hidden="true"></span><span><span data-i18n="up.uptime">Uptime</span> <b id="uptimePct" data-i18n-attr="title:up.tip">—</b></span></div><div class="uptime-bar" id="uptimeBar" role="img" data-i18n-attr="aria-label:up.title"></div></section>
+    <section class="card unifi-only" id="tilesCard"><div class="tiles-row" id="tilesRow"></div></section>
+    <section class="card unifi-only" id="checksCard"><div class="card-row"><strong data-i18n="chk.title">Связность</strong><span class="sub" data-i18n="chk.sub">Доля успешных замеров за период</span></div><div class="checks-grid" id="checksGrid"></div></section>
+    <div class="grid-content" data-tab="targets">
+      <div class="unifi-tabs unifi-only" id="unifiTabs" role="tablist"><button type="button" data-tab="targets" class="active" data-i18n="tab.targets">Цели</button><button type="button" data-tab="dns" data-i18n="tab.dns">DNS</button><button type="button" data-tab="events" data-i18n="tab.events">События</button><button type="button" data-tab="loss" data-i18n="tab.loss">Потери</button><button type="button" data-tab="speedtest">Speedtest</button><button type="button" data-tab="settings" data-i18n="tab.settings">Уведомления</button><button type="button" data-tab="diagnostics" data-i18n="tab.diag">Диагностика</button></div>
+      <div class="stack">
+        <section class="card" id="targets">
+          <div class="card-head"><div><h2 data-i18n="targets.title">Контрольные адреса</h2><div class="card-sub" data-i18n="targets.sub">Маршрутизатор и внешние узлы</div></div><a class="btn" id="exportLink" href="/api/export/targets.csv?range=3600">CSV ↓</a></div>
+          <div class="table-wrap"><table class="table"><thead><tr><th data-i18n="th.target">Цель / измеренный IP</th><th data-i18n="th.last">Последний замер</th><th data-i18n="th.period">За период</th><th data-i18n="th.state">Состояние</th></tr></thead><tbody id="targetsBody"><tr><td colspan="4" class="muted">…</td></tr></tbody></table></div>
+          <div id="targetsStatus" class="section-status" role="status"></div>
+          <div class="info-note" id="historyNote"></div>
+        </section>
+        <section class="card" id="lossCard">
+          <div class="card-head"><div><h2 data-i18n="loss.title">Потери пакетов за период</h2><div class="card-sub" id="lossWindow"></div></div><label class="pick"><span data-i18n="loss.target">Цель</span><select id="lossTarget" class="chart-select"><option value="">…</option></select></label></div>
+          <div class="loss-sum" id="lossSummary"></div>
+          <div class="table-wrap"><table class="table"><thead><tr><th data-i18n="th.target2">Цель</th><th data-i18n="loss.th.samples">Проб</th><th data-i18n="loss.th.lossy">С потерями</th><th data-i18n="loss.th.avg">Средние / макс.</th><th data-i18n="loss.th.eps">Эпизодов</th></tr></thead><tbody id="lossTargets"><tr><td colspan="5" class="muted">…</td></tr></tbody></table></div>
+          <h3 class="loss-h" data-i18n="loss.episodes">Эпизоды потерь</h3>
+          <div class="loss-episodes" id="lossEpisodes"></div><div class="section-status" id="lossStatus" role="status"></div>
+        </section>
+        <section class="card" id="speedtest">
+          <div class="card-head"><div><h2>Speedtest</h2><div class="card-sub" id="speedTime"></div></div><button class="btn primary" id="speedBtn" disabled>…</button></div>
+          <div class="speedbox"><div class="speed-row"><div><div class="muted" style="font-size:11px">DOWNLOAD</div><div class="speed-number" id="download">—<small> Mbps</small></div></div><div><div class="muted" style="font-size:11px">UPLOAD</div><div class="speed-number" id="upload">—<small> Mbps</small></div></div><div><div class="muted" style="font-size:11px">PING</div><div class="speed-number" id="speedPing">—<small> ms</small></div></div></div></div>
+          <p class="card-sub" id="speedServer" style="margin:13px 0 2px">—</p>
+          <details><summary data-i18n="speed.params">Параметры ручного теста</summary><div class="form-line"><label><span>Backend</span><select id="speedBackend"><option value="python">Python speedtest-cli</option><option value="ookla">Ookla official</option></select></label><label><span data-i18n="speed.serverId">ID сервера (необязательно)</span><input type="text" id="serverId" inputmode="numeric" placeholder="Auto"></label></div><label class="check"><input id="secure" type="checkbox" checked> <span data-i18n="speed.secure">HTTPS для Python backend</span></label><label class="check"><input id="forceAuto" type="checkbox"> <span data-i18n="speed.forceAuto">Игнорировать указанный сервер / выбрать автоматически</span></label><p class="notice" id="backendNotice"></p><p class="card-sub" data-i18n="speed.scheduledNote">Scheduled Speedtest использует переменные окружения контейнера, а не настройки этой формы.</p></details>
+          <div class="card-sub" id="speedMessage" role="status" style="margin-top:11px"></div><div id="speedStatus" class="section-status"></div>
+          <details><summary data-i18n="speed.history">История Speedtest</summary><div class="table-wrap"><table class="table"><thead><tr><th data-i18n="sh.time">Время</th><th>↓ / ↑ Mbps</th><th>Ping</th><th data-i18n="sh.server">Backend / сервер</th></tr></thead><tbody id="speedHistory"><tr><td colspan="4">…</td></tr></tbody></table></div></details>
+        </section>
+      </div>
+      <div class="stack">
+        <section class="card" id="dnsCard"><div class="card-head"><div><h2 data-i18n="dns.title">DNS-серверы</h2><div class="card-sub" data-i18n="dns.sub">Ответ на DNS-запросы</div></div></div><div id="dnsList"><p class="muted">…</p></div></section>
+        <section class="card" id="eventsCard"><div class="card-head"><div><h2 data-i18n="events.title">События</h2><div class="card-sub" data-i18n="events.sub">Подтверждённые изменения состояния</div></div></div><div class="events" id="eventList"><p class="muted">…</p></div><div id="eventsStatus" class="section-status"></div><div class="info-note" data-i18n="events.note">Предупреждения и восстановление передаются через штатные уведомления Unraid.</div></section>
+        <section class="card" id="settingsCard"><details id="alertSettings" style="margin:0;padding:0;border:0"><summary data-i18n="set.title">Пороги уведомлений</summary><p class="card-sub" data-i18n="set.note">Изменение подтверждается последовательными замерами. Короткий сбой между пробами может остаться незамеченным.</p><form id="settingsForm"><fieldset id="settingsFields" disabled style="border:0;padding:0;margin:0"><label class="check"><input type="checkbox" id="enabled"> <span data-i18n="set.enabled">Уведомления включены</span></label><div class="setting-grid" style="margin-top:12px"><label><span data-i18n="set.loss">Потеря пакетов, %</span><input id="loss_pct" type="number" min="0" max="100" step="any" required></label><label><span>RTT, ms</span><input id="latency_ms" type="number" min="0" max="60000" step="any" required></label><label><span data-i18n="set.jitter">Джиттер, ms</span><input id="jitter_ms" type="number" min="0" max="60000" step="any" required></label><label><span>DNS, ms</span><input id="dns_ms" type="number" min="0" max="60000" step="any" required></label><label><span data-i18n="set.confirm">Замеров для тревоги</span><input id="confirm_samples" type="number" min="1" max="20" step="1" required></label><label><span data-i18n="set.recovery">Замеров для восстановления</span><input id="recovery_samples" type="number" min="1" max="20" step="1" required></label></div><div class="settings-actions"><button class="btn" type="submit" data-i18n="set.save">Сохранить</button><span class="card-sub" id="settingsMessage" role="status"></span></div></fieldset></form><div id="settingsStatus" class="section-status"></div><div class="info-note" id="storageInfo"></div></details></section>
+        <section class="card" id="diagCard"><div class="card-head"><div><h2 data-i18n="diag.title">Диагностика</h2><div class="card-sub" data-i18n="diag.sub">Логи и активные настройки NetProbe</div></div></div><details id="detailsLog"><summary data-i18n="diag.logs">Логи приложения</summary><pre class="log-box" id="logOutput"></pre><div class="section-status" id="logStatus" role="status"></div></details><details><summary data-i18n="diag.config">Конфигурация (без секретов)</summary><pre class="log-box" id="configOutput">…</pre></details></section>
+      </div>
+    </div>
+    <div class="footer">NETPROBE · SQLite history · <span id="footerMode">—</span></div>
+  </main>
+</div>
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  /* ---------- i18n: Russian and English, chosen from the dropdown, remembered in localStorage ---------- */
+  const I18N = {
+    ru: {
+      'period.custom':'Свой период…','range.from':'С','range.to':'По','range.apply':'Применить','range.errOrder':'Начало должно быть раньше конца','range.errLimit':'Период не должен превышать 31 день','range.errEmpty':'Укажите начало и конец периода',
+      'tab.loss':'Потери','th.target2':'Цель','loss.goto':'Потери за период →','loss.title':'Потери пакетов за период','loss.target':'Цель','loss.all':'Все ping-цели','loss.avg':'Средние потери','loss.max':'Максимум','loss.lossy':'Проб с потерями','loss.eps':'Эпизодов',
+      'loss.episodes':'Эпизоды потерь','loss.none':'Потерь за период нет','loss.noSamples':'Нет замеров за период','loss.unavailable':'Отчёт о потерях недоступен','loss.th.samples':'Проб','loss.th.lossy':'С потерями','loss.th.avg':'Средние / макс.','loss.th.eps':'Эпизодов',
+      'loss.show':'показать на графике','loss.truncated':'Показаны последние {n} эпизодов; сводка учитывает все','loss.rowsCapped':'Период слишком велик: часть проб не обработана, отчёт неполный. Выберите период короче или одну цель.','loss.samples':'проб: {n}','loss.ofSamples':'из {n}','dur.s':'{n} с','dur.m':'{n} мин','dur.h':'{h} ч {m} мин',
+      'unit.ms':'мс','cmp.toggle':'Сравнение','cmp.summary':'Сводка (все цели)','cmp.ping':'Ping-цели','cmp.dns':'DNS-серверы','cmp.allDns':'Все DNS','cmp.clear':'Сбросить','cmp.selected':'Источники: {n}','cmp.none':'Для этого выбора нет доступных рядов','cmp.title':'Сравнение · рядов: {n}','cmp.sub':'Несколько метрик и целей на одном графике','cmp.sharedAxis':'Общая шкала, {u}','cmp.ownScale':'У каждого ряда своя шкала: 100% = максимум ряда за период (реальные значения — в легенде и подсказке)','cmp.max':'макс. {v}','cmp.capped':'Показаны первые {n} рядов','cmp.last':'сейчас',
+      'topbar.network':'Сеть','net.title':'Интернет','net.speedLink':'Speedtest','thr.title':'Пороги уведомлений','thr.configure':'Настроить',
+      'up.title':'Работа интернета','up.uptime':'Uptime','up.tip':'Доля интервалов без сильных потерь/обрыва; интервалы без данных не учитываются','up.ok':'без потерь','up.warn':'были потери пакетов (до {v}%)','up.bad':'сильные потери или обрыв ({v}%)','up.gap':'нет данных',
+      'chk.title':'Связность','chk.sub':'Доля успешных замеров за период','chk.bridge':'Мост Docker','chk.router':'Роутер','chk.internet':'Интернет','chk.dns':'DNS',
+      'tab.targets':'Цели','tab.dns':'DNS','tab.events':'События','tab.settings':'Уведомления','tab.diag':'Диагностика',
+      'cnt.ok':'в норме','cnt.warn':'перебои','cnt.down':'нет ответа','cnt.dns':'DNS {ok}/{n}',
+      'kv.routerIp':'IP роутера','kv.gateway':'Шлюз Docker (Unraid)','kv.routerRtt':'RTT до роутера','kv.interval':'Интервал проб','kv.last':'Последний замер','kv.since':'Мониторинг с',
+      'kv.score':'Качество','kv.hosts':'Узлы отвечают','kv.avgRtt':'Средняя RTT','kv.loss':'Потеря пакетов','kv.speed':'Последний Speedtest',
+      'thr.loss':'потери ≥ {v}%','thr.rtt':'RTT ≥ {v} мс','thr.jitter':'джиттер ≥ {v} мс','thr.dns':'DNS ≥ {v} мс','thr.confirm':'тревога: {n} зам.','thr.recover':'восстановление: {n} зам.',
+      'brand.sub':'NETWORK HEALTH','nav.aria':'Навигация','nav.overview':'Обзор','nav.targets':'Цели','nav.diagnostics':'Диагностика',
+      'ctl.language':'Язык','ctl.style':'Стиль','head.eyebrow':'Мониторинг интернета / Unraid','head.title':'Состояние сети','head.refresh':'Обновить данные',
+      'side.connecting':'Подключение…','side.live':'Данные получены','side.stale':'Замеры устарели','side.offline':'Нет полного ответа API',
+      'status.last':'Последний замер','status.checking':'Проверяем сеть…','status.waiting':'Ожидание данных от NetProbe',
+      'status.unavailable':'API недоступен или ответ неполный','status.noFresh':'Нет свежих замеров','status.down':'Нет ответа от целей: {n} из {total}','status.degraded':'Перебои на целях: {n}','status.d.bad':'Проблемные цели: {names}','status.unconfirmed':'Состояние целей ещё не подтверждено','status.ok':'Цели работают штатно',
+      'status.d.lastReal':'Показаны последние реальные данные; проверьте время замеров.','status.d.waitReal':'Ожидание реальных данных от NetProbe.','status.d.outdated':'Мониторинг не предоставил свежий замер.','status.d.cycle':'Пауза между циклами: {i} сек · {p} ping на цель · последовательные пробы',
+      'metrics.title':'Интернет','metrics.aria':'Основные метрики','metric.score':'Качество соединения','metric.loss':'Потеря пакетов','metric.latency':'Задержка','metric.jitter':'Джиттер','metric.dns':'Ответ DNS',
+      'mf.score':'Комплексная оценка NetProbe','mf.loss':'Среднее по всем ICMP-целям','mf.latency':'Средняя RTT','mf.jitter':'NetProbe: max − min RTT','mf.dns':'Среднее по DNS-серверам',
+      'path.title':'Путь до интернета','path.internet':'Интернет','path.hosts':'отвечают {ok} из {n} узлов','path.dns':'DNS: {ok} из {n}','path.host':'хост NetProbe · мост Docker {ms}','path.hostOnly':'хост NetProbe','path.noData':'нет данных',
+      'path.router':'Роутер','path.link1':'RTT Unraid → {r}','path.link2':'средняя RTT до внешних узлов','path.note':'RTT измеряется с Unraid; ссылки показывают задержку до узла, а не отдельного участка.','path.noRouter':'роутер не задан','path.noHosts':'нет внешних целей',
+      'state.OK':'Норма','state.DEGRADED':'Перебои','state.DOWN':'Нет ответа','state.UNKNOWN':'Нет данных',
+      'chart.title':'История соединения','chart.sub':'Сводные метрики всех целей · SQLite','chart.titleTarget':'История · {t}','chart.subTarget':'Измеренный RTT, jitter и потери выбранной цели','chart.targetLabel':'Цель графика','chart.all':'Все цели · сводка','chart.aria':'График истории сети',
+      'chart.loading':'Загрузка истории…','chart.unavailable':'История недоступна','chart.empty':'Нет измерений за выбранный период','chart.points':'точек: {n}','chart.peakNote':' · линия: среднее, точки: максимум','chart.errPrefix':'История недоступна · {kept}{err}','chart.kept':'сохранены последние полученные точки · ',
+      'tip.loss':'потери','tip.max':'макс. потери','chart.periodLabel':'Период','period.1m':'1 минута','period.5m':'5 минут','period.15m':'15 минут','period.1h':'1 час','period.6h':'6 часов','period.24h':'24 часа','period.3d':'3 дня','period.1w':'Неделя','period.1mo':'Месяц (30 дн.)',
+      'mt.loss':'Потери','mt.latency':'Задержка','mt.jitter':'Джиттер','mt.score':'Качество','nm.loss':'Потери пакетов','nm.latency':'Задержка','nm.jitter':'Джиттер','nm.dns':'DNS','nm.score':'Качество соединения',
+      'targets.title':'Контрольные адреса','targets.sub':'Маршрутизатор и внешние узлы','th.target':'Цель / измеренный IP','th.last':'Последний замер','th.period':'За период','th.state':'Состояние',
+      'targets.none':'Замеров целей за период нет','targets.unavailable':'Данные целей недоступны','targets.ipUnknown':'IP не определён','targets.stale':'устарел','targets.ipPeriod':'IP за период: {n}','targets.samples':'замеров: {n}','targets.loss':'потери','targets.lossShort':'Потери','targets.note':'История адресов с {when}. До установки расширения доступны только сводные замеры. Нажмите на цель для её графика.',
+      'dns.title':'DNS-серверы','dns.sub':'Ответ на DNS-запросы','dns.none':'Замеров DNS за период нет','dns.unavailable':'Данные DNS недоступны',
+      'events.title':'События','events.sub':'Подтверждённые изменения состояния','events.none':'Подтверждённых изменений за период нет','events.unavailable':'События недоступны','events.note':'Предупреждения и восстановление передаются через штатные уведомления Unraid.',
+      'reason.noPing':'нет ответа на ping','reason.noDns':'DNS не отвечает','reason.loss':'потери пакетов {v}%','reason.rtt':'задержка {v} мс','reason.jitter':'джиттер {v} мс','reason.dnsSlow':'медленный DNS-ответ, {v} мс',
+      'speed.params':'Параметры ручного теста','speed.serverId':'ID сервера (необязательно)','speed.secure':'HTTPS для Python backend','speed.forceAuto':'Игнорировать указанный сервер / выбрать автоматически','speed.scheduledNote':'Scheduled Speedtest использует переменные окружения контейнера, а не настройки этой формы.','speed.history':'История Speedtest',
+      'speed.last':'Последний тест · {when}','speed.none':'Измерений Speedtest пока нет','speed.unavailable':'Результат Speedtest недоступен','speed.lastErr':'Последний результат: {e}','speed.histErr':'История: {e}','speed.noMeasurements':'Нет измерений','speed.historyUnavailable':'История недоступна',
+      'speed.needApi':'Для запуска нужны настройки API.','speed.backendUnavailable':'Выбранный backend недоступен.','speed.ooklaTerms':'Условия Ookla ещё не приняты на сервере.','speed.run':'Запустить тест','speed.running':'Выполняется…',
+      'speed.idDigits':'ID сервера должен содержать только цифры.','speed.started':'Тест запущен. Измерение потребляет трафик и может занять несколько минут.','speed.got':'Реальный результат получен · {when}','speed.error':'Ошибка Speedtest: {e}. При тайм-ауте проверьте логи перед повторным запуском.',
+      'sh.time':'Время','sh.server':'Backend / сервер',
+      'set.title':'Пороги уведомлений','set.note':'Изменение подтверждается последовательными замерами. Короткий сбой между пробами может остаться незамеченным.','set.enabled':'Уведомления включены','set.loss':'Потеря пакетов, %','set.jitter':'Джиттер, ms','set.confirm':'Замеров для тревоги','set.recovery':'Замеров для восстановления','set.save':'Сохранить',
+      'set.invalid':'Проверьте значения порогов.','set.saving':'Сохранение…','set.saved':'Сохранено на сервере.','set.notSaved':'Не сохранено: {e}','set.dirty':'Изменения ещё не сохранены.','set.storage':'SQLite: {mb} MiB · {ret}','set.noRetention':'Без автоматического удаления истории','set.retention':'Хранение: {d} дней','set.noStorage':'Хранилище: нет данных API',
+      'diag.title':'Диагностика','diag.sub':'Логи и активные настройки NetProbe','diag.logs':'Логи приложения','diag.config':'Конфигурация (без секретов)','diag.logHint':'Для просмотра разверните раздел.','diag.noLines':'В текущем буфере нет строк.','diag.lastRead':'Последнее чтение · {when}','diag.logsUnavailable':'Логи недоступны · {e}','diag.configUnavailable':'Конфигурация API недоступна.',
+      'err.apiDown':'API недоступен · {kept}{e}','err.kept':'сохранены последние полученные данные · ','err.timeout':'Время ожидания истекло','err.badResponse':'Некорректный ответ','err.badHistory':'Некорректный ответ истории','err.badLogs':'Некорректный ответ логов'
+    },
+    en: {
+      'period.custom':'Custom range…','range.from':'From','range.to':'To','range.apply':'Apply','range.errOrder':'The start must be before the end','range.errLimit':'The range must not exceed 31 days','range.errEmpty':'Enter the start and the end',
+      'tab.loss':'Loss','th.target2':'Target','loss.goto':'Packet loss report →','loss.title':'Packet loss in the period','loss.target':'Target','loss.all':'All ping targets','loss.avg':'Average loss','loss.max':'Peak','loss.lossy':'Samples with loss','loss.eps':'Episodes',
+      'loss.episodes':'Loss episodes','loss.none':'No packet loss in this period','loss.noSamples':'No samples in this period','loss.unavailable':'Packet loss report unavailable','loss.th.samples':'Samples','loss.th.lossy':'With loss','loss.th.avg':'Average / peak','loss.th.eps':'Episodes',
+      'loss.show':'show on chart','loss.truncated':'Showing the latest {n} episodes; the summary counts all of them','loss.rowsCapped':'The period is too long: some samples were not processed and the report is incomplete. Pick a shorter period or one target.','loss.samples':'samples: {n}','loss.ofSamples':'of {n}','dur.s':'{n} s','dur.m':'{n} min','dur.h':'{h} h {m} min',
+      'unit.ms':'ms','cmp.toggle':'Compare','cmp.summary':'Summary (all targets)','cmp.ping':'Ping targets','cmp.dns':'DNS servers','cmp.allDns':'All DNS','cmp.clear':'Clear','cmp.selected':'Sources: {n}','cmp.none':'No series are available for this selection','cmp.title':'Comparison · {n} series','cmp.sub':'Several metrics and targets on one chart','cmp.sharedAxis':'Shared scale, {u}','cmp.ownScale':'Each series has its own scale: 100% = the series maximum in the period (real values are in the legend and tooltip)','cmp.max':'max {v}','cmp.capped':'Showing the first {n} series','cmp.last':'now',
+      'topbar.network':'Network','net.title':'Internet','net.speedLink':'Speedtest','thr.title':'Notification thresholds','thr.configure':'Configure',
+      'up.title':'Internet performance','up.uptime':'Uptime','up.tip':'Share of intervals without heavy loss or an outage; intervals without data are ignored','up.ok':'no loss','up.warn':'packet loss (up to {v}%)','up.bad':'heavy loss or outage ({v}%)','up.gap':'no data',
+      'chk.title':'Connectivity','chk.sub':'Share of successful samples in the period','chk.bridge':'Docker bridge','chk.router':'Router','chk.internet':'Internet','chk.dns':'DNS',
+      'tab.targets':'Targets','tab.dns':'DNS','tab.events':'Events','tab.settings':'Notifications','tab.diag':'Diagnostics',
+      'cnt.ok':'OK','cnt.warn':'degraded','cnt.down':'down','cnt.dns':'DNS {ok}/{n}',
+      'kv.routerIp':'Router IP','kv.gateway':'Docker gateway (Unraid)','kv.routerRtt':'RTT to router','kv.interval':'Probe interval','kv.last':'Last sample','kv.since':'Monitoring since',
+      'kv.score':'Quality','kv.hosts':'Hosts reachable','kv.avgRtt':'Average RTT','kv.loss':'Packet loss','kv.speed':'Last Speedtest',
+      'thr.loss':'loss ≥ {v}%','thr.rtt':'RTT ≥ {v} ms','thr.jitter':'jitter ≥ {v} ms','thr.dns':'DNS ≥ {v} ms','thr.confirm':'alert after {n} samples','thr.recover':'recover after {n} samples',
+      'brand.sub':'NETWORK HEALTH','nav.aria':'Navigation','nav.overview':'Overview','nav.targets':'Targets','nav.diagnostics':'Diagnostics',
+      'ctl.language':'Language','ctl.style':'Style','head.eyebrow':'Internet monitoring / Unraid','head.title':'Network status','head.refresh':'Refresh',
+      'side.connecting':'Connecting…','side.live':'Data received','side.stale':'Samples are stale','side.offline':'API response incomplete',
+      'status.last':'Last sample','status.checking':'Checking the network…','status.waiting':'Waiting for NetProbe data',
+      'status.unavailable':'API unavailable or response incomplete','status.noFresh':'No fresh samples','status.down':'No response from {n} of {total} targets','status.degraded':'Interruptions on {n} targets','status.d.bad':'Problem targets: {names}','status.unconfirmed':'Target state is not confirmed yet','status.ok':'All targets are healthy',
+      'status.d.lastReal':'Showing the last real data; check the sample time.','status.d.waitReal':'Waiting for real data from NetProbe.','status.d.outdated':'Monitoring has not provided a fresh sample.','status.d.cycle':'Pause between cycles: {i} s · {p} pings per target · sequential probes',
+      'metrics.title':'Internet','metrics.aria':'Key metrics','metric.score':'Connection quality','metric.loss':'Packet loss','metric.latency':'Latency','metric.jitter':'Jitter','metric.dns':'DNS response',
+      'mf.score':'NetProbe composite score','mf.loss':'Average over all ICMP targets','mf.latency':'Average RTT','mf.jitter':'NetProbe: max − min RTT','mf.dns':'Average over DNS servers',
+      'path.title':'Path to the internet','path.internet':'Internet','path.hosts':'{ok} of {n} hosts reachable','path.dns':'DNS: {ok} of {n}','path.host':'NetProbe host · Docker bridge {ms}','path.hostOnly':'NetProbe host','path.noData':'no data',
+      'path.router':'Router','path.link1':'RTT Unraid → {r}','path.link2':'average RTT to external hosts','path.note':'RTT is measured from Unraid; each link shows latency to that node, not to a separate segment.','path.noRouter':'router not configured','path.noHosts':'no external targets',
+      'state.OK':'OK','state.DEGRADED':'Degraded','state.DOWN':'Down','state.UNKNOWN':'No data',
+      'chart.title':'Connection history','chart.sub':'Summary metrics of all targets · SQLite','chart.titleTarget':'History · {t}','chart.subTarget':'Measured RTT, jitter and loss of the selected target','chart.targetLabel':'Chart target','chart.all':'All targets · summary','chart.aria':'Network history chart',
+      'chart.loading':'Loading history…','chart.unavailable':'History unavailable','chart.empty':'No measurements in the selected period','chart.points':'{n} points','chart.peakNote':' · line: average, dots: maximum','chart.errPrefix':'History unavailable · {kept}{err}','chart.kept':'showing the last received points · ',
+      'tip.loss':'loss','tip.max':'max loss','chart.periodLabel':'Period','period.1m':'1 minute','period.5m':'5 minutes','period.15m':'15 minutes','period.1h':'1 hour','period.6h':'6 hours','period.24h':'24 hours','period.3d':'3 days','period.1w':'1 week','period.1mo':'1 month (30 d)',
+      'mt.loss':'Loss','mt.latency':'Latency','mt.jitter':'Jitter','mt.score':'Quality','nm.loss':'Packet loss','nm.latency':'Latency','nm.jitter':'Jitter','nm.dns':'DNS','nm.score':'Connection quality',
+      'targets.title':'Targets','targets.sub':'Router and external hosts','th.target':'Target / measured IP','th.last':'Last sample','th.period':'Period','th.state':'State',
+      'targets.none':'No target samples in this period','targets.unavailable':'Target data unavailable','targets.ipUnknown':'IP unknown','targets.stale':'stale','targets.ipPeriod':'IPs in period: {n}','targets.samples':'{n} samples','targets.loss':'loss','targets.lossShort':'Loss','targets.note':'Address history since {when}. Before the extension was installed only summary samples exist. Click a target to chart it.',
+      'dns.title':'DNS servers','dns.sub':'Response to DNS queries','dns.none':'No DNS samples in this period','dns.unavailable':'DNS data unavailable',
+      'events.title':'Events','events.sub':'Confirmed state changes','events.none':'No confirmed changes in this period','events.unavailable':'Events unavailable','events.note':'Warnings and recoveries are delivered through the standard Unraid notifications.',
+      'reason.noPing':'no ping reply','reason.noDns':'not answering DNS','reason.loss':'packet loss {v}%','reason.rtt':'latency {v} ms','reason.jitter':'jitter {v} ms','reason.dnsSlow':'slow DNS reply, {v} ms',
+      'speed.params':'Manual test options','speed.serverId':'Server ID (optional)','speed.secure':'HTTPS for the Python backend','speed.forceAuto':'Ignore the given server / choose automatically','speed.scheduledNote':'The scheduled Speedtest uses the container environment variables, not this form.','speed.history':'Speedtest history',
+      'speed.last':'Last test · {when}','speed.none':'No Speedtest results yet','speed.unavailable':'Speedtest result unavailable','speed.lastErr':'Last result: {e}','speed.histErr':'History: {e}','speed.noMeasurements':'No measurements','speed.historyUnavailable':'History unavailable',
+      'speed.needApi':'API settings are required to run a test.','speed.backendUnavailable':'The selected backend is unavailable.','speed.ooklaTerms':'The Ookla terms have not been accepted on the server yet.','speed.run':'Run test','speed.running':'Running…',
+      'speed.idDigits':'The server ID must contain digits only.','speed.started':'Test started. It uses bandwidth and may take a few minutes.','speed.got':'Real result received · {when}','speed.error':'Speedtest error: {e}. After a timeout check the logs before running it again.',
+      'sh.time':'Time','sh.server':'Backend / server',
+      'set.title':'Notification thresholds','set.note':'A change is confirmed by consecutive samples. A short glitch between probes may go unnoticed.','set.enabled':'Notifications enabled','set.loss':'Packet loss, %','set.jitter':'Jitter, ms','set.confirm':'Samples to raise an alert','set.recovery':'Samples to recover','set.save':'Save',
+      'set.invalid':'Check the threshold values.','set.saving':'Saving…','set.saved':'Saved on the server.','set.notSaved':'Not saved: {e}','set.dirty':'Changes are not saved yet.','set.storage':'SQLite: {mb} MiB · {ret}','set.noRetention':'History is never deleted automatically','set.retention':'Retention: {d} days','set.noStorage':'Storage: no API data',
+      'diag.title':'Diagnostics','diag.sub':'NetProbe logs and active settings','diag.logs':'Application logs','diag.config':'Configuration (no secrets)','diag.logHint':'Expand the section to view.','diag.noLines':'The current buffer has no lines.','diag.lastRead':'Last read · {when}','diag.logsUnavailable':'Logs unavailable · {e}','diag.configUnavailable':'API configuration is unavailable.',
+      'err.apiDown':'API unavailable · {kept}{e}','err.kept':'showing the last received data · ','err.timeout':'Request timed out','err.badResponse':'Invalid response','err.badHistory':'Invalid history response','err.badLogs':'Invalid log response'
+    }
+  };
+  let lang = document.documentElement.lang === 'en' ? 'en' : 'ru';
+  let styleName = document.documentElement.dataset.style === 'unifi' ? 'unifi' : 'netprobe';
+  const t = (key, params) => { let s = I18N[lang][key] ?? I18N.en[key] ?? key; if (params) s = s.replace(/\{(\w+)\}/g, (_, k) => { const v = params[k]; return (typeof v === 'function' ? v() : v) ?? ''; }); return s; };
+  /* Transient messages are kept as key+params so they follow the language dropdown. */
+  const msgs = {};
+  const say = (id, key, params) => { if (key === null) { delete msgs[id]; $(id).textContent = ''; } else { msgs[id] = [key, params]; $(id).textContent = t(key, params); } };
+  const renderMsgs = () => { for (const [id, [key, params]] of Object.entries(msgs)) $(id).textContent = t(key, params); };
+  const store = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+  const locale = () => lang === 'ru' ? 'ru-RU' : 'en-GB';
+  function applyStatic() {
+    document.documentElement.lang = lang;
+    document.querySelectorAll('[data-i18n]').forEach(e => { e.textContent = t(e.dataset.i18n); });
+    document.querySelectorAll('[data-i18n-attr]').forEach(e => { for (const pair of e.dataset.i18nAttr.split(';')) { const [attr, key] = pair.split(':'); e.setAttribute(attr, t(key)); } });
+    $('langSelect').value = lang; $('styleSelect').value = styleName;
+    document.getElementById('colorSchemeMeta').content = styleName === 'unifi' ? 'light dark' : 'dark';
+  }
+  /* ---------- helpers ---------- */
+  const numeric = v => typeof v === 'number' && Number.isFinite(v);
+  const fmt = (v, d = 1) => numeric(v) ? v.toFixed(d) : '—';
+  const escape = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const when = ts => numeric(ts) ? new Date(ts * 1000).toLocaleString(locale(), {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit', second:'2-digit'}) : '—';
+  const stateLabel = s => t(['OK','DEGRADED','DOWN'].includes(s) ? 'state.' + s : 'state.UNKNOWN');
+  const stateIcon = s => s === 'DOWN' ? '🔴' : s === 'DEGRADED' ? '🟠' : s === 'OK' ? '🟢' : '🟡';
+  function reasonText(r) {
+    if (r === 'No ICMP replies') return t('reason.noPing');
+    if (r === 'No DNS answer') return t('reason.noDns');
+    const m = /^(Packet loss|RTT|Jitter|DNS) ([\d.]+)/.exec(r || '');
+    if (!m) return String(r);
+    const key = {'Packet loss':'reason.loss', 'RTT':'reason.rtt', 'Jitter':'reason.jitter', 'DNS':'reason.dnsSlow'}[m[1]];
+    return t(key, {v: Number(m[2]).toFixed(0)});
+  }
+  const names = {avg_loss_pct:['nm.loss','%'], avg_latency_ms:['nm.latency','ms'], avg_jitter_ms:['nm.jitter','ms'], avg_dns_latency_ms:['nm.dns','ms'], score:['nm.score','']};
+  const targetKeys = {avg_loss_pct:'loss', avg_latency_ms:'latency', avg_jitter_ms:'jitter'};
+  const state = {win:null,liveTargets:[],loss:null,lossTruncated:false,lossRowsCapped:false,lossTarget:'',cmp:{on:false,metrics:new Set(),sources:new Set()},cmpView:null,summary:[],range:3600,metric:'avg_loss_pct',target:'',address:'',config:null,latest:null,targets:[],speed:null,speedHistory:[],events:[],settings:null,storage:null,startedAt:null,charts:new Map(),errors:{},loaded:new Set(),settingsDirty:false,settingsInitialized:false,speedInitialized:false,speedRunning:false,logSeq:0,logs:[],refreshing:false,chartRequest:0};
+  const stale = ts => !numeric(ts) || Date.now()/1000-ts > Math.max(180,(state.config?.probe_interval || 30)*4);
+  async function api(url, options = {}, timeout = 12000) {
+    const control = new AbortController(), timer = setTimeout(() => control.abort(), timeout);
+    try {
+      const r = await fetch(url, {cache:'no-store', credentials:'same-origin', ...options, signal:control.signal});
+      const json = /json/i.test(r.headers.get('content-type') || '');
+      const body = json ? await r.json() : null;
+      if (!r.ok || !json) throw new Error(body?.error || `HTTP ${r.status}`);
+      return body;
+    } finally { clearTimeout(timer); }
+  }
+  const errorText = e => e.name === 'AbortError' ? t('err.timeout') : String(e.message || e);
+  /* The period is either relative (last N seconds) or an absolute window picked by the user (from..to, epoch seconds). */
+  const rangeKey = () => state.win ? `${state.win.from}-${state.win.to}` : String(state.range);
+  const rq = () => state.win ? `from=${state.win.from}&to=${state.win.to}&range=${state.win.to - state.win.from}` : `range=${state.range}`;
+  const periodSeconds = () => state.win ? state.win.to - state.win.from : state.range;
+  const live = () => state.win ? state.liveTargets : state.targets;  // banner and path always show the live state, even while a past window is charted
+  const staleRow = ts => state.win ? false : stale(ts);
+  const chartKey = () => JSON.stringify([state.target, state.address, rangeKey()]);
+  function statusLabel(name, id) {
+    $(id).textContent = state.errors[name] ? t('err.apiDown', {kept: state.loaded.has(name) ? t('err.kept') : '', e: state.errors[name]}) : '';
+  }
+  function renderStatus() {
+    const d = state.latest, failures = Object.keys(state.errors), coreMissing = !state.loaded.has('latest') || !state.loaded.has('targets');
+    const outdated = stale(d?.ts), bad = live().filter(x => x.state === 'DOWN' || x.state === 'DEGRADED');
+    const down = bad.filter(x => x.state === 'DOWN' && !stale(x.ts));
+    const unknown = live().some(x => !['OK','DEGRADED','DOWN'].includes(x.state) || stale(x.ts));
+    const unavailable = coreMissing || failures.length > 0, mode = unavailable ? 'OFFLINE' : outdated ? 'STALE' : 'LIVE';
+    $('sourceTag').textContent = `${mode} · NetProbe API`;
+    $('sourceTag').className = 'tag' + (mode === 'LIVE' ? '' : ' offline');
+    $('statusDot').className = 'status-dot' + (unavailable || outdated || down.length ? ' offline' : bad.length || unknown || !live().length ? ' warning' : '');
+    $('statusName').textContent = unavailable ? t('status.unavailable') : outdated ? t('status.noFresh') : down.length ? t('status.down', {n: down.length, total: live().length}) : bad.length ? t('status.degraded', {n: bad.length}) : unknown || !live().length ? t('status.unconfirmed') : t('status.ok');
+    $('statusDescription').textContent = unavailable ? (d ? t('status.d.lastReal') : t('status.d.waitReal')) : outdated ? t('status.d.outdated') : bad.length ? t('status.d.bad', {names: bad.slice(0, 4).map(x => x.target).join(', ') + (bad.length > 4 ? ' …' : '')}) : t('status.d.cycle', {i: state.config?.probe_interval ?? '—', p: state.config?.ping_count ?? '—'});
+    $('updatedAt').textContent = when(d?.ts);
+    for (const [id, key] of [['scoreValue','score'],['lossValue','avg_loss_pct'],['latencyValue','avg_latency_ms'],['jitterValue','avg_jitter_ms'],['dnsValue','avg_dns_latency_ms']]) $(id).textContent = fmt(d?.[key]);
+    $('sidebarMode').textContent = mode === 'LIVE' ? t('side.live') : mode === 'STALE' ? t('side.stale') : t('side.offline');
+    $('footerMode').textContent = mode;
+  }
+  /* Path: Unraid -> router -> Internet, derived only from real targets in the existing API. */
+  const groupState = list => {
+    const fresh = list.filter(x => !stale(x.ts) && ['OK','DEGRADED','DOWN'].includes(x.state));
+    if (!list.length || fresh.length < list.length) return 'UNKNOWN';
+    if (fresh.every(x => x.state === 'DOWN')) return 'DOWN';
+    return fresh.every(x => x.state === 'OK') ? 'OK' : 'DEGRADED';
+  };
+  const routerName = () => (typeof state.config?.router_name === 'string' && state.config.router_name.trim()) || t('path.router');
+  const sev = s => s === 'OK' ? 'ok' : s === 'DEGRADED' ? 'warn' : s === 'DOWN' ? 'bad' : 'unknown';
+  function renderPath() {
+    const cfg = state.config || {}, ping = live().filter(x => x.kind !== 'dns');
+    const host = ping.find(x => x.target === cfg.gateway_ip), router = ping.find(x => x.target === cfg.router_ip);
+    const net = ping.filter(x => x !== host && x !== router), dns = live().filter(x => x.kind === 'dns');
+    const rtt = x => x && !stale(x.ts) && numeric(x.latency) ? x.latency : null;
+    const set = (node, link, states, label, ms, cap, sub, title) => {
+      const s = groupState(states);
+      $('node' + node).dataset.s = sev(s); $('node' + node + 'Pill').textContent = states.length ? stateLabel(s) : t('state.UNKNOWN');
+      $('node' + node + 'Pill').className = 'pill ' + (['OK','DEGRADED','DOWN'].includes(s) ? s : ''); $('node' + node + 'Sub').textContent = sub;
+      if (link) { $('link' + link).dataset.s = sev(s); $('link' + link + 'Ms').textContent = numeric(ms) ? `${ms.toFixed(1)} ms` : '—'; $('link' + link + 'Cap').textContent = cap; $('link' + link).title = title; }
+    };
+    set('Unraid', null, host ? [host] : [], '', null, '', numeric(rtt(host)) ? t('path.host', {ms: rtt(host).toFixed(1) + ' ms'}) : t('path.hostOnly'));
+    set('Router', 'Unraid', router ? [router] : [], '', rtt(router), t('path.link1', {r: routerName()}), cfg.router_ip ? `${cfg.router_ip}` : t('path.noRouter'), t('path.link1', {r: routerName()}));
+    const okHosts = net.filter(x => x.state === 'OK' && !stale(x.ts)).length, rtts = net.map(rtt).filter(numeric);
+    const avg = rtts.length ? rtts.reduce((a, b) => a + b, 0) / rtts.length : null;
+    const dnsOk = dns.filter(x => x.state === 'OK' && !stale(x.ts)).length;
+    set('Internet', 'Router', net, '', avg, t('path.link2'), net.length ? t('path.hosts', {ok: okHosts, n: net.length}) + (dns.length ? ' · ' + t('path.dns', {ok: dnsOk, n: dns.length}) : '') : t('path.noHosts'), t('path.link2'));
+    $('nodeRouterName').textContent = routerName(); $('linkUnraid').title = t('path.link1', {r: routerName()});
+    $('pathNote').textContent = t('path.note');
+  }
+  function renderTargets() {
+    const ping = state.targets.filter(x => x.kind !== 'dns');
+    const pill = s => `<span class="pill ${['OK','DOWN','DEGRADED'].includes(s) ? s : ''}">${escape(stateLabel(s))}</span>`;
+    $('targetsBody').innerHTML = ping.length ? ping.map(x => `<tr class="${state.target === x.target ? 'selected' : ''}"><td><button class="target-button host" data-target="${escape(x.target)}">${escape(x.target)}</button><div class="sub">${escape(x.address || t('targets.ipUnknown'))}</div></td><td>${fmt(x.loss)}% ${t('targets.loss')}<div class="sub">RTT ${fmt(x.latency)} · jitter ${fmt(x.jitter)} ms</div><div class="sub">${escape(when(x.ts))}${staleRow(x.ts) ? ' · ' + t('targets.stale') : ''}</div></td><td>RTT ${fmt(x.avg_latency)} / max ${fmt(x.max_latency)} ms<div class="sub">${t('targets.lossShort')} ${fmt(x.avg_loss)}% · ${t('targets.samples', {n: numeric(x.samples) ? x.samples : '—'})}</div></td><td>${pill(x.state)}</td></tr>${Array.isArray(x.addresses) && x.addresses.length > 1 ? `<tr><td colspan="4"><details style="margin:0;border:0;padding:0"><summary>${t('targets.ipPeriod', {n: x.addresses.length})}</summary>${x.addresses.map(a => `<div class="dns-row">${a.address ? `<button class="target-button" data-target="${escape(x.target)}" data-address="${escape(a.address)}">${escape(a.address)}</button>` : `<span class="muted">${t('targets.ipUnknown')}</span>`}<span class="sub">${t('targets.samples', {n: a.samples})} · RTT ${fmt(a.avg_latency)} / max ${fmt(a.max_latency)} ms · ${t('targets.loss')} ${fmt(a.avg_loss)}% / max ${fmt(a.max_loss)}%</span></div>`).join('')}</details></td></tr>` : ''}`).join('') : `<tr><td colspan="4" class="muted">${state.loaded.has('targets') ? t('targets.none') : t('targets.unavailable')}</td></tr>`;
+    $('chartTarget').innerHTML = `<option value="">${escape(t('chart.all'))}</option>` + state.targets.map(x => `<option value="${escape(x.target)}">${escape(x.target)}${x.kind === 'dns' ? ' · DNS' : ''}</option>`).join('');
+    // A target may have no samples in the newly selected period. Keep the selection explicit.
+    if (state.target && !state.targets.some(x => x.target === state.target)) $('chartTarget').insertAdjacentHTML('beforeend', `<option value="${escape(state.target)}">${escape(state.target)}</option>`);
+    $('chartTarget').value = state.target;
+    $('dnsList').innerHTML = state.targets.filter(x => x.kind === 'dns').map(x => `<div class="dns-row"><div><button class="target-button" data-target="${escape(x.target)}">${escape(x.target)}</button><div class="muted">${escape(x.address || t('targets.ipUnknown'))} · ${escape(stateLabel(x.state))}</div><div class="sub muted">${escape(when(x.ts))}${staleRow(x.ts) ? ' · ' + t('targets.stale') : ''}</div></div><div class="mono">${fmt(x.latency)} ms${numeric(x.loss) ? `<div class="sub muted">${fmt(x.loss)}% ${t('targets.loss')}</div>` : ''}</div></div>`).join('') || `<div class="muted">${state.loaded.has('targets') ? t('dns.none') : t('dns.unavailable')}</div>`;
+    statusLabel('targets', 'targetsStatus');
+    $('historyNote').textContent = t('targets.note', {when: when(state.startedAt)});
+    $('exportLink').href = '/api/export/targets.csv?' + rq();
+    if (!$('comparePicker').open) cmpMenu();
+  }
+  function renderChart() {
+    if (state.cmp.on) { renderCompare(); return; }
+    const selected = Boolean(state.target), key = selected ? targetKeys[state.metric] : state.metric;
+    document.querySelectorAll('#metricTabs button').forEach(b => { b.disabled = selected && !targetKeys[b.dataset.metric]; b.classList.toggle('active', b.dataset.metric === state.metric); });
+    $('chartTitle').textContent = selected ? t('chart.titleTarget', {t: state.target + (state.address ? ' / ' + state.address : '')}) : t('chart.title');
+    $('chartSubtitle').textContent = selected ? t('chart.subTarget') : t('chart.sub');
+    const cached = state.charts.get(chartKey()), data = cached?.data || [], svg = $('primaryChart');
+    const unit = names[state.metric][1], lossMode = state.metric === 'avg_loss_pct', seriesName = t(names[state.metric][0]);
+    $('seriesLabel').textContent = seriesName + (unit ? ' (' + unit + ')' : '') + (lossMode ? t('chart.peakNote') : '');
+    $('periodInfo').textContent = `${t('chart.points', {n: data.length})}${cached ? ' · ' + when(data.at(-1)?.ts) : ''}`;
+    $('chartStatus').textContent = state.errors.chart ? t('chart.errPrefix', {kept: cached ? t('chart.kept') : '', err: state.errors.chart}) : !cached ? t('chart.loading') : '';
+    const width = Math.max(300, svg.clientWidth || 900); svg.setAttribute('viewBox', `0 0 ${width} 250`); svg.dataset.metric = state.metric;
+    const vals = data.flatMap(d => [d[key], ...(lossMode ? [d.max_loss ?? d.max_loss_pct] : [])]).filter(numeric);
+    if (!vals.length) { svg.innerHTML = '<text class="c-text" x="' + width/2 + '" y="120" text-anchor="middle" font-size="14">' + escape(cached ? t('chart.empty') : t('chart.unavailable')) + '</text>'; return; }
+    const L = 42, R = 12, T = 16, B = 30, W = width, H = 250, w = W - L - R, h = H - T - B;
+    const min = 0, max = state.metric === 'score' ? 100 : lossMode ? Math.min(100, Math.max(1, ...vals) * 1.12) : Math.max(5, ...vals) * 1.12;
+    const first = data[0].ts, last = data.at(-1).ts, x = ts => L + (last === first ? w/2 : (ts - first)/(last - first) * w), y = v => T + h - (v - min)/(max - min) * h;
+    const gaps = data.slice(1).map((d, i) => d.ts - data[i].ts).filter(v => v > 0).sort((a, b) => a - b);
+    const gapLimit = Math.max(180, (state.config?.probe_interval || 30) * 5, (gaps[Math.floor(gaps.length/2)] || 0) * 2.5);
+    let path = '', pen = false, previous = null, segments = [], current = null;
+    for (const d of data) {
+      const gap = previous !== null && d.ts - previous > gapLimit;
+      if (!numeric(d[key])) { pen = false; current = null; previous = d.ts; continue; }
+      const px = x(d.ts), py = y(d[key]);
+      if (!(pen && !gap)) { current = []; segments.push(current); }
+      current.push([px, py]);
+      path += `${pen && !gap ? 'L' : 'M'}${px.toFixed(2)},${py.toFixed(2)} `; pen = true; previous = d.ts;
+    }
+    const base = T + h;
+    const area = segments.filter(s => s.length > 1).map(s => `M${s[0][0].toFixed(2)},${base} ` + s.map(p => `L${p[0].toFixed(2)},${p[1].toFixed(2)}`).join(' ') + ` L${s.at(-1)[0].toFixed(2)},${base} Z`).join(' ');
+    const grid = Array.from({length:5}, (_, i) => { const v = max*(4-i)/4, p = T + i*h/4; return `<line class="c-grid" x1="${L}" y1="${p}" x2="${W-R}" y2="${p}" stroke-dasharray="3 6"/><text class="c-text" x="${L-10}" y="${p+4}" text-anchor="end">${fmt(v, max > 30 ? 0 : 1)}</text>`; }).join('');
+    const points = data.map(d => {
+      const peak = d.max_loss ?? d.max_loss_pct, loss = selected ? d.loss : d.avg_loss_pct;
+      const tooltip = `${when(d.ts)} · ${seriesName} ${fmt(d[key], 2)} ${unit} · ${t('tip.loss')} ${fmt(loss)}% · ${t('tip.max')} ${fmt(peak)}%${d.address ? ' · ' + d.address : ''}`;
+      const mean = numeric(d[key]) ? `<circle class="c-dot" cx="${x(d.ts)}" cy="${y(d[key])}" r="4"><title>${escape(tooltip)}</title></circle>` : '';
+      return mean + (lossMode && numeric(peak) && peak > 0 ? `<circle class="c-peak" cx="${x(d.ts)}" cy="${y(peak)}" r="3.2"><title>${escape(tooltip)}</title></circle>` : '');
+    }).join('');
+    const tickTimes = width < 600 ? [first, last] : [first, (first + last)/2, last];
+    const ticks = tickTimes.map((ts, i) => `<text class="c-text" x="${(tickTimes.length === 2 ? [L, L+w] : [L, L+w/2, L+w])[i]}" y="${H-6}" text-anchor="${(tickTimes.length === 2 ? ['start','end'] : ['start','middle','end'])[i]}">${escape(width < 600 ? new Date(ts*1000).toLocaleTimeString(locale(), {hour:'2-digit', minute:'2-digit'}) : when(ts))}</text>`).join('');
+    const hatch = styleName === 'unifi' ? `<defs><pattern id="npHatch" width="7" height="7" patternUnits="userSpaceOnUse"><path class="c-grid" d="M0 7H7M7 0V7" stroke-width=".6" fill="none"/></pattern></defs><rect x="${L}" y="${T}" width="${w}" height="${h}" fill="url(#npHatch)" opacity=".7"/>` : '';
+    svg.innerHTML = hatch + grid + (area ? `<path class="c-area" d="${area}"/>` : '') + `<path class="c-line" d="${path}" stroke-width="2.3" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>` + points + ticks;
+  }
+
+  /* ---------- compare mode ---------- */
+  const unitOf = {avg_loss_pct:'%', avg_latency_ms:'ms', avg_jitter_ms:'ms', avg_dns_latency_ms:'ms', score:''};
+  const MAX_SERIES = 10;
+  const cmpData = source => source === '' ? state.summary : state.charts.get(JSON.stringify([source, '', rangeKey()]))?.data;
+  function cmpBuild() {
+    const out = [];
+    for (const source of state.cmp.sources) for (const metric of state.cmp.metrics) {
+      const key = source === '' ? metric : targetKeys[metric];
+      if (!key) continue;
+      const data = cmpData(source) || [];
+      const label = (t(names[metric][0])) + ' · ' + (source === '' ? t('cmp.summary') : source);
+      out.push({source, metric, key, unit: unitOf[metric], label, points: data.map(d => ({ts: d.ts, v: d[key]})).filter(d => numeric(d.ts)).sort((a, b) => a.ts - b.ts)});
+    }
+    return out;
+  }
+  function cmpMenu() {
+    const ping = state.targets.filter(x => x.kind !== 'dns'), dns = state.targets.filter(x => x.kind === 'dns');
+    const opt = (value, label) => `<label class="cmp-opt"><input type="checkbox" data-cmp-target="${escape(value)}" ${state.cmp.sources.has(value) ? 'checked' : ''}><span>${escape(label)}</span></label>`;
+    $('cmpMenu').innerHTML = opt('', t('cmp.summary')) + `<div class="cmp-group"><span>${escape(t('cmp.ping'))}</span></div>` + ping.map(x => opt(x.target, x.target)).join('')
+      + `<div class="cmp-group"><span>${escape(t('cmp.dns'))}</span><span><button type="button" class="link-btn" data-cmp-action="alldns">${escape(t('cmp.allDns'))}</button> <button type="button" class="link-btn" data-cmp-action="clear">${escape(t('cmp.clear'))}</button></span></div>` + dns.map(x => opt(x.target, x.target)).join('');
+    const picked = [...state.cmp.sources].map(x => x === '' ? t('cmp.summary') : x);
+    $('cmpSummary').textContent = picked.length <= 2 ? picked.join(', ') : t('cmp.selected', {n: picked.length});
+  }
+  async function loadCompare() {
+    const rk = rangeKey(), query = rq(), wanted = [...state.cmp.sources].filter(x => x !== '');
+    await Promise.allSettled(wanted.map(async target => {
+      try {
+        const result = await api(`/api/targets/history?target=${encodeURIComponent(target)}&${query}`);
+        if (!Array.isArray(result.data)) throw new Error(t('err.badHistory'));
+        state.charts.set(JSON.stringify([target, '', rk]), {data: result.data.slice().sort((a, b) => a.ts - b.ts)});
+        delete state.errors.chart;
+      } catch (e) { state.errors.chart = errorText(e); }
+    }));
+    if (state.cmp.on && rk === rangeKey()) { renderChart(); renderStatus(); }
+  }
+  function setCompare(on) {
+    state.cmp.on = on; $('diagnostics').dataset.compare = on ? '1' : '0'; $('compareToggle').setAttribute('aria-pressed', on ? 'true' : 'false');
+    if (on) {
+      state.cmp.metrics = new Set([state.metric]); state.cmp.sources = new Set([state.target || '']);
+      cmpMenu(); loadCompare();
+    } else { $('compareLegend').innerHTML = ''; $('axisNote').textContent = ''; $('chartTip').hidden = true; $('chartTip').innerHTML = ''; $('comparePicker').open = false; }
+    renderChart();
+  }
+  function renderCompare() {
+    const svg = $('primaryChart'), all = cmpBuild().filter(x => x.points.some(pt => numeric(pt.v))), series = all.slice(0, MAX_SERIES);  // series without any measurement (e.g. loss of a DNS server) are not drawn
+    document.querySelectorAll('#metricTabs button').forEach(b => { const usable = state.cmp.sources.has('') || Boolean(targetKeys[b.dataset.metric]); b.disabled = !usable; b.classList.toggle('active', state.cmp.metrics.has(b.dataset.metric)); b.setAttribute('aria-pressed', state.cmp.metrics.has(b.dataset.metric) ? 'true' : 'false'); });
+    $('chartTitle').textContent = t('cmp.title', {n: series.length}); $('chartSubtitle').textContent = t('cmp.sub'); $('seriesLabel').textContent = series.map(x => x.label).slice(0, 3).join(' · ') + (series.length > 3 ? ' …' : '');
+    const pointsTotal = series.reduce((a, x) => a + x.points.length, 0);
+    $('periodInfo').textContent = t('chart.points', {n: pointsTotal}) + (all.length > MAX_SERIES ? ' · ' + t('cmp.capped', {n: MAX_SERIES}) : '');
+    const loadedAll = [...state.cmp.sources].every(x => x === '' || state.charts.has(JSON.stringify([x, '', rangeKey()])));
+    $('chartStatus').textContent = state.errors.chart ? t('chart.errPrefix', {kept: '', err: state.errors.chart}) : !loadedAll ? t('chart.loading') : '';
+    const width = Math.max(300, svg.clientWidth || 900); svg.setAttribute('viewBox', `0 0 ${width} 250`); svg.dataset.metric = '';
+    const vals = series.flatMap(x => x.points.map(p => p.v)).filter(numeric);
+    state.cmpView = null; $('chartTip').hidden = true; $('chartTip').innerHTML = '';
+    if (!series.length || !vals.length) { $('compareLegend').innerHTML = ''; $('axisNote').textContent = ''; svg.innerHTML = '<text class="c-text" x="' + width/2 + '" y="120" text-anchor="middle" font-size="14">' + escape(!series.length ? t('cmp.none') : loadedAll ? t('chart.empty') : t('chart.loading')) + '</text>'; return; }
+    const L = 42, R = 12, T = 16, B = 30, W = width, H = 250, w = W - L - R, h = H - T - B;
+    const units = new Set(series.map(x => x.unit)), shared = units.size === 1;
+    const maxOf = x => { const v = x.points.map(p => p.v).filter(numeric); return v.length ? Math.max(...v) : 0; };
+    const unit = [...units][0], sharedMax = shared ? (unit === '' ? 100 : Math.max(unit === '%' ? 1 : 5, ...vals) * 1.12) : 100;
+    const scale = x => shared ? sharedMax : (maxOf(x) || 1) * 1.08;
+    const ts = series.flatMap(x => x.points.map(p => p.ts)), first = Math.min(...ts), last = Math.max(...ts);
+    const xs = t0 => L + (last === first ? w/2 : (t0 - first)/(last - first) * w), ys = (v, x) => T + h - Math.min(1, v / scale(x)) * h;
+    const gapLimit = Math.max(180, (state.config?.probe_interval || 30) * 5);
+    const grid = Array.from({length: 5}, (_, i) => { const p = T + i*h/4, v = (4 - i)/4; return `<line class="c-grid" x1="${L}" y1="${p}" x2="${W-R}" y2="${p}" stroke-dasharray="3 6"/><text class="c-text" x="${L-10}" y="${p+4}" text-anchor="end">${shared ? fmt(sharedMax * v, sharedMax > 30 ? 0 : 1) : Math.round(v * 100) + '%'}</text>`; }).join('');
+    const paths = series.map((x, i) => { let d = '', pen = false, prev = null; for (const pt of x.points) { const gap = prev !== null && pt.ts - prev > gapLimit; if (!numeric(pt.v)) { pen = false; prev = pt.ts; continue; } d += `${pen && !gap ? 'L' : 'M'}${xs(pt.ts).toFixed(2)},${ys(pt.v, x).toFixed(2)} `; pen = true; prev = pt.ts; } return `<path class="c-series s${i + 1}" d="${d}" vector-effect="non-scaling-stroke"/>`; }).join('');
+    const dots = pointsTotal => pointsTotal <= 240 ? series.map((x, i) => x.points.filter(p => numeric(p.v)).map(p => `<circle class="c-sdot s${i + 1}" cx="${xs(p.ts).toFixed(1)}" cy="${ys(p.v, x).toFixed(1)}" r="2.6"/>`).join('')).join('') : '';
+    const tickTimes = width < 600 ? [first, last] : [first, (first + last)/2, last];
+    const ticks = tickTimes.map((t0, i) => `<text class="c-text" x="${(tickTimes.length === 2 ? [L, L+w] : [L, L+w/2, L+w])[i]}" y="${H-6}" text-anchor="${(tickTimes.length === 2 ? ['start','end'] : ['start','middle','end'])[i]}">${escape(width < 600 ? new Date(t0*1000).toLocaleTimeString(locale(), {hour:'2-digit', minute:'2-digit'}) : when(t0))}</text>`).join('');
+    svg.innerHTML = grid + paths + dots(pointsTotal) + `<line class="c-cursor" id="chartCursor" y1="${T}" y2="${T+h}" x1="0" x2="0" visibility="hidden"/>` + ticks;
+    const fmtVal = (x, v) => numeric(v) ? v.toFixed(x.unit === '%' ? 1 : x.unit === '' ? 1 : 2) + (x.unit ? ' ' + x.unit : '') : '—';
+    $('compareLegend').innerHTML = series.map((x, i) => { const lastV = [...x.points].reverse().find(p => numeric(p.v))?.v; return `<span class="lg"><i class="sw s${i + 1}"></i>${escape(x.label)} <b>${escape(fmtVal(x, lastV))}</b>${shared ? '' : ` <small>${escape(t('cmp.max', {v: fmtVal(x, maxOf(x))}))}</small>`}</span>`; }).join('');
+    $('axisNote').textContent = shared ? t('cmp.sharedAxis', {u: unit === 'ms' ? t('unit.ms') : unit === '%' ? '%' : t('nm.score')}) : t('cmp.ownScale');
+    state.cmpView = {series, L, w, first, last, T, h, fmtVal};
+  }
+  function cmpHover(event) {
+    const v = state.cmpView, tip = $('chartTip'), svg = $('primaryChart');
+    if (!v) return;
+    const box = svg.getBoundingClientRect(), x = event.clientX - box.left, vbW = svg.viewBox.baseVal.width || box.width, px = x * vbW / box.width;
+    if (px < v.L - 6 || px > v.L + v.w + 6) { tip.hidden = true; $('chartCursor')?.setAttribute('visibility', 'hidden'); return; }
+    const target = v.last === v.first ? v.first : v.first + (px - v.L) / v.w * (v.last - v.first);
+    const rows = v.series.map((s, i) => { let best = null; for (const p of s.points) if (numeric(p.v) && (best === null || Math.abs(p.ts - target) < Math.abs(best.ts - target))) best = p; return {s, i, best}; }).filter(r => r.best);
+    if (!rows.length) { tip.hidden = true; return; }
+    const at = rows.reduce((a, r) => Math.abs(r.best.ts - target) < Math.abs(a - target) ? r.best.ts : a, rows[0].best.ts);
+    tip.innerHTML = `<div class="when">${escape(when(at))}</div>` + rows.map(r => `<div class="row"><i class="sw s${r.i + 1}"></i>${escape(r.s.label)}<b>${escape(v.fmtVal(r.s, r.best.v))}</b></div>`).join('');
+    tip.hidden = false;
+    const cx = (v.last === v.first ? v.L + v.w/2 : v.L + (at - v.first) / (v.last - v.first) * v.w) * box.width / vbW;
+    tip.style.left = Math.max(0, Math.min(box.width - tip.offsetWidth, cx + 12)) + 'px'; tip.style.top = '8px';
+    const cur = $('chartCursor'); if (cur) { const cxv = v.last === v.first ? v.L + v.w/2 : v.L + (at - v.first) / (v.last - v.first) * v.w; cur.setAttribute('x1', cxv); cur.setAttribute('x2', cxv); cur.setAttribute('visibility', 'visible'); }
+  }
+  function renderEvents() {
+    $('eventList').innerHTML = state.events.length ? state.events.slice(0, 12).map(e => `<div class="event"><span class="event-dot ${e.state === 'OK' ? 'recovered' : e.state === 'DOWN' ? 'down' : 'negative'}"></span><span class="event-icon" aria-hidden="true">${stateIcon(e.state)}</span><div class="event-content"><div>${escape(e.target)} · ${escape(stateLabel(e.previous))} → ${escape(stateLabel(e.state))}</div><div class="event-time"><span class="when">${escape(when(e.ts))}</span><span class="why">${Array.isArray(e.reasons) && e.reasons.length ? escape(e.reasons.map(reasonText).join(', ')) : ''}</span></div></div></div>`).join('') : `<div class="muted">${state.loaded.has('events') ? t('events.none') : t('events.unavailable')}</div>`;
+    statusLabel('events', 'eventsStatus');
+  }
+  function renderSpeed() {
+    const s = state.speed;
+    for (const [id, key, unit, d] of [['download','download_mbps','Mbps',2],['upload','upload_mbps','Mbps',2],['speedPing','ping_ms','ms',1]]) $(id).innerHTML = `${fmt(s?.[key], d)}<small> ${unit}</small>`;
+    $('speedTime').textContent = s ? t('speed.last', {when: when(s.ts ?? s.timestamp)}) : state.loaded.has('speed') ? t('speed.none') : t('speed.unavailable');
+    $('speedServer').textContent = s ? [s.backend, s.server?.name, s.server?.country, s.server?.id ? 'ID ' + s.server.id : null].filter(Boolean).join(' · ') : '—';
+    $('speedHistory').innerHTML = state.speedHistory.length ? state.speedHistory.map(r => `<tr><td>${escape(when(r.ts))}</td><td>${fmt(r.download_mbps)} / ${fmt(r.upload_mbps)}</td><td>${fmt(r.ping_ms)} ms</td><td>${escape(r.backend)}<div class="sub">${escape(r.server_name || r.server_id || '—')}</div></td></tr>`).join('') : `<tr><td colspan="4" class="muted">${state.loaded.has('speedHistory') ? t('speed.noMeasurements') : t('speed.historyUnavailable')}</td></tr>`;
+    $('speedStatus').textContent = [state.errors.speed ? t('speed.lastErr', {e: state.errors.speed}) : null, state.errors.speedHistory ? t('speed.histErr', {e: state.errors.speedHistory}) : null].filter(Boolean).join(' · ');
+    updateSpeedControls();
+  }
+  function updateSpeedControls() {
+    const backend = $('speedBackend').value, cfg = state.config;
+    const available = cfg?.speedtest_backends_available?.[backend] === true;
+    const accepted = backend !== 'ookla' || cfg?.speedtest_ookla_accept_license === true;
+    $('secure').disabled = backend !== 'python'; $('serverId').disabled = $('forceAuto').checked;
+    for (const option of $('speedBackend').options) option.disabled = cfg?.speedtest_backends_available?.[option.value] !== true;
+    $('backendNotice').textContent = !cfg ? t('speed.needApi') : !available ? t('speed.backendUnavailable') : !accepted ? t('speed.ooklaTerms') : '';
+    $('speedBtn').disabled = state.speedRunning || !available || !accepted || Boolean(state.errors.config || state.errors.latest) || !state.loaded.has('latest');
+    $('speedBtn').textContent = state.speedRunning ? t('speed.running') : t('speed.run');
+  }
+  function renderSettings() {
+    if (state.settings && !state.settingsInitialized) {
+      for (const [key, v] of Object.entries(state.settings)) { const input = $(key); if (input) { if (key === 'enabled') input.checked = v; else input.value = v; } }
+      state.settingsInitialized = true;
+    }
+    $('settingsFields').disabled = !state.settingsInitialized;
+    statusLabel('settings', 'settingsStatus');
+    const bytes = state.storage?.bytes;
+    $('storageInfo').textContent = numeric(bytes) ? t('set.storage', {mb: (bytes/1024/1024).toFixed(2), ret: state.storage.retention_days === null ? t('set.noRetention') : t('set.retention', {d: state.storage.retention_days})}) : t('set.noStorage');
+  }
+  function renderConfig() {
+    if (!state.config) { $('configOutput').textContent = t('diag.configUnavailable'); return; }
+    const safe = {};
+    for (const key of ['probe_interval','ping_count','app_timezone','gateway_ip','router_ip','sites','dns_servers_detail','db_engine','speedtest_enabled','speedtest_interval','speedtest_backend','speedtest_backends_available','speedtest_secure','speedtest_server','speedtest_selection_mode']) if (key in state.config) safe[key] = state.config[key];
+    $('configOutput').textContent = JSON.stringify(safe, null, 2);
+  }
+
+  /* ---------- UniFi style blocks: all values come from the same real API data ---------- */
+  const sevOf = s => s === 'OK' ? 'ok' : s === 'DEGRADED' ? 'warn' : s === 'DOWN' ? 'bad' : 'unknown';
+  const pctText = v => numeric(v) ? (Number.isInteger(+v.toFixed(1)) ? v.toFixed(0) : v.toFixed(1)) + '%' : '—';
+  const kvHtml = rows => rows.map(([k, v]) => `<dt>${escape(k)}</dt><dd>${escape(v)}</dd>`).join('');
+  function renderUptime() {
+    const slots = 60, end = state.win ? state.win.to : Math.floor(Date.now() / 1000), start = end - periodSeconds(), size = periodSeconds() / slots;
+    const buckets = Array.from({length: slots}, () => []);
+    for (const r of state.summary) { if (!numeric(r.ts)) continue; const i = Math.floor((r.ts - start) / size); if (i >= 0 && i < slots) buckets[i].push(r); }
+    let good = 0, bad = 0;
+    $('uptimeBar').innerHTML = buckets.map((b, i) => {
+      const at = escape(when(start + i * size));
+      if (!b.length) return `<span class="seg gap" title="${at} · ${escape(t('up.gap'))}"></span>`;
+      const peak = Math.max(...b.map(r => numeric(r.max_loss_pct) ? r.max_loss_pct : numeric(r.avg_loss_pct) ? r.avg_loss_pct : 0));
+      const cls = peak >= 50 ? 'bad' : peak > 0 ? 'warn' : 'ok';
+      if (cls === 'bad') bad++; else good++;
+      return `<span class="seg ${cls}" title="${at} · ${escape(t('up.' + cls, {v: peak.toFixed(0)}))}"></span>`;
+    }).join('');
+    const n = good + bad;
+    $('uptimePct').textContent = n ? ((good / n * 100) >= 99.95 ? '100%' : (good / n * 100).toFixed(1) + '%') : '—';
+    $('uptimePct').className = n && bad ? 'warn-text' : '';
+  }
+  function renderUnifi() {
+    const cfg = state.config || {}, ping = live().filter(x => x.kind !== 'dns'), dns = live().filter(x => x.kind === 'dns');
+    const host = ping.find(x => x.target === cfg.gateway_ip), router = ping.find(x => x.target === cfg.router_ip);
+    const net = ping.filter(x => x !== host && x !== router), fresh = x => x && !stale(x.ts);
+    const rtt = x => fresh(x) && numeric(x.latency) ? x.latency : null, ms = v => numeric(v) ? v.toFixed(1) + ' ms' : '—';
+    const all = live(), count = st => all.filter(x => fresh(x) && x.state === st).length;
+    // top bar: site status dot
+    $('siteDot').dataset.s = all.length === 0 ? 'unknown' : count('DOWN') ? 'bad' : count('DEGRADED') ? 'warn' : all.every(x => fresh(x) && x.state === 'OK') ? 'ok' : 'unknown';
+    // device card (router)
+    $('devName').textContent = routerName();
+    const rs = router && fresh(router) ? router.state : 'UNKNOWN';
+    $('devIcon').dataset.s = sevOf(rs); $('devPill').textContent = router ? stateLabel(rs) : t('state.UNKNOWN'); $('devPill').className = 'pill ' + (['OK', 'DEGRADED', 'DOWN'].includes(rs) ? rs : '');
+    $('devSub').textContent = cfg.router_ip || t('path.noRouter');
+    const dnsOk = dns.filter(x => fresh(x) && x.state === 'OK').length;
+    $('devCounters').innerHTML = [['ok', count('OK'), 'cnt.ok'], ['warn', count('DEGRADED'), 'cnt.warn'], ['bad', count('DOWN'), 'cnt.down']].map(([c, n, k]) => `<span class="counter"><i class="${c}"></i>${n} ${escape(t(k))}</span>`).join('') + (dns.length ? `<span class="counter">${escape(t('cnt.dns', {ok: dnsOk, n: dns.length}))}</span>` : '');
+    $('devKv').innerHTML = kvHtml([[t('kv.routerIp'), cfg.router_ip || '—'], [t('kv.gateway'), cfg.gateway_ip || '—'], [t('kv.routerRtt'), ms(rtt(router))], [t('kv.interval'), numeric(cfg.probe_interval) ? cfg.probe_interval + ' s' : '—'], [t('kv.last'), when(state.latest?.ts)], [t('kv.since'), when(state.startedAt)]]);
+    // internet card
+    const okHosts = net.filter(x => fresh(x) && x.state === 'OK').length, rtts = net.map(rtt).filter(numeric), avg = rtts.length ? rtts.reduce((a, b) => a + b, 0) / rtts.length : null;
+    const sp = state.speed;
+    $('netKv').innerHTML = kvHtml([[t('kv.score'), numeric(state.latest?.score) ? state.latest.score.toFixed(1) + ' / 100' : '—'], [t('kv.hosts'), net.length ? `${okHosts} / ${net.length}` : '—'], [t('kv.avgRtt'), ms(avg)], [t('kv.loss'), numeric(state.latest?.avg_loss_pct) ? state.latest.avg_loss_pct.toFixed(1) + ' %' : '—'], [t('kv.speed'), sp ? `↓ ${fmt(sp.download_mbps, 0)}  ↑ ${fmt(sp.upload_mbps, 0)} Mbps` : '—']]);
+    const sites = net.filter(x => !/^[\d.:]+$/.test(x.target)).concat(net.filter(x => /^[\d.:]+$/.test(x.target))).slice(0, 3);
+    $('miniRow').innerHTML = sites.map(x => `<div class="mini" data-s="${sevOf(fresh(x) ? x.state : 'UNKNOWN')}"><span class="mini-ms">${escape(numeric(rtt(x)) ? rtt(x).toFixed(0) + ' ms' : '—')}</span><span class="mini-label">${escape(x.target)}</span></div>`).join('');
+    // thresholds summary
+    const st = state.settings;
+    $('thrChips').innerHTML = st ? [t('thr.loss', {v: st.loss_pct}), t('thr.rtt', {v: st.latency_ms}), t('thr.jitter', {v: st.jitter_ms}), t('thr.dns', {v: st.dns_ms}), t('thr.confirm', {n: st.confirm_samples}), t('thr.recover', {n: st.recovery_samples})].map(x => `<span class="thr-chip">${escape(x)}</span>`).join('') : '';
+    // chart chips: live values
+    const d = state.latest || {};
+    for (const [key, unit, digits] of [['avg_loss_pct', '%', 1], ['avg_latency_ms', ' ms', 1], ['avg_jitter_ms', ' ms', 1], ['avg_dns_latency_ms', ' ms', 1], ['score', '', 1]]) { const e = document.querySelector(`[data-chip="${key}"]`); if (e) e.textContent = !(state.target || state.address) && numeric(d[key]) ? ': ' + d[key].toFixed(digits) + unit : ''; }
+    // target tiles
+    $('tilesRow').innerHTML = all.map(x => { const label = x.kind === 'dns' ? 'DNS ' + x.target.slice(4) : x.target; const mark = x.target === cfg.gateway_ip ? 'U' : x.target === cfg.router_ip ? 'R' : x.kind === 'dns' ? 'D' : (/^[\d.:]+$/.test(x.target) ? '#' : x.target[0].toUpperCase());
+      return `<button type="button" class="tile" data-s="${sevOf(fresh(x) ? x.state : 'UNKNOWN')}" data-target="${escape(x.target)}" title="${escape(label)} · ${escape(stateLabel(x.state))}"><span class="tile-icon" aria-hidden="true">${escape(mark)}</span><span class="tile-label">${escape(label)}</span><span class="tile-ms">${escape(numeric(rtt(x)) ? rtt(x).toFixed(1) + ' ms' : '—')}</span></button>`; }).join('');
+    // connectivity (success rate over the period)
+    const success = list => { const v = list.filter(x => numeric(x.avg_loss) && numeric(x.samples) && x.samples > 0); return v.length ? 100 - v.reduce((a, x) => a + x.avg_loss, 0) / v.length : null; };
+    const checks = [[t('chk.bridge'), success(host ? [host] : [])], [t('chk.router'), success(router ? [router] : [])], [t('chk.internet'), success(net)], [t('chk.dns'), dns.length ? dnsOk / dns.length * 100 : null]];
+    $('checksGrid').innerHTML = checks.map(([label, v]) => { const sev = !numeric(v) ? 'unknown' : v >= 99 ? 'ok' : v >= 90 ? 'warn' : 'bad'; return `<div class="chk" data-s="${sev}"><span class="chk-label">${escape(label)}</span><span class="chk-bar"><i style="width:${numeric(v) ? Math.max(2, Math.min(100, v)).toFixed(1) : 0}%"></i></span><span class="chk-pct">${escape(pctText(v))}</span></div>`; }).join('');
+    renderUptime();
+  }
+  function openTab(tab) {
+    document.querySelector('.grid-content').dataset.tab = tab;
+    document.querySelectorAll('#unifiTabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    if (tab === 'settings') $('alertSettings').open = true;
+  }
+
+  /* ---------- custom period ---------- */
+  const toLocalInput = ts => { const d = new Date(ts * 1000), z = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`; };
+  const MAX_WINDOW = 31 * 86400;
+  function useWindow(from, to) {
+    state.win = {from, to}; $('periodSelect').value = 'custom'; $('customRange').hidden = false;
+    $('rangeFrom').value = toLocalInput(from); $('rangeTo').value = toLocalInput(to); say('rangeError', null);
+    state.charts.clear(); renderChart(); refresh();
+  }
+  function applyCustomRange() {
+    const f = Math.floor(new Date($('rangeFrom').value).getTime() / 1000), end = Math.floor(new Date($('rangeTo').value).getTime() / 1000);
+    if (!$('rangeFrom').value || !$('rangeTo').value || !Number.isFinite(f) || !Number.isFinite(end)) { say('rangeError', 'range.errEmpty'); return; }
+    const to = Math.min(end, Math.floor(Date.now() / 1000));
+    if (!(f > 0 && f < to)) { say('rangeError', 'range.errOrder'); return; }
+    if (to - f > MAX_WINDOW) { say('rangeError', 'range.errLimit'); return; }
+    useWindow(f, to);
+  }
+  /* ---------- packet-loss report ---------- */
+  const hms = ts => new Date(ts * 1000).toLocaleTimeString(locale(), {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  const durText = sec => { if (sec < 60) return t('dur.s', {n: Math.round(sec)}); const min = Math.round(sec / 60); return min < 60 ? t('dur.m', {n: min}) : t('dur.h', {h: Math.floor(min / 60), m: min % 60}); };
+  function renderLoss() {
+    const r = state.loss, box = $('lossSummary');
+    const pingTargets = state.targets.filter(x => x.kind !== 'dns');
+    $('lossTarget').innerHTML = `<option value="">${escape(t('loss.all'))}</option>` + pingTargets.map(x => `<option value="${escape(x.target)}">${escape(x.target)}</option>`).join('');
+    if (state.lossTarget && !pingTargets.some(x => x.target === state.lossTarget)) $('lossTarget').insertAdjacentHTML('beforeend', `<option value="${escape(state.lossTarget)}">${escape(state.lossTarget)}</option>`);
+    $('lossTarget').value = state.lossTarget;
+    statusLabel('loss', 'lossStatus');
+    if (!r) { box.innerHTML = ''; $('lossWindow').textContent = ''; $('lossTargets').innerHTML = `<tr><td colspan="5" class="muted">${escape(state.loaded.has('loss') ? t('loss.noSamples') : t('loss.unavailable'))}</td></tr>`; $('lossEpisodes').innerHTML = ''; return; }
+    const s = r.summary;
+    $('lossWindow').textContent = `${when(r.window.from)} — ${when(r.window.to)}`;
+    const sev = v => v >= 50 ? 'bad' : v > 0 ? 'warn' : 'ok';
+    box.innerHTML = [[t('loss.avg'), pctText(s.avg_loss), '', sev(s.avg_loss)], [t('loss.max'), pctText(s.max_loss), '', sev(s.max_loss)], [t('loss.lossy'), String(s.lossy), t('loss.ofSamples', {n: s.samples}), s.lossy ? 'warn' : 'ok'], [t('loss.eps'), String(s.episodes), '', s.episodes ? 'warn' : 'ok']]
+      .map(([label, value, note, cls]) => `<div class="loss-tile ${cls}"><span>${escape(label)}</span><b>${escape(value)}</b>${note ? `<small>${escape(note)}</small>` : ''}</div>`).join('');
+    $('lossTargets').innerHTML = r.targets.length ? r.targets.map(x => `<tr><td><button type="button" class="target-button host" data-loss-target="${escape(x.target)}">${escape(x.target)}</button></td><td>${x.samples}</td><td>${x.lossy}</td><td>${escape(pctText(x.avg_loss))} / ${escape(pctText(x.max_loss))}</td><td>${x.episodes}</td></tr>`).join('')
+      : `<tr><td colspan="5" class="muted">${escape(t('loss.noSamples'))}</td></tr>`;
+    $('lossEpisodes').innerHTML = r.episodes.length ? r.episodes.map((e, i) => `<button type="button" class="ep" data-episode="${i}" title="${escape(t('loss.show'))}"><span class="ep-ico" aria-hidden="true">${e.peak >= 50 ? '🔴' : '🟠'}</span><span class="ep-main">${escape(e.target)} · ${escape(when(e.start))}${e.end > e.start ? ' → ' + escape(hms(e.end)) : ''}</span><span class="ep-sub">${escape(e.end > e.start ? durText(e.duration) + ' · ' : '')}${escape(t('loss.samples', {n: e.samples}))} · ${escape(t('loss.show'))}</span><span class="ep-peak ${e.peak >= 50 ? 'bad' : ''}">${escape(pctText(e.peak))}</span></button>`).join('')
+        + (state.lossRowsCapped ? `<div class="loss-empty">${escape(t('loss.rowsCapped'))}</div>` : '') + (state.lossTruncated ? `<div class="loss-empty">${escape(t('loss.truncated', {n: r.episodes.length}))}</div>` : '')
+      : `<div class="loss-empty">${escape(s.samples ? '✅ ' + t('loss.none') : t('loss.noSamples'))}</div>`;
+  }
+  function zoomEpisode(index) {
+    const e = state.loss?.episodes?.[index]; if (!e) return;
+    const from = Math.max(1, e.start - 300), to = Math.min(Math.floor(Date.now() / 1000), e.end + 300);
+    if (!(from < to)) return;
+    state.metric = 'avg_loss_pct'; if (state.cmp.on) setCompare(false);
+    state.target = e.target; state.address = '';
+    useWindow(from, to);
+    $('diagnostics').scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start'});
+  }
+  const draw = () => { renderLoss(); renderUnifi(); renderStatus(); renderPath(); renderTargets(); renderChart(); renderEvents(); renderSpeed(); renderSettings(); renderConfig(); renderMsgs(); if (!state.logs.length) $('logOutput').textContent = state.logRead && $('detailsLog').open ? t('diag.noLines') : t('diag.logHint'); };
+  async function loadChart() {
+    const request = ++state.chartRequest, key = chartKey(), target = state.target, query = rq(), address = state.address;
+    try {
+      const result = await api(target ? `/api/targets/history?target=${encodeURIComponent(target)}&${query}${address ? '&address=' + encodeURIComponent(address) : ''}` : `/api/history?${query}`);
+      if (!Array.isArray(result.data)) throw new Error(t('err.badHistory'));
+      state.charts.set(key, {data: result.data.slice().sort((a, b) => a.ts - b.ts)});
+      if (request === state.chartRequest) delete state.errors.chart;
+    } catch (e) { if (request === state.chartRequest) state.errors.chart = errorText(e); }
+    if (request === state.chartRequest) { renderChart(); renderStatus(); }
+  }
+  async function refresh() {
+    if (state.refreshing) { state.refreshQueued = true; return; }
+    state.refreshing = true; $('refreshBtn').disabled = true;
+    const rk = rangeKey(), query = rq(), bad = () => new Error(t('err.badResponse'));
+    const tasks = [
+      ['config', '/api/config', r => { state.config = r; if (!state.speedInitialized) { $('speedBackend').value = r.speedtest_backend || 'python'; $('secure').checked = r.speedtest_secure !== false; $('serverId').value = r.speedtest_csv ? '' : r.speedtest_server || ''; state.speedInitialized = true; } }],
+      ['latest', '/api/score/latest', r => { if (!Object.prototype.hasOwnProperty.call(r, 'data')) throw bad(); state.latest = r.data; }],
+      ['targets', '/api/targets/recent?' + query, r => { if (!Array.isArray(r.data)) throw bad(); state.targets = r.data; state.startedAt = r.started_at ?? state.startedAt; }],
+      ['summary', '/api/history?' + query, r => { if (!Array.isArray(r.data)) throw bad(); state.summary = r.data; }],
+      ['events', '/api/events?' + query, r => { if (!Array.isArray(r.data)) throw bad(); state.events = r.data; }],
+      ['loss', '/api/loss?' + query + (state.lossTarget ? '&target=' + encodeURIComponent(state.lossTarget) : ''), r => { if (!r.data || !Array.isArray(r.data.targets) || !Array.isArray(r.data.episodes)) throw bad(); state.loss = r.data; state.lossTruncated = Boolean(r.truncated); state.lossRowsCapped = r.data.rows_capped === true; }],
+      ...(state.win ? [['live', '/api/targets/recent?range=300', r => { if (!Array.isArray(r.data)) throw bad(); state.liveTargets = r.data; }]] : []),
+      ['settings', '/api/settings', r => { if (!r.settings) throw bad(); state.settings = r.settings; state.storage = r.storage; state.startedAt = r.started_at ?? state.startedAt; }],
+      ['speed', '/api/speedtest/latest', r => { if (!Object.prototype.hasOwnProperty.call(r, 'result')) throw bad(); state.speed = r.result; }],
+      ['speedHistory', '/api/speedtest/history?limit=10', r => { if (!Array.isArray(r.tests)) throw bad(); state.speedHistory = r.tests; }]
+    ];
+    await Promise.allSettled([state.cmp.on ? loadCompare() : loadChart(), ...tasks.map(async ([name, url, apply]) => { try { const result = await api(url); if ((name === 'targets' || name === 'events' || name === 'summary' || name === 'loss' || name === 'live') && rk !== rangeKey()) return; apply(result); delete state.errors[name]; state.loaded.add(name); } catch (e) { state.errors[name] = errorText(e); } })]);
+    state.refreshing = false; $('refreshBtn').disabled = false; draw();
+    if (state.refreshQueued) { state.refreshQueued = false; refresh(); }
+  }
+  function selectTarget(target, address = '') {
+    state.target = target; state.address = address;
+    if (target && (!targetKeys[state.metric] || state.targets.some(x => x.target === target && x.kind === 'dns'))) state.metric = 'avg_latency_ms';
+    delete state.errors.chart; renderTargets(); renderChart(); loadChart();
+  }
+  async function saveSettings(event) {
+    event.preventDefault();
+    const settings = {enabled: $('enabled').checked};
+    for (const key of ['loss_pct','latency_ms','jitter_ms','dns_ms','confirm_samples','recovery_samples']) {
+      const raw = $(key).value.trim(), n = Number(raw);
+      if (!raw || !Number.isFinite(n) || n <= 0 || (key.endsWith('_ms') && n > 60000) || (key === 'loss_pct' && n > 100) || (key.endsWith('_samples') && (!Number.isInteger(n) || n < 1 || n > 20))) { say('settingsMessage', 'set.invalid'); return; }
+      settings[key] = n;
+    }
+    $('settingsFields').disabled = true; say('settingsMessage', 'set.saving');
+    try {
+      const result = await api('/api/settings', {method:'POST', headers:{'Content-Type':'application/json', 'X-NetProbe-Request':'settings'}, body:JSON.stringify(settings)});
+      state.settings = result.settings; state.storage = result.storage; state.settingsInitialized = false; state.settingsDirty = false; delete state.errors.settings;
+      renderSettings(); say('settingsMessage', 'set.saved');
+    } catch (e) { say('settingsMessage', 'set.notSaved', {e: errorText(e)}); }
+    finally { $('settingsFields').disabled = false; }
+  }
+  async function runSpeed() {
+    if ($('speedBtn').disabled) return;
+    const id = $('serverId').value.trim(), force = $('forceAuto').checked;
+    if (!force && id && !/^\d+$/.test(id)) { say('speedMessage', 'speed.idDigits'); return; }
+    state.speedRunning = true; updateSpeedControls(); say('speedMessage', 'speed.started');
+    try {
+      const result = await api('/api/speedtest/run', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({backend:$('speedBackend').value, server_id:force ? null : id || null, secure:$('secure').checked, force_auto:force})}, 180000);
+      if (!result.success) throw new Error(result.error || 'Speedtest failed');
+      state.speed = result.result; renderSpeed(); { const at = result.result?.ts ?? result.result?.timestamp; say('speedMessage', 'speed.got', {when: () => when(at)}); } refresh();
+    } catch (e) { say('speedMessage', 'speed.error', {e: errorText(e)}); }
+    finally { state.speedRunning = false; updateSpeedControls(); }
+  }
+  async function loadLogs() {
+    if (!$('detailsLog').open) return;
+    try {
+      const result = await api('/api/logs/live?since=' + state.logSeq + '&limit=150');
+      if (!Array.isArray(result.lines)) throw new Error(t('err.badLogs'));
+      if (numeric(result.next_seq) && result.next_seq < state.logSeq) state.logs = [];
+      state.logs = state.logs.concat(result.lines).slice(-350); if (numeric(result.next_seq)) state.logSeq = result.next_seq;
+      $('logOutput').textContent = state.logs.join('\n') || t('diag.noLines'); state.logRead = true; { const at = Date.now()/1000; say('logStatus', 'diag.lastRead', {when: () => when(at)}); }
+      $('logOutput').scrollTop = $('logOutput').scrollHeight;
+    } catch (e) { say('logStatus', 'diag.logsUnavailable', {e: errorText(e)}); }
+  }
+  const reduceMotion = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document.querySelectorAll('#metricTabs button').forEach(b => b.addEventListener('click', () => {
+    if (state.cmp.on) { const m = b.dataset.metric; if (state.cmp.metrics.has(m)) { if (state.cmp.metrics.size > 1) state.cmp.metrics.delete(m); } else state.cmp.metrics.add(m); renderChart(); return; }
+    state.metric = b.dataset.metric; renderChart();
+  }));
+  $('compareToggle').addEventListener('click', () => setCompare(!state.cmp.on));
+  $('cmpMenu').addEventListener('change', event => {
+    const box = event.target.closest('[data-cmp-target]'); if (!box) return;
+    if (box.checked) state.cmp.sources.add(box.dataset.cmpTarget); else if (state.cmp.sources.size > 1) state.cmp.sources.delete(box.dataset.cmpTarget); else box.checked = true;
+    cmpMenu(); loadCompare(); renderChart();
+  });
+  $('cmpMenu').addEventListener('click', event => {
+    const action = event.target.closest('[data-cmp-action]')?.dataset.cmpAction; if (!action) return;
+    if (action === 'alldns') state.cmp.sources = new Set(state.targets.filter(x => x.kind === 'dns').map(x => x.target));
+    if (action === 'clear') state.cmp.sources = new Set(['']);
+    if (!state.cmp.sources.size) state.cmp.sources = new Set(['']);
+    cmpMenu(); loadCompare(); renderChart();
+  });
+  document.addEventListener('click', event => { if ($('comparePicker').open && !event.composedPath().includes($('comparePicker'))) $('comparePicker').open = false; });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && $('comparePicker').open) { $('comparePicker').open = false; $('comparePicker').querySelector('summary').focus(); } });
+  $('primaryChart').addEventListener('pointermove', cmpHover); $('primaryChart').addEventListener('pointerleave', () => { $('chartTip').hidden = true; $('chartCursor')?.setAttribute('visibility', 'hidden'); });
+  $('periodSelect').addEventListener('change', () => {
+    const value = $('periodSelect').value;
+    if (value === 'custom') { $('customRange').hidden = false; const to = state.win ? state.win.to : Math.floor(Date.now() / 1000), from = state.win ? state.win.from : to - 86400; $('rangeFrom').value = toLocalInput(from); $('rangeTo').value = toLocalInput(to); return; }
+    const v = Number(value);
+    if (Number.isFinite(v) && v >= 1) { state.win = null; $('customRange').hidden = true; say('rangeError', null); state.range = v; state.charts.clear(); renderChart(); refresh(); }
+  });
+  $('rangeApply').addEventListener('click', applyCustomRange);
+  $('lossTarget').addEventListener('change', () => { state.lossTarget = $('lossTarget').value; state.loss = null; renderLoss(); refresh(); });
+  $('lossEpisodes').addEventListener('click', event => { const b = event.target.closest('[data-episode]'); if (b) zoomEpisode(Number(b.dataset.episode)); });
+  $('lossTargets').addEventListener('click', event => { const b = event.target.closest('[data-loss-target]'); if (b) { state.lossTarget = b.dataset.lossTarget; state.loss = null; renderLoss(); refresh(); } });
+  $('goLoss').addEventListener('click', () => { if (styleName === 'unifi') { openTab('loss'); $('unifiTabs').scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start'}); } else $('lossCard').scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start'}); });
+  document.querySelectorAll('nav a').forEach(a => a.addEventListener('click', () => document.querySelectorAll('nav a').forEach(b => b.classList.toggle('selected', a === b))));
+  for (const id of ['targetsBody', 'dnsList']) $(id).addEventListener('click', event => { const target = event.target.closest('[data-target]'); if (target) { selectTarget(target.dataset.target, target.dataset.address || ''); $('diagnostics').scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block:'start'}); } });
+  $('unifiTabs').addEventListener('click', event => { const b = event.target.closest('[data-tab]'); if (b) openTab(b.dataset.tab); });
+  $('goSpeed').addEventListener('click', () => { openTab('speedtest'); $('unifiTabs').scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block:'start'}); });
+  $('goSettings').addEventListener('click', () => { openTab('settings'); $('unifiTabs').scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block:'start'}); });
+  $('tilesRow').addEventListener('click', event => { const b = event.target.closest('[data-target]'); if (b) { selectTarget(b.dataset.target); $('diagnostics').scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block:'start'}); } });
+  $('chartTarget').addEventListener('change', () => selectTarget($('chartTarget').value));
+  $('refreshBtn').addEventListener('click', refresh); $('speedBtn').addEventListener('click', runSpeed); $('speedBackend').addEventListener('change', updateSpeedControls); $('forceAuto').addEventListener('change', updateSpeedControls);
+  $('settingsForm').addEventListener('submit', saveSettings); $('settingsForm').addEventListener('input', () => { state.settingsDirty = true; say('settingsMessage', 'set.dirty'); });
+  $('detailsLog').addEventListener('toggle', loadLogs);
+  $('langSelect').addEventListener('change', () => { lang = $('langSelect').value === 'en' ? 'en' : 'ru'; store('netprobe.lang', lang); applyStatic(); draw(); });
+  $('styleSelect').addEventListener('change', () => { styleName = $('styleSelect').value === 'unifi' ? 'unifi' : 'netprobe'; store('netprobe.style', styleName); document.documentElement.dataset.style = styleName; applyStatic(); renderChart(); renderUnifi(); });
+  new ResizeObserver(() => renderChart()).observe($('primaryChart'));
+  applyStatic(); $('sourceTag').textContent = t('side.connecting'); $('sidebarMode').textContent = t('side.connecting'); $('statusName').textContent = t('status.checking'); $('statusDescription').textContent = t('status.waiting');
+  draw(); refresh(); setInterval(refresh, 30000); setInterval(() => { renderStatus(); if ($('detailsLog').open) loadLogs(); }, 3000);
+})();
+</script>
+</body>
+</html>

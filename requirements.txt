@@ -1,0 +1,5 @@
+# Runtime dependencies needed to run the app code and the test-suite locally.
+# (The Docker image bmmbmm01/netprobe already contains them; Python 3.14 / Flask 3.1 there.)
+flask>=3.0,<4
+dnspython>=2.4,<3
+speedtest-cli>=2.1.3,<3

@@ -1,0 +1,154 @@
+--- upstream/app.py	2026-10-23 20:43:28
++++ src/app.py	2026-10-23 20:43:28
+@@ -1,3 +1,7 @@
++# Derived from NetProbe_Python (https://github.com/bmartino1/NetProbe_Python), MIT License,
++# Copyright (c) 2025-2026 Brandon Martino -- see THIRD_PARTY_NOTICES.md.
++# Modified: optional netprobe_extensions integration (per-target history, alerts, loss report), ROUTER_NAME,
++# DNS reply tracking for alerting. Every change is listed in app.py.patch.
+ import json
+ import logging
+ import os
+@@ -14,7 +18,14 @@
+ from flask import Flask, jsonify, render_template, request
+ import dns.resolver
+ import speedtest
++try:
++    from netprobe_extensions import Extension, install_routes, ping_address
++except Exception:  # extension files not mounted: native monitoring must still start
++    Extension = install_routes = None
+ 
++    def ping_address(host, output):
++        return None
++
+ try:
+     import psycopg2
+ except ImportError:
+@@ -229,6 +240,7 @@
+ 
+ # Optional router IP on the LAN.
+ ROUTER_IP = os.getenv("ROUTER_IP", "").strip()
++ROUTER_NAME = os.getenv("ROUTER_NAME", "").strip()[:40] or "Router"  # label shown in the UI and in notifications
+ 
+ # DNS lookup targets.
+ #
+@@ -854,9 +866,14 @@
+             rtt_avg,
+             jitter,
+         )
+-        return {"host": host, "latency": rtt_avg, "jitter": jitter, "loss": loss}
++        return {"host": host, "latency": rtt_avg, "jitter": jitter, "loss": loss,
++                "address": ping_address(host, out), "measured": bool(rtt_line),
++                "sample_ts": int(time.time())}
+ 
+     except Exception as exc:
++        if isinstance(exc, subprocess.TimeoutExpired):
++            partial = exc.stdout or ""
++            out = partial.decode(errors="replace") if isinstance(partial, bytes) else partial
+         logger.error(
+             "ping to %s failed: %s; stdout=%r stderr=%r",
+             host,
+@@ -869,7 +886,40 @@
+             "latency": THRESHOLD_LATENCY * 2,
+             "jitter": THRESHOLD_JITTER * 2,
+             "loss": 100.0,
++            "address": ping_address(host, out),
++            "measured": False,
++            "sample_ts": int(time.time()),
+         }
++
++
++KNOWN_SITE_NAMES = {"google.com": "Google", "cloudflare.com": "Cloudflare", "fast.com": "Netflix Fast.com",
++                    "youtube.com": "YouTube", "netflix.com": "Netflix", "github.com": "GitHub",
++                    "1.1.1.1": "Cloudflare IP", "1.0.0.1": "Cloudflare IP", "8.8.8.8": "Google IP",
++                    "8.8.4.4": "Google IP", "9.9.9.9": "Quad9 IP"}
++
++
++def notification_roles(gateway):
++    """Human names for notifications: target -> (role, display name)."""
++    roles = {}
++    if gateway:
++        roles[gateway] = ("gateway", "Docker gateway on Unraid")
++    if ROUTER_IP:
++        roles[ROUTER_IP] = ("router", ROUTER_NAME)
++    for site in SITES:
++        roles[site] = ("site", KNOWN_SITE_NAMES.get(site, site))
++    for detail in DNS_SERVERS_DETAIL:
++        if detail["ip"] == ROUTER_IP:
++            name = ROUTER_NAME + " DNS"
++        else:
++            name = "DNS " + (detail["name"] or detail["ip"]).replace("_DNS", "").replace("_", " ").strip()
++        roles["dns:" + detail["ip"]] = ("dns", name)
++    return roles
++
++
++# Servers that produced at least one DNS reply (any rcode that proves the server is alive) in the
++# current probe cycle. The native latency/score values are unchanged; this only feeds alerting,
++# because a refused/timed-out query still yields an "elapsed time".
++_dns_answers = {}
+ 
+ 
+ def measure_dns_latency(domain, server, count):
+@@ -881,6 +931,9 @@
+         start = time.perf_counter()
+         try:
+             resolver.resolve(domain, "A", lifetime=3)
++            _dns_answers[server] = _dns_answers.get(server, 0) + 1
++        except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
++            _dns_answers[server] = _dns_answers.get(server, 0) + 1
+         except Exception:
+             pass
+         elapsed = (time.perf_counter() - start) * 1000.0
+@@ -1490,6 +1543,8 @@
+ 
+ def probe_loop():
+     gw = get_default_gateway()
++    if custom_extension is not None:
++        custom_extension.roles = notification_roles(gw)
+ 
+     while True:
+         ts = int(time.time())
+@@ -1515,6 +1570,7 @@
+         # ---------- DNS probes ----------
+         dns_times = []
+         dns_per_server = {}
++        _dns_answers.clear()
+         for server_ip in DNS_SERVERS:
+             measured = measure_dns_latency_multi(
+                 DNS_TEST_SITES,
+@@ -1531,6 +1587,12 @@
+         score = compute_score(avg_loss, avg_latency, avg_jitter, avg_dns)
+         insert_measurement(ts, avg_latency, avg_jitter, avg_loss, avg_dns, score)
+         insert_dns_measurements(ts, dns_per_server)
++        if custom_extension is not None:
++            try:
++                dns_failed = [s for s in DNS_SERVERS if not _dns_answers.get(s)]
++                custom_extension.record_probe(ts, ping_results, dns_per_server, dns_failed=dns_failed)
++            except Exception:
++                logger.exception("Persistent target history / alerts could not be recorded")
+ 
+         logger.info(
+             "Probe ts=%s score=%.2f loss=%.2f%% latency=%.1fms jitter=%.1fms dns=%.1fms",
+@@ -1626,6 +1688,7 @@
+         app_timezone=APP_TIMEZONE,
+         gateway_ip=gw,
+         router_ip=ROUTER_IP or None,
++        router_name=ROUTER_NAME,
+         sites=SITES,
+         dns_test_site=DNS_TEST_SITE,
+         dns_test_sites=DNS_TEST_SITES,
+@@ -1766,6 +1829,15 @@
+ # Start probe loop when imported (for gunicorn worker start).
+ ensure_db()
+ ensure_speedtests_schema()
++try:
++    if Extension is None:
++        raise ImportError("netprobe_extensions is not available")
++    custom_extension = Extension(DB_PATH, os.path.dirname(DB_PATH))
++    install_routes(app, custom_extension)
++except Exception:
++    # The extension is additive: if it cannot start, native monitoring and UI keep running.
++    logger.exception("Persistent target history / alerts disabled: extension failed to start")
++    custom_extension = None
+ start_background_thread()
+ 
+ 

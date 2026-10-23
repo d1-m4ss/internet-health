@@ -1,0 +1,40 @@
+# NetProbe Enhanced — example docker-compose.yml (Unraid paths; change DATA to your own folder).
+# Full guide: docs/INSTALL-COMPOSE.md
+#
+# Before the first `docker compose up`, put the three files from this repository's src/ folder into
+# /mnt/user/appdata/netprobe_database/custom/ — otherwise Docker creates EMPTY DIRECTORIES with those names
+# and the container will not start.
+services:
+  netprobe:
+    # Pinned by digest on purpose: the three mounted files replace files of exactly this image version.
+    # Do not use :latest here (see "Updating the image" in docs/INSTALL-UNRAID.md).
+    image: bmmbmm01/netprobe@sha256:386bdc2c177b11aef4a1223dfd91ae47fe2f9804c5449c5f4c2caae1d048c155
+    container_name: NetProbe
+    restart: unless-stopped
+    ports:
+      - "8788:8080"            # web UI: http://<unraid>:8788  (no authentication — keep it on your LAN)
+    environment:
+      TZ: Europe/Berlin
+      APP_TIMEZONE: Europe/Berlin
+      DB_ENGINE: sqlite
+      USE_POSTGRES: "false"
+      PROBE_INTERVAL: "30"
+      PING_COUNT: "4"
+      ROUTER_IP: 192.168.1.1                 # your router
+      ROUTER_NAME: ASUS RT-AX86U             # label in the UI and in notifications
+      # Two IP targets next to the names let NetProbe tell "DNS is down" from "the internet is down".
+      SITES: fast.com,google.com,youtube.com,1.1.1.1,8.8.8.8
+      DNS_NAMESERVER_1: Google_DNS
+      DNS_NAMESERVER_1_IP: 8.8.8.8
+      DNS_NAMESERVER_2: Quad9_DNS
+      DNS_NAMESERVER_2_IP: 9.9.9.9
+      DNS_NAMESERVER_3: CloudFlare_DNS
+      DNS_NAMESERVER_3_IP: 1.1.1.1
+      DNS_TEST_SITE: google.com
+      SPEEDTEST_ENABLED: "false"             # "true" runs a real Speedtest every SPEEDTEST_INTERVAL seconds
+    volumes:
+      - /mnt/user/appdata/netprobe_database:/data
+      # The extension: three files, read-only, over the stock ones.
+      - /mnt/user/appdata/netprobe_database/custom/app.py:/app/app.py:ro
+      - /mnt/user/appdata/netprobe_database/custom/netprobe_extensions.py:/app/netprobe_extensions.py:ro
+      - /mnt/user/appdata/netprobe_database/custom/index.html:/app/templates/index.html:ro

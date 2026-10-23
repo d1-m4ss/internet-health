@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+
+      - name: Shell syntax
+        run: bash -n src/netprobe-unraid-notify.sh && bash -n scripts/verify-image.sh
+
+      - name: The patch still turns the pinned upstream app.py into src/app.py
+        run: |
+          patch -s -o /tmp/app.py upstream/app.py < src/app.py.patch
+          cmp /tmp/app.py src/app.py
+
+      - name: Unit and integration tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Network-failure simulator (real probe loop, bridge and queue; nothing leaves the machine)
+        run: python tests/simulate_network.py
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Browser tests (UI, both styles, both languages)
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          node tests/test_ui.cjs
