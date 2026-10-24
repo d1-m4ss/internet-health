@@ -37,10 +37,10 @@ bind-mounted read-only over it. Removing the mounts brings the stock NetProbe ba
 - **Compare mode** — several metrics and several targets (for example all DNS servers) on one chart, with a
   shared scale when the units match and a per-series scale otherwise.
 - **Path to the internet:** Unraid → router → Internet, drawn from the real targets, with measured RTT on the links.
+- **Current public IP and ISP:** the dashboard shows the public address and ISP seen by NetProbe, useful for identifying which router WAN is active. The Targets table and Connection history chart share a compact WAN selector (current WAN selected by default) and show only statistics recorded for that provider. Existing samples from before this update have an explicit unrecorded source. WAN-specific charts omit the overall quality score because it cannot be reliably attributed to one provider. The observed address may differ from the router interface address (for example, with carrier-grade NAT). Results refresh every 30 seconds.
 - **Two UI styles, two languages** chosen from drop-downs (remembered in the browser). One self-contained HTML
   file: no CDN, no external fonts, works offline on your LAN.
-- **Safe by construction:** nothing is sent anywhere except through Unraid's own `notify`; the container gets no
-  extra privileges, no Docker socket and no host mounts besides the three read-only files.
+- **Minimal external lookup:** every 30 seconds, the NetProbe server queries `ipwho.is` over HTTPS for its outbound public IP and ISP. The provider necessarily sees the request's source IP. Monitoring probes and notification delivery otherwise remain unchanged; the container gets no extra privileges, no Docker socket and no host mounts besides the three read-only files.
 
 ![Compare several DNS servers](docs/screenshots/compare-dns.png)
 

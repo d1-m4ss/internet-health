@@ -24,9 +24,10 @@ const shots = process.env.NETPROBE_SHOTS || os.tmpdir();
       calls.push({url:url.pathname+url.search,method:request.method(),headers:request.headers(),body:request.postDataJSON()});
       if(offline) return route.fulfill({status:503,json:{error:'Controlled outage'}});
       const payload = url.pathname === '/api/config' ? {probe_interval:30,ping_count:4,gateway_ip:'192.0.2.1',router_ip:'192.0.2.2',router_name:routerName,sites:['edge.example'],speedtest_backend:'python',speedtest_backends_available:{python:true,ookla:false},speedtest_secure:true} :
+        url.pathname === '/api/wan-info' ? {data:{public_ip:'203.0.113.44',isp:'Example ISP',updated_at:now}} :
         url.pathname === '/api/score/latest' ? {data:row} :
         url.pathname === '/api/history' ? {data:[{...row,ts:now-30,max_loss_pct:25},{...row,ts:now-300,avg_loss_pct:0,max_loss_pct:0}]} :
-        url.pathname === '/api/targets/recent' ? {started_at:now-60,data:[{target:'192.0.2.1',address:'192.0.2.1',kind:'ping',ts:now,latency:0.4,jitter:0.1,loss:0,avg_latency:0.4,max_latency:0.6,avg_loss:0,samples:2,state:'OK'},{target:'192.0.2.2',address:'192.0.2.2',kind:'ping',ts:now,latency:0.9,jitter:0.2,loss:0,avg_latency:0.9,max_latency:1.2,avg_loss:0,samples:2,state:'OK'},{target:'dns:8.8.8.8',address:'8.8.8.8',kind:'dns',ts:now,latency:4.2,jitter:null,loss:null,avg_latency:4,max_latency:6,avg_loss:null,samples:2,state:'OK'},{target:'dns:1.1.1.1',address:'1.1.1.1',kind:'dns',ts:now,latency:3.1,jitter:null,loss:null,avg_latency:3,max_latency:5,avg_loss:null,samples:2,state:'OK'},{target:'edge.example',address:'192.0.2.7',kind:'ping',ts:now,latency:null,jitter:null,loss:100,avg_latency:31,max_latency:40,avg_loss:20,samples:2,state:edgeState,addresses:[{address:'192.0.2.7',samples:1,avg_latency:31,max_latency:40,avg_loss:20,max_loss:100},{address:'192.0.2.8',samples:1,avg_latency:35,max_latency:42,avg_loss:0,max_loss:0}]}]} :
+        url.pathname === '/api/targets/recent' ? {started_at:now-60,data:[{target:'192.0.2.1',address:'192.0.2.1',kind:'ping',ts:now,latency:0.4,jitter:0.1,loss:0,avg_latency:0.4,max_latency:0.6,avg_loss:0,samples:2,state:'OK'},{target:'192.0.2.2',address:'192.0.2.2',kind:'ping',ts:now,latency:0.9,jitter:0.2,loss:0,avg_latency:0.9,max_latency:1.2,avg_loss:0,samples:2,state:'OK'},{target:'dns:8.8.8.8',address:'8.8.8.8',kind:'dns',ts:now,latency:4.2,jitter:null,loss:null,avg_latency:4,max_latency:6,avg_loss:null,samples:2,state:'OK'},{target:'dns:1.1.1.1',address:'1.1.1.1',kind:'dns',ts:now,latency:3.1,jitter:null,loss:null,avg_latency:3,max_latency:5,avg_loss:null,samples:2,state:'OK'},{target:'edge.example',address:'192.0.2.7',kind:'ping',ts:now,latency:null,jitter:null,loss:100,avg_latency:31,max_latency:40,avg_loss:20,samples:2,state:edgeState,addresses:[{address:'192.0.2.7',samples:1,avg_latency:31,max_latency:40,avg_loss:20,max_loss:100},{address:'192.0.2.8',samples:1,avg_latency:35,max_latency:42,avg_loss:0,max_loss:0}],wan_sources:[{wan_ip:'203.0.113.44',wan_isp:'Example ISP',samples:2,avg_latency:31,max_latency:40,avg_loss:20,max_loss:100},{wan_ip:'198.51.100.8',wan_isp:'Previous ISP',samples:1,avg_latency:45,max_latency:55,avg_loss:0,max_loss:0}]}]} :
         url.pathname === '/api/targets/history' ? {data:[{ts:now-30,latency:null,jitter:null,loss:20,max_loss:100,address:'192.0.2.7'},{ts:now,latency:31,jitter:4,loss:0,max_loss:0,address:'192.0.2.7'}]} :
         url.pathname === '/api/loss' ? {truncated:false,data:{outages:[{id:2,start_ts:now-900,end_ts:now-860,kind:'internet',status:'sent',duration:40},{id:1,start_ts:now-1800,end_ts:null,kind:'router',status:'open',duration:null}],window:{from:now-3600,to:now},summary:{samples:100,lossy:4,avg_loss:2.5,max_loss:100,episodes:2},targets:[{target:'edge.example',samples:50,lossy:4,avg_loss:5,max_loss:100,episodes:2},{target:'192.0.2.2',samples:50,lossy:0,avg_loss:0,max_loss:0,episodes:0}],episodes:[{target:'edge.example',start:now-600,end:now-540,duration:60,peak:100,avg:75,samples:3},{target:'edge.example',start:now-3000,end:now-3000,duration:0,peak:25,avg:25,samples:1}]}} :
         url.pathname === '/api/events' ? {data:[{id:1,ts:now,target:'edge.example',previous:'OK',state:'DOWN',reasons:['packet loss'],metrics:{loss:100}}]} :
@@ -40,12 +41,30 @@ const shots = process.env.NETPROBE_SHOTS || os.tmpdir();
     await page.waitForTimeout(100);
     assert.equal(await page.locator('#scoreValue').textContent(),'—','offline startup must not invent score');
     assert.match(await page.locator('#sourceTag').textContent(),/OFFLINE|НЕДОСТУПЕН/);
+    assert.match(await page.locator('#wanStatus').textContent(),/Controlled outage/,'WAN lookup errors are visible instead of appearing silently blank');
     offline = false;
     await page.locator('#refreshBtn').click();
     await page.waitForFunction(()=>document.getElementById('scoreValue').textContent==='88.0');
+    assert.equal(await page.locator('#wanIp').textContent(),'203.0.113.44','the WAN card shows the public IP');
+    assert.equal(await page.locator('#wanIsp').textContent(),'Example ISP','the WAN card shows the ISP');
+    assert.equal(await page.locator('#chartWanSelect').evaluate(e=>e.compareDocumentPosition(document.getElementById('periodSelect')) & Node.DOCUMENT_POSITION_FOLLOWING ? true : false),true,'connection history places WAN selection before the period control');
+    const sourceSelect = page.locator('#wanSourceSelect');
+    assert.match(await sourceSelect.locator('option:checked').textContent(),/Текущий WAN: Example ISP/,'the WAN filter defaults to the currently active WAN');
+    assert.match(await page.locator('#chartWanSelect option:checked').textContent(),/Текущий WAN: Example ISP/,'connection history uses the same default WAN selection');
+    assert(calls.some(c=>c.url.startsWith('/api/history?range=3600&wan_ip=203.0.113.44&wan_isp=Example%20ISP')),'connection history fetches data filtered to the active WAN');
+    const targetRow = await page.locator('#targetsBody button[data-target="edge.example"]').first().evaluate(e=>e.closest('tr').innerText);
+    assert.match(targetRow,/203\.0\.113\.44.*Example ISP.*2.*RTT/s,'the target table shows WAN source and metrics from the selected period');
+    assert.doesNotMatch(targetRow,/198\.51\.100\.8|Previous ISP/,'unselected historical providers stay hidden');
+    const previousWan = await sourceSelect.locator('option').evaluateAll(options=>options.find(option=>option.textContent.includes('Previous ISP')).value);
+    await sourceSelect.selectOption(previousWan);
+    assert.equal(await page.locator('#chartWanSelect').inputValue(),previousWan,'the connection-history selector follows WAN changes in the targets table');
+    const previousTargetRow = await page.locator('#targetsBody button[data-target="edge.example"]').first().evaluate(e=>e.closest('tr').innerText);
+    assert.match(previousTargetRow,/198\.51\.100\.8.*Previous ISP.*1.*RTT 45\.0/s,'selecting another ISP shows only that provider’s sample stats');
+    assert.doesNotMatch(previousTargetRow,/203\.0\.113\.44|Example ISP/,'the currently unselected provider is hidden');
     assert.equal(await page.locator('#dnsValue').textContent(),'—','null DNS must not become zero');
     await page.locator('#targetsBody button[data-target="edge.example"]').first().click();
     await page.waitForFunction(()=>document.getElementById('chartTitle').textContent.includes('edge.example'));
+    assert(calls.some(c=>c.url.startsWith('/api/targets/history?target=edge.example&range=3600&wan_ip=198.51.100.8&wan_isp=Previous%20ISP')),'target connection history requests samples from the selected WAN');
     assert(calls.some(c=>c.url.includes('/api/targets/history?')&&c.url.includes('target=edge.example')),'target selection must fetch target history');
     await page.waitForFunction(()=>document.getElementById('primaryChart').textContent.includes('макс. потери 100.0%'));
     assert.match(await page.locator('#primaryChart').textContent(),/100.*%/,'loss peak must remain in graph tooltip');
@@ -196,6 +215,7 @@ const shots = process.env.NETPROBE_SHOTS || os.tmpdir();
     const russian = () => page.evaluate(()=>{const c=document.body.cloneNode(true);c.querySelectorAll('select,script,style').forEach(e=>e.remove());return (c.innerText.match(/[Ѐ-ӿ][Ѐ-ӿ\s·,.:()\-–—]*/g)||[]).slice(0,8)});
     await page.locator('#langSelect').selectOption('en');
     await page.waitForFunction(()=>document.documentElement.lang==='en'&&document.querySelector('h1').textContent==='Network status');
+    assert.match(await page.locator('#wanCard').getAttribute('title'),/not the router interface address/);
     assert.equal(await page.locator('#refreshBtn').textContent(),'Refresh');
     assert.deepEqual(await russian(),[],'English mode must not contain Russian text');
     assert.match(await page.locator('#eventList').textContent(),/OK → Down/);
@@ -230,7 +250,7 @@ const shots = process.env.NETPROBE_SHOTS || os.tmpdir();
       await page.waitForFunction(s=>document.documentElement.dataset.style===s,styleName);
       const vis = sel => page.evaluate(q=>{const e=document.querySelector(q);return !!e&&getComputedStyle(e).display!=='none'&&e.getClientRects().length>0},sel);
       if (styleName === 'unifi') {
-        for (const sel of ['#unifiLeft','#devCard','#netCard','#thrCard','#uptimeCard','#tilesCard','#checksCard','#unifiTabs','.site-pill','.net-tab']) assert(await vis(sel),'UniFi layout shows '+sel);
+        for (const sel of ['#unifiLeft','#devCard','#netCard','#thrCard','#wanCard','#uptimeCard','#tilesCard','#checksCard','#unifiTabs','.site-pill','.net-tab']) assert(await vis(sel),'UniFi layout shows '+sel);
         assert(!(await vis('.metrics')),'UniFi replaces the five metric cards with chips and left cards');
         // bottom tabs show exactly one section at a time
         for (const [tab,shown] of [['targets','#targets'],['dns','#dnsCard'],['events','#eventsCard'],['speedtest','#speedtest'],['settings','#settingsCard'],['loss','#lossCard'],['diagnostics','#diagCard']]) {
@@ -251,6 +271,7 @@ const shots = process.env.NETPROBE_SHOTS || os.tmpdir();
         assert(!/Нет данных/.test(facts.checks)||true);
       } else {
         for (const sel of ['#unifiLeft','#uptimeCard','#tilesCard','#checksCard','#unifiTabs','.site-pill']) assert(!(await vis(sel)),'NetProbe style hides UniFi-only block '+sel);
+        assert(await vis('#wanCard'),'NetProbe style always shows the WAN / ISP card');
         assert(await vis('.metrics'),'NetProbe style keeps the five metric cards');
       }
       for (const [w,h] of [[1440,1000],[390,844]]) {

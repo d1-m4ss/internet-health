@@ -125,6 +125,9 @@
     .table tbody tr:last-child td { border-bottom:0 }
     .table .host { font-weight:650;font-size:13px;color:var(--text);overflow-wrap:anywhere }
     .table .sub,.sub { font-size:11px;color:var(--mute) }
+    .wan-filter { display:grid;gap:5px;font:inherit }
+    .wan-filter select { width:100%;max-width:230px;min-width:0;padding:6px 8px;font-size:11px;letter-spacing:0;text-transform:none }
+    .chart-wan-select { max-width:230px;min-width:0 }
     .pill { display:inline-flex;align-items:center;border-radius:99px;padding:4px 9px;background:var(--unk-bg);color:#a9c5cf;font-size:10px;border:1px solid var(--unk-line);white-space:nowrap }
     .pill.DOWN { color:var(--bad);border-color:var(--bad-line);background:var(--bad-bg) } .pill.DEGRADED { color:var(--warn);border-color:var(--warn-line);background:var(--warn-bg) } .pill.OK { color:var(--ok);border-color:var(--ok-line);background:var(--ok-bg) }
     .info-note { border-top:1px solid var(--line);padding-top:12px;color:var(--mute);font-size:11px;margin-top:6px }
@@ -283,12 +286,18 @@
     .chk-label { font-size:13px;color:var(--text2) } .chk-bar { height:8px;border-radius:4px;background:var(--line2);overflow:hidden } .chk-bar i { display:block;height:100%;border-radius:4px;background:#3fc46a }
     .chk[data-s="warn"] .chk-bar i { background:#f2c230 } .chk[data-s="bad"] .chk-bar i { background:#e5484d } .chk[data-s="unknown"] .chk-bar i { background:var(--unk-line) }
     .chk-pct { font-size:13px;font-weight:650;color:var(--ok) } .chk[data-s="warn"] .chk-pct { color:var(--warn) } .chk[data-s="bad"] .chk-pct { color:var(--bad) } .chk[data-s="unknown"] .chk-pct { color:var(--mute) }
+    .wan-values { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:10px }
+    .wan-value { display:grid;gap:2px;min-width:0 }
+    .wan-value span { color:var(--mute);font-size:11px;text-transform:uppercase;letter-spacing:.7px }
+    .wan-value strong { font-size:18px;line-height:1.35;font-weight:700;overflow-wrap:anywhere;font-variant-numeric:tabular-nums }
+    #wanStatus { min-height:1em;margin-top:7px;color:var(--mute);font-size:11px }
+    @media(max-width:560px) { .wan-values { grid-template-columns:1fr;gap:7px } }
 
     /* ----- Style "unifi": a different screen — top bar, floating icon rail, left info cards, topology strip, health chips, uptime bar, tabs ----- */
     html[data-style="unifi"] .unifi-only { display:block }
     html[data-style="unifi"] .layout { grid-template-columns:76px minmax(0,1fr) }
     html[data-style="unifi"] aside { margin:12px 0 12px 12px;height:calc(100vh - 24px);top:12px;border:1px solid var(--line);border-radius:12px }
-    html[data-style="unifi"] main { max-width:none;display:grid;grid-template-columns:minmax(300px,340px) minmax(0,1fr);grid-template-areas:"head head" "left status" "left path" "left chart" "left uptime" "left tiles" "left checks" "left tabs" "left foot";gap:12px;align-content:start;padding:12px 16px 32px 12px }
+    html[data-style="unifi"] main { max-width:none;display:grid;grid-template-columns:minmax(300px,340px) minmax(0,1fr);grid-template-areas:"head head" "left status" "left wan" "left path" "left chart" "left uptime" "left tiles" "left checks" "left tabs" "left foot";gap:12px;align-content:start;padding:12px 16px 32px 12px }
     html[data-style="unifi"] .head { grid-area:head;position:relative;margin:0;top:0;z-index:5;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);align-items:center }
     html[data-style="unifi"] .head > div:not(.unifi-top):not(.head-actions) { position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0) }
     html[data-style="unifi"] .unifi-top { display:flex;align-items:center;gap:8px }
@@ -300,6 +309,7 @@
     @media(max-width:1599px) { html[data-style="unifi"] .wordmark { display:none } }
     html[data-style="unifi"] .unifi-left { grid-area:left;display:grid;gap:12px;align-content:start;align-self:start;position:sticky;top:12px }
     html[data-style="unifi"] .main-status { grid-area:status;margin:0 }
+    html[data-style="unifi"] #wanCard { grid-area:wan;margin:0 }
     html[data-style="unifi"] #pathCard { grid-area:path;margin:0 }
     html[data-style="unifi"] .metrics { display:none }
     html[data-style="unifi"] #diagnostics { grid-area:chart }
@@ -338,7 +348,7 @@
     html[data-style="unifi"] .event-time .why { grid-column:1;grid-row:2 } html[data-style="unifi"] .event-time .why:not(:empty)::before { content:none }
     html[data-style="unifi"] .event-content > div:first-child { grid-column:1;grid-row:1;color:var(--text);font-weight:600 }
     @media(max-width:1100px) {
-      html[data-style="unifi"] main { grid-template-columns:minmax(0,1fr);grid-template-areas:"head" "status" "path" "left" "chart" "uptime" "tiles" "checks" "tabs" "foot" }
+      html[data-style="unifi"] main { grid-template-columns:minmax(0,1fr);grid-template-areas:"head" "status" "wan" "path" "left" "chart" "uptime" "tiles" "checks" "tabs" "foot" }
       html[data-style="unifi"] .wordmark { display:none }
       html[data-style="unifi"] .unifi-left { grid-template-columns:repeat(auto-fit,minmax(260px,1fr));position:static }
     }
@@ -462,6 +472,14 @@
       <div class="status-left"><span id="statusDot" class="status-dot offline"></span><div><div id="statusName" class="status-text">…</div><div class="status-sub" id="statusDescription"></div></div></div>
       <div class="status-right"><span data-i18n="status.last">Последний замер</span><strong id="updatedAt">—</strong><span class="turbo-chip" id="turboChip" hidden data-i18n-attr="title:turbo.chipTitle">⚡ Turbo</span></div>
     </section>
+    <section class="card" id="wanCard" data-i18n-attr="aria-label:wan.title;title:wan.source">
+      <div class="card-row"><h2 data-i18n="wan.title">WAN / ISP</h2><span class="card-sub" data-i18n="wan.refresh">Обновляется каждые 30 секунд</span></div>
+      <div class="wan-values">
+        <div class="wan-value"><span data-i18n="wan.ipLabel">Внешний IP</span><strong id="wanIp">—</strong></div>
+        <div class="wan-value"><span data-i18n="wan.ispLabel">Провайдер</span><strong id="wanIsp">—</strong></div>
+      </div>
+      <div id="wanStatus" role="status" data-i18n-attr="title:wan.source"></div>
+    </section>
     <section class="card path" id="pathCard" data-i18n-attr="aria-label:path.title">
       <div class="path-head"><h2 data-i18n="path.title">Путь до интернета</h2><span class="card-sub" id="pathNote"></span></div>
       <div class="path-row">
@@ -490,7 +508,7 @@
       <div class="metric"><div class="metric-label" data-i18n="metric.dns">Ответ DNS</div><div class="metric-val"><span id="dnsValue">—</span><small> ms</small></div><div class="metric-footer" data-i18n="mf.dns">Среднее по DNS-серверам</div></div>
     </section>
     <section class="card" id="diagnostics" data-compare="0">
-      <div class="chart-top"><div><h2 id="chartTitle">…</h2><div class="card-sub" id="chartSubtitle"></div></div><label class="pick"><span class="hide" data-i18n="chart.periodLabel">Период</span><select id="periodSelect" class="chart-select" data-i18n-attr="aria-label:chart.periodLabel"><option value="60" data-i18n="period.1m">1 минута</option><option value="300" data-i18n="period.5m">5 минут</option><option value="900" data-i18n="period.15m">15 минут</option><option value="3600" selected data-i18n="period.1h">1 час</option><option value="21600" data-i18n="period.6h">6 часов</option><option value="86400" data-i18n="period.24h">24 часа</option><option value="259200" data-i18n="period.3d">3 дня</option><option value="604800" data-i18n="period.1w">Неделя</option><option value="2592000" data-i18n="period.1mo">Месяц (30 дн.)</option><option value="custom" data-i18n="period.custom">Свой период…</option></select></label></div>
+      <div class="chart-top"><div><h2 id="chartTitle">…</h2><div class="card-sub" id="chartSubtitle"></div></div><label class="pick"><span class="hide" data-i18n="targets.wanSelect">Провайдер для статистики</span><select id="chartWanSelect" class="chart-select chart-wan-select" data-i18n-attr="aria-label:targets.wanSelect"><option value="">…</option></select></label><label class="pick"><span class="hide" data-i18n="chart.periodLabel">Период</span><select id="periodSelect" class="chart-select" data-i18n-attr="aria-label:chart.periodLabel"><option value="60" data-i18n="period.1m">1 минута</option><option value="300" data-i18n="period.5m">5 минут</option><option value="900" data-i18n="period.15m">15 минут</option><option value="3600" selected data-i18n="period.1h">1 час</option><option value="21600" data-i18n="period.6h">6 часов</option><option value="86400" data-i18n="period.24h">24 часа</option><option value="259200" data-i18n="period.3d">3 дня</option><option value="604800" data-i18n="period.1w">Неделя</option><option value="2592000" data-i18n="period.1mo">Месяц (30 дн.)</option><option value="custom" data-i18n="period.custom">Свой период…</option></select></label></div>
       <div class="chart-top" style="margin-bottom:0"><div class="chart-controls"><label class="hide" for="chartTarget" data-i18n="chart.targetLabel">Цель графика</label><select id="chartTarget" class="chart-select"><option value="">…</option></select><details id="comparePicker" class="cmp-picker"><summary><span id="cmpSummary">…</span></summary><div class="cmp-menu" id="cmpMenu"></div></details><div class="flex-tabs" id="metricTabs"><button data-metric="avg_loss_pct" class="active"><span data-i18n="mt.loss">Потери</span><span class="chip-val" data-chip="avg_loss_pct"></span></button><button data-metric="avg_latency_ms"><span data-i18n="mt.latency">Задержка</span><span class="chip-val" data-chip="avg_latency_ms"></span></button><button data-metric="avg_jitter_ms"><span data-i18n="mt.jitter">Джиттер</span><span class="chip-val" data-chip="avg_jitter_ms"></span></button><button data-metric="avg_dns_latency_ms"><span>DNS</span><span class="chip-val" data-chip="avg_dns_latency_ms"></span></button><button data-metric="score"><span data-i18n="mt.score">Качество</span><span class="chip-val" data-chip="score"></span></button></div><button type="button" class="btn cmp-toggle" id="compareToggle" aria-pressed="false" data-i18n="cmp.toggle">Сравнение</button><button type="button" class="link-btn" id="goLoss" data-i18n="loss.goto">Потери за период →</button></div></div>
       <div class="range-row" id="customRange" hidden><label class="pick"><span data-i18n="range.from">С</span><input type="datetime-local" id="rangeFrom" class="chart-select"></label><label class="pick"><span data-i18n="range.to">По</span><input type="datetime-local" id="rangeTo" class="chart-select"></label><button type="button" class="btn" id="rangeApply" data-i18n="range.apply">Применить</button><span class="section-status" id="rangeError" role="status"></span></div>
       <div class="cmp-legend" id="compareLegend"></div><div class="chart-wrap"><svg id="primaryChart" role="img" data-i18n-attr="aria-label:chart.aria" viewBox="0 0 900 250" preserveAspectRatio="none"></svg><div class="chart-tip" id="chartTip" hidden></div></div><div class="axis-note" id="axisNote"></div>
@@ -504,7 +522,7 @@
       <div class="stack">
         <section class="card" id="targets">
           <div class="card-head"><div><h2 data-i18n="targets.title">Контрольные адреса</h2><div class="card-sub" data-i18n="targets.sub">Маршрутизатор и внешние узлы</div></div><a class="btn" id="exportLink" href="/api/export/targets.csv?range=3600">CSV ↓</a></div>
-          <div class="table-wrap"><table class="table"><thead><tr><th data-i18n="th.target">Цель / измеренный IP</th><th data-i18n="th.last">Последний замер</th><th data-i18n="th.period">За период</th><th data-i18n="th.state">Состояние</th></tr></thead><tbody id="targetsBody"><tr><td colspan="4" class="muted">…</td></tr></tbody></table></div>
+          <div class="table-wrap"><table class="table"><thead><tr><th data-i18n="th.target">Цель / измеренный IP</th><th data-i18n="th.last">Последний замер</th><th data-i18n="th.period">За период</th><th><label class="wan-filter"><span data-i18n="th.source">WAN-источник за период</span><select id="wanSourceSelect" class="chart-select" data-i18n-attr="aria-label:targets.wanSelect"><option value="">…</option></select></label></th><th data-i18n="th.state">Состояние</th></tr></thead><tbody id="targetsBody"><tr><td colspan="5" class="muted">…</td></tr></tbody></table></div>
           <div id="targetsStatus" class="section-status" role="status"></div>
           <div class="info-note" id="historyNote"></div>
         </section>
@@ -575,13 +593,14 @@
       'mf.score':'Комплексная оценка NetProbe','mf.loss':'Среднее по всем ICMP-целям','mf.latency':'Средняя RTT','mf.jitter':'NetProbe: max − min RTT','mf.dns':'Среднее по DNS-серверам',
       'path.title':'Путь до интернета','path.internet':'Интернет','path.hosts':'отвечают {ok} из {n} узлов','path.dns':'DNS: {ok} из {n}','path.host':'хост NetProbe · мост Docker {ms}','path.hostOnly':'хост NetProbe','path.noData':'нет данных',
       'path.router':'Роутер','path.link1':'RTT Unraid → {r}','path.link2':'средняя RTT до внешних узлов','path.note':'RTT измеряется с Unraid; ссылки показывают задержку до узла, а не отдельного участка.','path.noRouter':'роутер не задан','path.noHosts':'нет внешних целей',
+      'wan.title':'WAN / провайдер','wan.refresh':'Обновляется каждые 30 секунд','wan.ipLabel':'Внешний IP','wan.ispLabel':'Провайдер','wan.loading':'Определяем внешний IP и провайдера…','wan.failed':'Не удалось получить данные: {error}','wan.unknownIsp':'неизвестен','wan.source':'IP и провайдер определены по исходящему подключению NetProbe через ipwho.is; это не адрес интерфейса роутера.',
       'state.OK':'Норма','state.DEGRADED':'Перебои','state.DOWN':'Нет ответа','state.UNKNOWN':'Нет данных',
       'chart.title':'История соединения','chart.sub':'Сводные метрики всех целей · SQLite','chart.titleTarget':'История · {t}','chart.subTarget':'Измеренный RTT, jitter и потери выбранной цели','chart.targetLabel':'Цель графика','chart.all':'Все цели · сводка','chart.aria':'График истории сети',
       'chart.loading':'Загрузка истории…','chart.unavailable':'История недоступна','chart.empty':'Нет измерений за выбранный период','chart.points':'точек: {n}','chart.peakNote':' · линия: среднее, точки: максимум','chart.errPrefix':'История недоступна · {kept}{err}','chart.kept':'сохранены последние полученные точки · ',
       'tip.loss':'потери','tip.max':'макс. потери','chart.periodLabel':'Период','period.1m':'1 минута','period.5m':'5 минут','period.15m':'15 минут','period.1h':'1 час','period.6h':'6 часов','period.24h':'24 часа','period.3d':'3 дня','period.1w':'Неделя','period.1mo':'Месяц (30 дн.)',
       'mt.loss':'Потери','mt.latency':'Задержка','mt.jitter':'Джиттер','mt.score':'Качество','nm.loss':'Потери пакетов','nm.latency':'Задержка','nm.jitter':'Джиттер','nm.dns':'DNS','nm.score':'Качество соединения',
-      'targets.title':'Контрольные адреса','targets.sub':'Маршрутизатор и внешние узлы','th.target':'Цель / измеренный IP','th.last':'Последний замер','th.period':'За период','th.state':'Состояние',
-      'targets.none':'Замеров целей за период нет','targets.unavailable':'Данные целей недоступны','targets.ipUnknown':'IP не определён','targets.stale':'устарел','targets.ipPeriod':'IP за период: {n}','targets.samples':'замеров: {n}','targets.loss':'потери','targets.lossShort':'Потери','targets.note':'История адресов с {when}. До установки расширения доступны только сводные замеры. Нажмите на цель для её графика.',
+      'targets.title':'Контрольные адреса','targets.sub':'Маршрутизатор и внешние узлы','th.target':'Цель / измеренный IP','th.last':'Последний замер','th.period':'За период','th.source':'WAN-источник за период','th.state':'Состояние',
+      'targets.none':'Замеров целей за период нет','targets.unavailable':'Данные целей недоступны','targets.ipUnknown':'IP не определён','targets.wanUnknown':'WAN не записан','targets.wanSelect':'Провайдер для статистики','targets.wanCurrent':'Текущий WAN','targets.wanNoSamples':'Нет проб этого WAN за период','targets.stale':'устарел','targets.ipPeriod':'IP за период: {n}','targets.samples':'замеров: {n}','targets.loss':'потери','targets.lossShort':'Потери','targets.note':'Выберите WAN-источник, чтобы увидеть статистику целей только для него. По умолчанию выбран текущий WAN; исторические пробы показываются, если источник был записан за выбранный период. Нажмите на цель для её графика.',
       'dns.title':'DNS-серверы','dns.sub':'Ответ на DNS-запросы','dns.none':'Замеров DNS за период нет','dns.unavailable':'Данные DNS недоступны',
       'events.title':'События','events.sub':'Подтверждённые изменения состояния','events.none':'Подтверждённых изменений за период нет','events.unavailable':'События недоступны','events.note':'Предупреждения и восстановление передаются через штатные уведомления Unraid.',
       'reason.noPing':'нет ответа на ping','reason.noDns':'DNS не отвечает','reason.loss':'потери пакетов {v}%','reason.rtt':'задержка {v} мс','reason.jitter':'джиттер {v} мс','reason.dnsSlow':'медленный DNS-ответ, {v} мс',
@@ -628,13 +647,14 @@
       'mf.score':'NetProbe composite score','mf.loss':'Average over all ICMP targets','mf.latency':'Average RTT','mf.jitter':'NetProbe: max − min RTT','mf.dns':'Average over DNS servers',
       'path.title':'Path to the internet','path.internet':'Internet','path.hosts':'{ok} of {n} hosts reachable','path.dns':'DNS: {ok} of {n}','path.host':'NetProbe host · Docker bridge {ms}','path.hostOnly':'NetProbe host','path.noData':'no data',
       'path.router':'Router','path.link1':'RTT Unraid → {r}','path.link2':'average RTT to external hosts','path.note':'RTT is measured from Unraid; each link shows latency to that node, not to a separate segment.','path.noRouter':'router not configured','path.noHosts':'no external targets',
+      'wan.title':'WAN / ISP','wan.refresh':'Refreshes every 30 seconds','wan.ipLabel':'Public IP','wan.ispLabel':'ISP','wan.loading':'Looking up public IP and ISP…','wan.failed':'Could not load WAN details: {error}','wan.unknownIsp':'unknown','wan.source':'IP and ISP are detected from NetProbe’s outbound connection via ipwho.is; this is not the router interface address.',
       'state.OK':'OK','state.DEGRADED':'Degraded','state.DOWN':'Down','state.UNKNOWN':'No data',
       'chart.title':'Connection history','chart.sub':'Summary metrics of all targets · SQLite','chart.titleTarget':'History · {t}','chart.subTarget':'Measured RTT, jitter and loss of the selected target','chart.targetLabel':'Chart target','chart.all':'All targets · summary','chart.aria':'Network history chart',
       'chart.loading':'Loading history…','chart.unavailable':'History unavailable','chart.empty':'No measurements in the selected period','chart.points':'{n} points','chart.peakNote':' · line: average, dots: maximum','chart.errPrefix':'History unavailable · {kept}{err}','chart.kept':'showing the last received points · ',
       'tip.loss':'loss','tip.max':'max loss','chart.periodLabel':'Period','period.1m':'1 minute','period.5m':'5 minutes','period.15m':'15 minutes','period.1h':'1 hour','period.6h':'6 hours','period.24h':'24 hours','period.3d':'3 days','period.1w':'1 week','period.1mo':'1 month (30 d)',
       'mt.loss':'Loss','mt.latency':'Latency','mt.jitter':'Jitter','mt.score':'Quality','nm.loss':'Packet loss','nm.latency':'Latency','nm.jitter':'Jitter','nm.dns':'DNS','nm.score':'Connection quality',
-      'targets.title':'Targets','targets.sub':'Router and external hosts','th.target':'Target / measured IP','th.last':'Last sample','th.period':'Period','th.state':'State',
-      'targets.none':'No target samples in this period','targets.unavailable':'Target data unavailable','targets.ipUnknown':'IP unknown','targets.stale':'stale','targets.ipPeriod':'IPs in period: {n}','targets.samples':'{n} samples','targets.loss':'loss','targets.lossShort':'Loss','targets.note':'Address history since {when}. Before the extension was installed only summary samples exist. Click a target to chart it.',
+      'targets.title':'Targets','targets.sub':'Router and external hosts','th.target':'Target / measured IP','th.last':'Last sample','th.period':'Period','th.source':'WAN source in period','th.state':'State',
+      'targets.none':'No target samples in this period','targets.unavailable':'Target data unavailable','targets.ipUnknown':'IP unknown','targets.wanUnknown':'WAN not recorded','targets.wanSelect':'ISP for displayed statistics','targets.wanCurrent':'Current WAN','targets.wanNoSamples':'No samples for this WAN in the period','targets.stale':'stale','targets.ipPeriod':'IPs in period: {n}','targets.samples':'{n} samples','targets.loss':'loss','targets.lossShort':'Loss','targets.note':'Choose a WAN source to show target statistics for that provider only. The current WAN is selected by default; historical samples appear when that source was recorded in the selected period. Click a target to chart it.',
       'dns.title':'DNS servers','dns.sub':'Response to DNS queries','dns.none':'No DNS samples in this period','dns.unavailable':'DNS data unavailable',
       'events.title':'Events','events.sub':'Confirmed state changes','events.none':'No confirmed changes in this period','events.unavailable':'Events unavailable','events.note':'Warnings and recoveries are delivered through the standard Unraid notifications.',
       'reason.noPing':'no ping reply','reason.noDns':'not answering DNS','reason.loss':'packet loss {v}%','reason.rtt':'latency {v} ms','reason.jitter':'jitter {v} ms','reason.dnsSlow':'slow DNS reply, {v} ms',
@@ -691,7 +711,7 @@
   }
   const names = {avg_loss_pct:['nm.loss','%'], avg_latency_ms:['nm.latency','ms'], avg_jitter_ms:['nm.jitter','ms'], avg_dns_latency_ms:['nm.dns','ms'], score:['nm.score','']};
   const targetKeys = {avg_loss_pct:'loss', avg_latency_ms:'latency', avg_jitter_ms:'jitter'};
-  const state = {win:null,liveTargets:[],loss:null,lossTruncated:false,lossRowsCapped:false,lossTarget:'',cmp:{on:false,metrics:new Set(),sources:new Set()},cmpView:null,summary:[],range:3600,metric:'avg_loss_pct',target:'',address:'',config:null,latest:null,targets:[],speed:null,speedHistory:[],events:[],settings:null,storage:null,startedAt:null,charts:new Map(),errors:{},loaded:new Set(),settingsDirty:false,settingsInitialized:false,speedInitialized:false,speedRunning:false,logSeq:0,logs:[],refreshing:false,chartRequest:0};
+  const state = {win:null,liveTargets:[],loss:null,lossTruncated:false,lossRowsCapped:false,lossTarget:'',cmp:{on:false,metrics:new Set(),sources:new Set()},cmpView:null,summary:[],range:3600,metric:'avg_loss_pct',target:'',address:'',config:null,latest:null,targets:[],wan:null,wanError:'',wanSelection:'',wanSelectionManual:false,speed:null,speedHistory:[],events:[],settings:null,storage:null,startedAt:null,charts:new Map(),errors:{},loaded:new Set(),settingsDirty:false,settingsInitialized:false,speedInitialized:false,speedRunning:false,logSeq:0,logs:[],refreshing:false,chartRequest:0};
   const stale = ts => !numeric(ts) || Date.now()/1000-ts > Math.max(180,(state.config?.probe_interval || 30)*4);
   async function api(url, options = {}, timeout = 12000) {
     const control = new AbortController(), timer = setTimeout(() => control.abort(), timeout);
@@ -710,7 +730,12 @@
   const periodSeconds = () => state.win ? state.win.to - state.win.from : state.range;
   const live = () => state.win ? state.liveTargets : state.targets;  // banner and path always show the live state, even while a past window is charted
   const staleRow = ts => state.win ? false : stale(ts);
-  const chartKey = () => JSON.stringify([state.target, state.address, rangeKey()]);
+  const chartKey = () => JSON.stringify([state.target, state.address, rangeKey(), state.wanSelection]);
+  function wanSelectionQuery() {
+    if (!state.wanSelection) return '';
+    const [wanIp, wanIsp] = JSON.parse(state.wanSelection);
+    return `&wan_ip=${encodeURIComponent(wanIp)}&wan_isp=${encodeURIComponent(wanIsp)}`;
+  }
   function statusLabel(name, id) {
     $(id).textContent = state.errors[name] ? t('err.apiDown', {kept: state.loaded.has(name) ? t('err.kept') : '', e: state.errors[name]}) : '';
   }
@@ -759,10 +784,57 @@
     $('nodeRouterName').textContent = routerName(); $('linkUnraid').title = t('path.link1', {r: routerName()});
     $('pathNote').textContent = t('path.note');
   }
+  function renderWan() {
+    $('wanIp').textContent = state.wan?.public_ip || '—';
+    $('wanIsp').textContent = state.wan?.isp || (state.wan ? t('wan.unknownIsp') : '—');
+    $('wanStatus').textContent = state.wan
+      ? when(state.wan.updated_at)
+      : state.wanError ? t('wan.failed', {error: state.wanError}) : t('wan.loading');
+  }
+  function wanSourceKey(source) {
+    return JSON.stringify([source.wan_ip || '', source.wan_isp || '']);
+  }
+  function renderWanSourceSelect(targets) {
+    const sources = new Map();
+    const addSource = (source, samples = 0) => {
+      const key = wanSourceKey(source), existing = sources.get(key);
+      if (existing) existing.samples += samples;
+      else sources.set(key, {key, wan_ip:source.wan_ip || '', wan_isp:source.wan_isp || '', samples});
+    };
+    const current = state.wan?.public_ip ? {wan_ip:state.wan.public_ip, wan_isp:state.wan.isp || ''} : null;
+    if (current) addSource(current);
+    for (const target of targets) for (const source of target.wan_sources || []) addSource(source, source.samples || 0);
+    const currentKey = current ? wanSourceKey(current) : '';
+    const entries = [...sources.values()].sort((a, b) => {
+      if (a.key === currentKey) return -1;
+      if (b.key === currentKey) return 1;
+      return b.samples - a.samples || a.wan_ip.localeCompare(b.wan_ip);
+    });
+    const options = entries.map(source => {
+      const label = [source.wan_isp || t('wan.unknownIsp'), source.wan_ip || t('targets.wanUnknown')].join(' · ');
+      const currentLabel = source.key === currentKey ? `${t('targets.wanCurrent')}: ` : '';
+      return `<option value="${escape(source.key)}">${escape(currentLabel + label)}</option>`;
+    }).join('');
+    if (!state.wanSelectionManual || !entries.some(source => source.key === state.wanSelection)) {
+      state.wanSelection = currentKey || entries[0]?.key || '';
+      if (!state.wanSelection) state.wanSelectionManual = false;
+    }
+    for (const id of ['wanSourceSelect', 'chartWanSelect']) {
+      $(id).innerHTML = options;
+      $(id).value = state.wanSelection;
+    }
+  }
   function renderTargets() {
     const ping = state.targets.filter(x => x.kind !== 'dns');
+    renderWanSourceSelect(ping);
     const pill = s => `<span class="pill ${['OK','DOWN','DEGRADED'].includes(s) ? s : ''}">${escape(stateLabel(s))}</span>`;
-    $('targetsBody').innerHTML = ping.length ? ping.map(x => `<tr class="${state.target === x.target ? 'selected' : ''}"><td><button class="target-button host" data-target="${escape(x.target)}">${escape(x.target)}</button><div class="sub">${escape(x.address || t('targets.ipUnknown'))}</div></td><td>${fmt(x.loss)}% ${t('targets.loss')}<div class="sub">RTT ${fmt(x.latency)} · jitter ${fmt(x.jitter)} ms</div><div class="sub">${escape(when(x.ts))}${staleRow(x.ts) ? ' · ' + t('targets.stale') : ''}</div></td><td>RTT ${fmt(x.avg_latency)} / max ${fmt(x.max_latency)} ms<div class="sub">${t('targets.lossShort')} ${fmt(x.avg_loss)}% · ${t('targets.samples', {n: numeric(x.samples) ? x.samples : '—'})}</div></td><td>${pill(x.state)}</td></tr>${Array.isArray(x.addresses) && x.addresses.length > 1 ? `<tr><td colspan="4"><details style="margin:0;border:0;padding:0"><summary>${t('targets.ipPeriod', {n: x.addresses.length})}</summary>${x.addresses.map(a => `<div class="dns-row">${a.address ? `<button class="target-button" data-target="${escape(x.target)}" data-address="${escape(a.address)}">${escape(a.address)}</button>` : `<span class="muted">${t('targets.ipUnknown')}</span>`}<span class="sub">${t('targets.samples', {n: a.samples})} · RTT ${fmt(a.avg_latency)} / max ${fmt(a.max_latency)} ms · ${t('targets.loss')} ${fmt(a.avg_loss)}% / max ${fmt(a.max_loss)}%</span></div>`).join('')}</details></td></tr>` : ''}`).join('') : `<tr><td colspan="4" class="muted">${state.loaded.has('targets') ? t('targets.none') : t('targets.unavailable')}</td></tr>`;
+    $('targetsBody').innerHTML = ping.length ? ping.map(x => {
+      const source = (Array.isArray(x.wan_sources) ? x.wan_sources : []).find(item => wanSourceKey(item) === state.wanSelection);
+      const sourceStats = source
+        ? `<span class="mono">${escape(source.wan_ip || t('targets.wanUnknown'))}</span><div class="sub">${escape(source.wan_isp || t('wan.unknownIsp'))} · ${t('targets.samples', {n: source.samples})}</div><div class="sub">RTT ${fmt(source.avg_latency)} / max ${fmt(source.max_latency)} ms · ${t('targets.loss')} ${fmt(source.avg_loss)}%</div>`
+        : `<span class="muted">${t('targets.wanNoSamples')}</span>`;
+      return `<tr class="${state.target === x.target ? 'selected' : ''}"><td><button class="target-button host" data-target="${escape(x.target)}">${escape(x.target)}</button><div class="sub">${escape(x.address || t('targets.ipUnknown'))}</div></td><td>${fmt(x.loss)}% ${t('targets.loss')}<div class="sub">RTT ${fmt(x.latency)} · jitter ${fmt(x.jitter)} ms</div><div class="sub">${escape(when(x.ts))}${staleRow(x.ts) ? ' · ' + t('targets.stale') : ''}</div></td><td>RTT ${fmt(x.avg_latency)} / max ${fmt(x.max_latency)} ms<div class="sub">${t('targets.lossShort')} ${fmt(x.avg_loss)}% · ${t('targets.samples', {n: numeric(x.samples) ? x.samples : '—'})}</div></td><td>${sourceStats}</td><td>${pill(x.state)}</td></tr>${Array.isArray(x.addresses) && x.addresses.length > 1 ? `<tr><td colspan="5"><details style="margin:0;border:0;padding:0"><summary>${t('targets.ipPeriod', {n: x.addresses.length})}</summary>${x.addresses.map(a => `<div class="dns-row">${a.address ? `<button class="target-button" data-target="${escape(x.target)}" data-address="${escape(a.address)}">${escape(a.address)}</button>` : `<span class="muted">${t('targets.ipUnknown')}</span>`}<span class="sub">${t('targets.samples', {n: a.samples})} · RTT ${fmt(a.avg_latency)} / max ${fmt(a.max_latency)} ms · ${t('targets.loss')} ${fmt(a.avg_loss)}% / max ${fmt(a.max_loss)}%</span></div>`).join('')}</details></td></tr>` : ''}`;
+    }).join('') : `<tr><td colspan="5" class="muted">${state.loaded.has('targets') ? t('targets.none') : t('targets.unavailable')}</td></tr>`;
     $('chartTarget').innerHTML = `<option value="">${escape(t('chart.all'))}</option>` + state.targets.map(x => `<option value="${escape(x.target)}">${escape(x.target)}${x.kind === 'dns' ? ' · DNS' : ''}</option>`).join('');
     // A target may have no samples in the newly selected period. Keep the selection explicit.
     if (state.target && !state.targets.some(x => x.target === state.target)) $('chartTarget').insertAdjacentHTML('beforeend', `<option value="${escape(state.target)}">${escape(state.target)}</option>`);
@@ -776,7 +848,7 @@
   function renderChart() {
     if (state.cmp.on) { renderCompare(); return; }
     const selected = Boolean(state.target), key = selected ? targetKeys[state.metric] : state.metric;
-    document.querySelectorAll('#metricTabs button').forEach(b => { b.disabled = selected && !targetKeys[b.dataset.metric]; b.classList.toggle('active', b.dataset.metric === state.metric); });
+    document.querySelectorAll('#metricTabs button').forEach(b => { b.disabled = selected ? !targetKeys[b.dataset.metric] : Boolean(state.wanSelection && b.dataset.metric === 'score'); b.classList.toggle('active', b.dataset.metric === state.metric); });
     $('chartTitle').textContent = selected ? t('chart.titleTarget', {t: state.target + (state.address ? ' / ' + state.address : '')}) : t('chart.title');
     $('chartSubtitle').textContent = selected ? t('chart.subTarget') : t('chart.sub');
     const cached = state.charts.get(chartKey()), data = cached?.data || [], svg = $('primaryChart');
@@ -819,12 +891,13 @@
   /* ---------- compare mode ---------- */
   const unitOf = {avg_loss_pct:'%', avg_latency_ms:'ms', avg_jitter_ms:'ms', avg_dns_latency_ms:'ms', score:''};
   const MAX_SERIES = 10;
-  const cmpData = source => source === '' ? state.summary : state.charts.get(JSON.stringify([source, '', rangeKey()]))?.data;
+  const cmpData = source => state.charts.get(JSON.stringify([source, '', rangeKey(), state.wanSelection]))?.data;
   function cmpBuild() {
     const out = [];
     for (const source of state.cmp.sources) for (const metric of state.cmp.metrics) {
       const key = source === '' ? metric : targetKeys[metric];
       if (!key) continue;
+      if (source === '' && state.wanSelection && metric === 'score') continue;
       const data = cmpData(source) || [];
       const label = (t(names[metric][0])) + ' · ' + (source === '' ? t('cmp.summary') : source);
       out.push({source, metric, key, unit: unitOf[metric], label, points: data.map(d => ({ts: d.ts, v: d[key]})).filter(d => numeric(d.ts)).sort((a, b) => a.ts - b.ts)});
@@ -840,16 +913,25 @@
     $('cmpSummary').textContent = picked.length <= 2 ? picked.join(', ') : t('cmp.selected', {n: picked.length});
   }
   async function loadCompare() {
-    const rk = rangeKey(), query = rq(), wanted = [...state.cmp.sources].filter(x => x !== '');
-    await Promise.allSettled(wanted.map(async target => {
+    const rk = rangeKey(), selection = state.wanSelection, query = rq() + wanSelectionQuery(), wanted = [...state.cmp.sources].filter(x => x !== '');
+    const loads = wanted.map(async target => {
       try {
         const result = await api(`/api/targets/history?target=${encodeURIComponent(target)}&${query}`);
         if (!Array.isArray(result.data)) throw new Error(t('err.badHistory'));
-        state.charts.set(JSON.stringify([target, '', rk]), {data: result.data.slice().sort((a, b) => a.ts - b.ts)});
+        state.charts.set(JSON.stringify([target, '', rk, selection]), {data: result.data.slice().sort((a, b) => a.ts - b.ts)});
         delete state.errors.chart;
       } catch (e) { state.errors.chart = errorText(e); }
-    }));
-    if (state.cmp.on && rk === rangeKey()) { renderChart(); renderStatus(); }
+    });
+    if (state.cmp.sources.has('')) loads.push((async () => {
+      try {
+        const result = await api(`/api/history?${query}`);
+        if (!Array.isArray(result.data)) throw new Error(t('err.badHistory'));
+        state.charts.set(JSON.stringify(['', '', rk, selection]), {data: result.data.slice().sort((a, b) => a.ts - b.ts)});
+        delete state.errors.chart;
+      } catch (e) { state.errors.chart = errorText(e); }
+    })());
+    await Promise.allSettled(loads);
+    if (state.cmp.on && rk === rangeKey() && selection === state.wanSelection) { renderChart(); renderStatus(); }
   }
   function setCompare(on) {
     state.cmp.on = on; $('diagnostics').dataset.compare = on ? '1' : '0'; $('compareToggle').setAttribute('aria-pressed', on ? 'true' : 'false');
@@ -861,11 +943,11 @@
   }
   function renderCompare() {
     const svg = $('primaryChart'), all = cmpBuild().filter(x => x.points.some(pt => numeric(pt.v))), series = all.slice(0, MAX_SERIES);  // series without any measurement (e.g. loss of a DNS server) are not drawn
-    document.querySelectorAll('#metricTabs button').forEach(b => { const usable = state.cmp.sources.has('') || Boolean(targetKeys[b.dataset.metric]); b.disabled = !usable; b.classList.toggle('active', state.cmp.metrics.has(b.dataset.metric)); b.setAttribute('aria-pressed', state.cmp.metrics.has(b.dataset.metric) ? 'true' : 'false'); });
+    document.querySelectorAll('#metricTabs button').forEach(b => { const metric = b.dataset.metric, usable = Boolean(targetKeys[metric]) || (state.cmp.sources.has('') && (!state.wanSelection || metric !== 'score')); b.disabled = !usable; b.classList.toggle('active', state.cmp.metrics.has(metric)); b.setAttribute('aria-pressed', state.cmp.metrics.has(metric) ? 'true' : 'false'); });
     $('chartTitle').textContent = t('cmp.title', {n: series.length}); $('chartSubtitle').textContent = t('cmp.sub'); $('seriesLabel').textContent = series.map(x => x.label).slice(0, 3).join(' · ') + (series.length > 3 ? ' …' : '');
     const pointsTotal = series.reduce((a, x) => a + x.points.length, 0);
     $('periodInfo').textContent = t('chart.points', {n: pointsTotal}) + (all.length > MAX_SERIES ? ' · ' + t('cmp.capped', {n: MAX_SERIES}) : '');
-    const loadedAll = [...state.cmp.sources].every(x => x === '' || state.charts.has(JSON.stringify([x, '', rangeKey()])));
+    const loadedAll = [...state.cmp.sources].every(x => state.charts.has(JSON.stringify([x, '', rangeKey(), state.wanSelection])));
     $('chartStatus').textContent = state.errors.chart ? t('chart.errPrefix', {kept: '', err: state.errors.chart}) : !loadedAll ? t('chart.loading') : '';
     const width = Math.max(300, svg.clientWidth || 900); svg.setAttribute('viewBox', `0 0 ${width} 250`); svg.dataset.metric = '';
     const vals = series.flatMap(x => x.points.map(p => p.v)).filter(numeric);
@@ -1061,9 +1143,9 @@
     useWindow(from, to);
     $('diagnostics').scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start'});
   }
-  const draw = () => { renderLoss(); renderUnifi(); renderStatus(); renderPath(); renderTargets(); renderChart(); renderEvents(); renderSpeed(); renderSettings(); renderConfig(); renderMsgs(); if (!state.logs.length) $('logOutput').textContent = state.logRead && $('detailsLog').open ? t('diag.noLines') : t('diag.logHint'); };
+  const draw = () => { renderLoss(); renderUnifi(); renderStatus(); renderWan(); renderPath(); renderTargets(); renderChart(); renderEvents(); renderSpeed(); renderSettings(); renderConfig(); renderMsgs(); if (!state.logs.length) $('logOutput').textContent = state.logRead && $('detailsLog').open ? t('diag.noLines') : t('diag.logHint'); };
   async function loadChart() {
-    const request = ++state.chartRequest, key = chartKey(), target = state.target, query = rq(), address = state.address;
+    const request = ++state.chartRequest, key = chartKey(), target = state.target, query = rq() + wanSelectionQuery(), address = state.address;
     try {
       const result = await api(target ? `/api/targets/history?target=${encodeURIComponent(target)}&${query}${address ? '&address=' + encodeURIComponent(address) : ''}` : `/api/history?${query}`);
       if (!Array.isArray(result.data)) throw new Error(t('err.badHistory'));
@@ -1078,6 +1160,7 @@
     const rk = rangeKey(), query = rq(), bad = () => new Error(t('err.badResponse'));
     const tasks = [
       ['config', '/api/config', r => { state.config = r; if (!state.speedInitialized) { $('speedBackend').value = r.speedtest_backend || 'python'; $('secure').checked = r.speedtest_secure !== false; $('serverId').value = r.speedtest_csv ? '' : r.speedtest_server || ''; state.speedInitialized = true; } }],
+      ['wan', '/api/wan-info', r => { if (!r.data || typeof r.data.public_ip !== 'string') throw bad(); state.wan = r.data; }],
       ['latest', '/api/score/latest', r => { if (!Object.prototype.hasOwnProperty.call(r, 'data')) throw bad(); state.latest = r.data; }],
       ['targets', '/api/targets/recent?' + query, r => { if (!Array.isArray(r.data)) throw bad(); state.targets = r.data; state.startedAt = r.started_at ?? state.startedAt; }],
       ['summary', '/api/history?' + query, r => { if (!Array.isArray(r.data)) throw bad(); state.summary = r.data; }],
@@ -1088,8 +1171,10 @@
       ['speed', '/api/speedtest/latest', r => { if (!Object.prototype.hasOwnProperty.call(r, 'result')) throw bad(); state.speed = r.result; }],
       ['speedHistory', '/api/speedtest/history?limit=10', r => { if (!Array.isArray(r.tests)) throw bad(); state.speedHistory = r.tests; }]
     ];
-    await Promise.allSettled([state.cmp.on ? loadCompare() : loadChart(), ...tasks.map(async ([name, url, apply]) => { try { const result = await api(url); if ((name === 'targets' || name === 'events' || name === 'summary' || name === 'loss' || name === 'live') && rk !== rangeKey()) return; apply(result); delete state.errors[name]; state.loaded.add(name); } catch (e) { state.errors[name] = errorText(e); } })]);
-    state.refreshing = false; $('refreshBtn').disabled = false; draw();
+    await Promise.allSettled(tasks.map(async ([name, url, apply]) => { try { const result = await api(url); if ((name === 'targets' || name === 'events' || name === 'summary' || name === 'loss' || name === 'live') && rk !== rangeKey()) return; apply(result); if (name === 'wan') state.wanError = ''; else delete state.errors[name]; state.loaded.add(name); } catch (e) { if (name === 'wan') { state.wan = null; state.wanError = errorText(e); } else state.errors[name] = errorText(e); } }));
+    draw();
+    await (state.cmp.on ? loadCompare() : loadChart());
+    state.refreshing = false; $('refreshBtn').disabled = false;
     if (state.refreshQueued) { state.refreshQueued = false; refresh(); }
   }
   function selectTarget(target, address = '') {
@@ -1146,6 +1231,26 @@
     const box = event.target.closest('[data-cmp-target]'); if (!box) return;
     if (box.checked) state.cmp.sources.add(box.dataset.cmpTarget); else if (state.cmp.sources.size > 1) state.cmp.sources.delete(box.dataset.cmpTarget); else box.checked = true;
     cmpMenu(); loadCompare(); renderChart();
+  });
+  $('wanSourceSelect').addEventListener('change', () => {
+    state.wanSelection = $('wanSourceSelect').value;
+    state.wanSelectionManual = true;
+    $('chartWanSelect').value = state.wanSelection;
+    if (state.metric === 'score') state.metric = 'avg_loss_pct';
+    if (state.wanSelection && state.cmp.metrics.delete('score') && !state.cmp.metrics.size) state.cmp.metrics.add('avg_loss_pct');
+    renderTargets();
+    renderChart();
+    if (state.cmp.on) loadCompare(); else loadChart();
+  });
+  $('chartWanSelect').addEventListener('change', () => {
+    state.wanSelection = $('chartWanSelect').value;
+    state.wanSelectionManual = true;
+    $('wanSourceSelect').value = state.wanSelection;
+    if (state.metric === 'score') state.metric = 'avg_loss_pct';
+    if (state.wanSelection && state.cmp.metrics.delete('score') && !state.cmp.metrics.size) state.cmp.metrics.add('avg_loss_pct');
+    renderTargets();
+    renderChart();
+    if (state.cmp.on) loadCompare(); else loadChart();
   });
   $('cmpMenu').addEventListener('click', event => {
     const action = event.target.closest('[data-cmp-action]')?.dataset.cmpAction; if (!action) return;

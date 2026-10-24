@@ -1,14 +1,22 @@
---- upstream/app.py	2026-10-23 20:43:28
-+++ src/app.py	2026-10-23 20:43:28
-@@ -1,3 +1,7 @@
+diff --git upstream/app.py src/app.py
+index 14e3626..699c3dc 100644
+--- upstream/app.py
++++ src/app.py
+@@ -1,3 +1,8 @@
 +# Derived from NetProbe_Python (https://github.com/bmartino1/NetProbe_Python), MIT License,
 +# Copyright (c) 2025-2026 Brandon Martino -- see THIRD_PARTY_NOTICES.md.
 +# Modified: optional netprobe_extensions integration (per-target history, alerts, loss report), ROUTER_NAME,
-+# DNS reply tracking for alerting, Turbo mode watcher. Every change is listed in app.py.patch.
++# DNS reply tracking, Turbo mode watcher, and cached public IP / ISP lookup.
++import ipaddress
  import json
  import logging
  import os
-@@ -14,7 +18,14 @@
+@@ -10,10 +15,18 @@ import threading
+ import time
+ from collections import deque
+ from datetime import datetime, timezone
++from urllib.request import Request, urlopen
+ 
  from flask import Flask, jsonify, render_template, request
  import dns.resolver
  import speedtest
@@ -16,14 +24,13 @@
 +    from netprobe_extensions import Extension, install_routes, ping_address
 +except Exception:  # extension files not mounted: native monitoring must still start
 +    Extension = install_routes = None
- 
++
 +    def ping_address(host, output):
 +        return None
-+
+ 
  try:
      import psycopg2
- except ImportError:
-@@ -229,6 +240,7 @@
+@@ -229,6 +242,7 @@ SITES = parse_csv_env("SITES", "fast.com,google.com,youtube.com")
  
  # Optional router IP on the LAN.
  ROUTER_IP = os.getenv("ROUTER_IP", "").strip()
@@ -31,7 +38,7 @@
  
  # DNS lookup targets.
  #
-@@ -854,9 +866,14 @@
+@@ -854,9 +868,14 @@ def run_ping(host, count):
              rtt_avg,
              jitter,
          )
@@ -47,7 +54,7 @@
          logger.error(
              "ping to %s failed: %s; stdout=%r stderr=%r",
              host,
-@@ -869,9 +886,42 @@
+@@ -869,9 +888,42 @@ def run_ping(host, count):
              "latency": THRESHOLD_LATENCY * 2,
              "jitter": THRESHOLD_JITTER * 2,
              "loss": 100.0,
@@ -90,7 +97,7 @@
  def measure_dns_latency(domain, server, count):
      resolver = dns.resolver.Resolver(configure=False)
      resolver.nameservers = [server]
-@@ -881,6 +931,9 @@
+@@ -881,6 +933,9 @@ def measure_dns_latency(domain, server, count):
          start = time.perf_counter()
          try:
              resolver.resolve(domain, "A", lifetime=3)
@@ -100,7 +107,7 @@
          except Exception:
              pass
          elapsed = (time.perf_counter() - start) * 1000.0
-@@ -1490,6 +1543,8 @@
+@@ -1490,6 +1545,8 @@ def run_speedtest_if_due():
  
  def probe_loop():
      gw = get_default_gateway()
@@ -109,7 +116,7 @@
  
      while True:
          ts = int(time.time())
-@@ -1515,6 +1570,7 @@
+@@ -1515,6 +1572,7 @@ def probe_loop():
          # ---------- DNS probes ----------
          dns_times = []
          dns_per_server = {}
@@ -117,20 +124,99 @@
          for server_ip in DNS_SERVERS:
              measured = measure_dns_latency_multi(
                  DNS_TEST_SITES,
-@@ -1531,6 +1587,12 @@
+@@ -1531,6 +1589,18 @@ def probe_loop():
          score = compute_score(avg_loss, avg_latency, avg_jitter, avg_dns)
          insert_measurement(ts, avg_latency, avg_jitter, avg_loss, avg_dns, score)
          insert_dns_measurements(ts, dns_per_server)
 +        if custom_extension is not None:
 +            try:
 +                dns_failed = [s for s in DNS_SERVERS if not _dns_answers.get(s)]
-+                custom_extension.record_probe(ts, ping_results, dns_per_server, dns_failed=dns_failed)
++                custom_extension.record_probe(
++                    ts,
++                    ping_results,
++                    dns_per_server,
++                    dns_failed=dns_failed,
++                    wan_info=get_cached_wan_info(),
++                )
 +            except Exception:
 +                logger.exception("Persistent target history / alerts could not be recorded")
  
          logger.info(
              "Probe ts=%s score=%.2f loss=%.2f%% latency=%.1fms jitter=%.1fms dns=%.1fms",
-@@ -1626,6 +1688,7 @@
+@@ -1554,6 +1624,72 @@ def probe_loop():
+ 
+ app = Flask(__name__)
+ 
++WAN_INFO_URL = "https://ipwho.is/"
++WAN_INFO_CACHE_TTL = 30
++WAN_INFO_ERROR_CACHE_TTL = 30
++WAN_INFO_TIMEOUT = 5
++_wan_info_lock = threading.Lock()
++_wan_info_cache = {"expires_at": 0.0, "data": None, "error": None}
++
++
++def get_wan_info():
++    """Return the public IP and ISP observed from NetProbe's outbound connection."""
++    with _wan_info_lock:
++        now = time.monotonic()
++        if now < _wan_info_cache["expires_at"]:
++            if _wan_info_cache["error"]:
++                raise RuntimeError(_wan_info_cache["error"])
++            return _wan_info_cache["data"]
++
++        try:
++            req = Request(WAN_INFO_URL, headers={"Accept": "application/json"})
++            with urlopen(req, timeout=WAN_INFO_TIMEOUT) as response:
++                payload = json.load(response)
++            if not isinstance(payload, dict) or payload.get("success") is not True:
++                raise ValueError("ISP lookup returned an unsuccessful response")
++
++            parsed_ip = ipaddress.ip_address(str(payload.get("ip") or ""))
++            if not parsed_ip.is_global:
++                raise ValueError("ISP lookup returned a non-public address")
++            public_ip = str(parsed_ip)
++            connection = payload.get("connection")
++            connection = connection if isinstance(connection, dict) else {}
++            isp = connection.get("isp") or connection.get("org")
++            if not isinstance(isp, str):
++                isp = None
++            else:
++                isp = " ".join(isp.split())[:120] or None
++
++            data = {"public_ip": public_ip, "isp": isp, "updated_at": int(time.time())}
++            _wan_info_cache.update(
++                expires_at=now + WAN_INFO_CACHE_TTL, data=data, error=None
++            )
++            return data
++        except (OSError, ValueError) as exc:
++            logger.warning("Public IP / ISP lookup failed: %s", type(exc).__name__)
++            error = "Public IP / ISP lookup is unavailable"
++            _wan_info_cache.update(
++                expires_at=now + WAN_INFO_ERROR_CACHE_TTL, data=None, error=error
++            )
++            raise RuntimeError(error) from exc
++
++
++def get_cached_wan_info():
++    """Return the latest successful WAN lookup without blocking the probe loop."""
++    cache = _wan_info_cache
++    if cache["data"] is not None and time.monotonic() < cache["expires_at"]:
++        return dict(cache["data"])
++    return None
++
++
++def refresh_wan_info_loop():
++    while True:
++        try:
++            get_wan_info()
++        except RuntimeError:
++            pass
++        time.sleep(WAN_INFO_CACHE_TTL)
++
+ 
+ @app.route("/")
+ def index():
+@@ -1626,6 +1762,7 @@ def api_config():
          app_timezone=APP_TIMEZONE,
          gateway_ip=gw,
          router_ip=ROUTER_IP or None,
@@ -138,7 +224,30 @@
          sites=SITES,
          dns_test_site=DNS_TEST_SITE,
          dns_test_sites=DNS_TEST_SITES,
-@@ -1766,6 +1829,16 @@
+@@ -1670,6 +1807,14 @@ def api_config():
+     )
+ 
+ 
++@app.route("/api/wan-info")
++def api_wan_info():
++    try:
++        return jsonify(data=get_wan_info())
++    except RuntimeError as exc:
++        return jsonify(error=str(exc)), 502
++
++
+ @app.route("/api/speedtest/history")
+ def api_speedtest_history():
+     try:
+@@ -1759,6 +1904,7 @@ def api_logs_live():
+ 
+ 
+ def start_background_thread():
++    threading.Thread(target=refresh_wan_info_loop, daemon=True).start()
+     thread = threading.Thread(target=probe_loop, daemon=True)
+     thread.start()
+ 
+@@ -1766,6 +1912,16 @@ def start_background_thread():
  # Start probe loop when imported (for gunicorn worker start).
  ensure_db()
  ensure_speedtests_schema()

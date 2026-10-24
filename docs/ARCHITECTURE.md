@@ -4,14 +4,15 @@
 
 | File | Runs | Role |
 |---|---|---|
-| `src/app.py` | in the container (replaces `/app/app.py`) | the upstream app plus three small hooks: record every probe cycle into the extension, track which DNS servers really answered, expose `ROUTER_NAME`. See `src/app.py.patch` for the exact diff against `upstream/app.py`. The extension is imported defensively: if it fails to start, the stock monitoring keeps running. |
+| `src/app.py` | in the container (replaces `/app/app.py`) | the upstream app plus probe history, DNS reply tracking, `ROUTER_NAME`, and a cached public WAN lookup whose current result is attached to each probe. See `src/app.py.patch` for the exact diff against `upstream/app.py`. The extension is imported defensively: if it fails to start, the stock monitoring keeps running. |
 | `src/netprobe_extensions.py` | in the container | storage, state machine, flood control, message composition, HTTP routes |
 | `src/index.html` | served by Flask | the single-file UI (two styles, two languages, no external assets) |
 | `src/netprobe-unraid-notify.sh` | on the Unraid host (cron, every minute) | drains the queue through Unraid's `notify`, acknowledges what was delivered |
 
 ## Data
 
-Only additive tables are created in the existing SQLite file: `np_targets` (every sample of every target),
+Only additive tables/columns are created in the existing SQLite file: `np_targets` (every sample of every target,
+including the public WAN IP/ISP known at sample time),
 `np_state` (current state and streaks), `np_events` (confirmed changes), `np_notifications` (the delivery queue),
 `np_flap` (muting state). Settings live in `/data/alert-settings.json` and the bridge token in
 `/data/notify-token`. Nothing is deleted automatically.

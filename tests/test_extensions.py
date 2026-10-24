@@ -38,8 +38,8 @@ class ExtensionTests(unittest.TestCase):
         return {"host": target, "address": address, "latency": latency,
                 "jitter": 1, "loss": loss}
 
-    def record(self, rows, advance=46, dns=None):
-        self.ext.record_probe(self.now, rows, dns or {})
+    def record(self, rows, advance=46, dns=None, wan_info=None):
+        self.ext.record_probe(self.now, rows, dns or {}, wan_info=wan_info)
         self.now += advance
 
     def pending(self):
@@ -58,6 +58,24 @@ class ExtensionTests(unittest.TestCase):
             self.assertEqual(before.execute("SELECT * FROM " + table).fetchall(),
                              after.execute("SELECT * FROM " + table).fetchall())
         self.assertEqual(after.execute("PRAGMA quick_check").fetchone()[0], "ok")
+
+    def test_wan_columns_migrate_without_losing_existing_target_history(self):
+        legacy_db = self.root / "legacy.sqlite"
+        conn = sqlite3.connect(legacy_db)
+        conn.execute("""CREATE TABLE np_targets (
+            id INTEGER PRIMARY KEY,cycle_ts INTEGER NOT NULL,ts INTEGER NOT NULL,
+            target TEXT NOT NULL,address TEXT,kind TEXT NOT NULL,latency REAL,
+            jitter REAL,loss REAL,UNIQUE(cycle_ts,target))""")
+        conn.execute("INSERT INTO np_targets VALUES (1,10,10,'google.com','8.8.8.8','ping',20,1,0)")
+        conn.commit()
+        conn.close()
+        self.Extension(str(legacy_db), str(self.root / "legacy-data"), clock=lambda: self.now)
+        conn = sqlite3.connect(legacy_db)
+        self.addCleanup(conn.close)
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(np_targets)")}
+        self.assertTrue({"wan_ip", "wan_isp"}.issubset(columns))
+        self.assertEqual(conn.execute("SELECT target,wan_ip,wan_isp FROM np_targets").fetchone(),
+                         ("google.com", None, None))
 
     def test_confirmed_failure_is_grouped_and_stable_failure_does_not_spam(self):
         bad = [self.ping(loss=100), self.ping("1.1.1.1", loss=25, address="1.1.1.1")]
@@ -179,6 +197,46 @@ class ExtensionTests(unittest.TestCase):
         data = list(csv.DictReader(io.StringIO(response.get_data(as_text=True))))
         self.assertEqual([float(x["loss_pct"]) for x in data], [0, 50])
         self.assertEqual(data[1]["address"], "8.8.8.8")
+
+    def test_period_statistics_and_csv_attribute_samples_to_the_recorded_wan(self):
+        self.record([self.ping(latency=20)], wan_info={"public_ip": "9.9.9.9", "isp": "First ISP"})
+        self.record([self.ping(latency=40, loss=25)],
+                    wan_info={"public_ip": "1.1.1.1", "isp": "Second ISP"})
+        row = self.client.get("/api/targets/recent?range=3600").get_json()["data"][0]
+        groups = {(source["wan_ip"], source["wan_isp"]): source for source in row["wan_sources"]}
+        self.assertEqual(set(groups), {("9.9.9.9", "First ISP"), ("1.1.1.1", "Second ISP")})
+        self.assertEqual(groups[("9.9.9.9", "First ISP")]["samples"], 1)
+        self.assertEqual(groups[("9.9.9.9", "First ISP")]["avg_latency"], 20)
+        self.assertEqual(groups[("1.1.1.1", "Second ISP")]["avg_loss"], 25)
+        recent = self.client.get("/api/targets/recent?range=60").get_json()["data"][0]
+        self.assertEqual([(source["wan_ip"], source["samples"]) for source in recent["wan_sources"]],
+                         [("1.1.1.1", 1)])
+        data = list(csv.DictReader(io.StringIO(
+            self.client.get("/api/export/targets.csv?range=3600").get_data(as_text=True))))
+        self.assertEqual([(sample["wan_ip"], sample["wan_isp"]) for sample in data],
+                         [("9.9.9.9", "First ISP"), ("1.1.1.1", "Second ISP")])
+
+    def test_history_apis_filter_chart_data_by_selected_wan(self):
+        self.record([self.ping(latency=20)], dns={"8.8.8.8": 12},
+                    wan_info={"public_ip": "9.9.9.9", "isp": "First ISP"})
+        self.record([self.ping(latency=40, loss=25)], dns={"8.8.8.8": 30},
+                    wan_info={"public_ip": "1.1.1.1", "isp": "Second ISP"})
+        summary = self.client.get(
+            "/api/history?range=3600&wan_ip=9.9.9.9&wan_isp=First%20ISP").get_json()["data"]
+        self.assertEqual(len(summary), 1)
+        self.assertEqual((summary[0]["avg_latency_ms"], summary[0]["avg_loss_pct"],
+                          summary[0]["avg_dns_latency_ms"]), (20, 0, 12))
+        self.assertIsNone(summary[0]["score"], "WAN-specific history must not expose the all-WAN score")
+        self.assertEqual(summary[0]["dns_per_server"], {"8.8.8.8": 12})
+        target_history = self.client.get(
+            "/api/targets/history?target=google.com&range=3600&wan_ip=1.1.1.1&wan_isp=Second%20ISP").get_json()["data"]
+        self.assertEqual(len(target_history), 1)
+        self.assertEqual((target_history[0]["latency"], target_history[0]["loss"]), (40, 25))
+
+    def test_invalid_wan_source_is_rejected(self):
+        with self.assertRaises(ValueError):
+            self.ext.record_probe(self.now, [self.ping()], {},
+                                  wan_info={"public_ip": "192.168.1.1", "isp": "Private"})
 
     def test_history_buckets_preserve_a_single_loss_spike(self):
         start = self.now - 2000

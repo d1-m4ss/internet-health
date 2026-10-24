@@ -1,7 +1,8 @@
 # Derived from NetProbe_Python (https://github.com/bmartino1/NetProbe_Python), MIT License,
 # Copyright (c) 2025-2026 Brandon Martino -- see THIRD_PARTY_NOTICES.md.
 # Modified: optional netprobe_extensions integration (per-target history, alerts, loss report), ROUTER_NAME,
-# DNS reply tracking for alerting, Turbo mode watcher. Every change is listed in app.py.patch.
+# DNS reply tracking, Turbo mode watcher, and cached public IP / ISP lookup.
+import ipaddress
 import json
 import logging
 import os
@@ -14,6 +15,7 @@ import threading
 import time
 from collections import deque
 from datetime import datetime, timezone
+from urllib.request import Request, urlopen
 
 from flask import Flask, jsonify, render_template, request
 import dns.resolver
@@ -1590,7 +1592,13 @@ def probe_loop():
         if custom_extension is not None:
             try:
                 dns_failed = [s for s in DNS_SERVERS if not _dns_answers.get(s)]
-                custom_extension.record_probe(ts, ping_results, dns_per_server, dns_failed=dns_failed)
+                custom_extension.record_probe(
+                    ts,
+                    ping_results,
+                    dns_per_server,
+                    dns_failed=dns_failed,
+                    wan_info=get_cached_wan_info(),
+                )
             except Exception:
                 logger.exception("Persistent target history / alerts could not be recorded")
 
@@ -1615,6 +1623,72 @@ def probe_loop():
 # -------------------------
 
 app = Flask(__name__)
+
+WAN_INFO_URL = "https://ipwho.is/"
+WAN_INFO_CACHE_TTL = 30
+WAN_INFO_ERROR_CACHE_TTL = 30
+WAN_INFO_TIMEOUT = 5
+_wan_info_lock = threading.Lock()
+_wan_info_cache = {"expires_at": 0.0, "data": None, "error": None}
+
+
+def get_wan_info():
+    """Return the public IP and ISP observed from NetProbe's outbound connection."""
+    with _wan_info_lock:
+        now = time.monotonic()
+        if now < _wan_info_cache["expires_at"]:
+            if _wan_info_cache["error"]:
+                raise RuntimeError(_wan_info_cache["error"])
+            return _wan_info_cache["data"]
+
+        try:
+            req = Request(WAN_INFO_URL, headers={"Accept": "application/json"})
+            with urlopen(req, timeout=WAN_INFO_TIMEOUT) as response:
+                payload = json.load(response)
+            if not isinstance(payload, dict) or payload.get("success") is not True:
+                raise ValueError("ISP lookup returned an unsuccessful response")
+
+            parsed_ip = ipaddress.ip_address(str(payload.get("ip") or ""))
+            if not parsed_ip.is_global:
+                raise ValueError("ISP lookup returned a non-public address")
+            public_ip = str(parsed_ip)
+            connection = payload.get("connection")
+            connection = connection if isinstance(connection, dict) else {}
+            isp = connection.get("isp") or connection.get("org")
+            if not isinstance(isp, str):
+                isp = None
+            else:
+                isp = " ".join(isp.split())[:120] or None
+
+            data = {"public_ip": public_ip, "isp": isp, "updated_at": int(time.time())}
+            _wan_info_cache.update(
+                expires_at=now + WAN_INFO_CACHE_TTL, data=data, error=None
+            )
+            return data
+        except (OSError, ValueError) as exc:
+            logger.warning("Public IP / ISP lookup failed: %s", type(exc).__name__)
+            error = "Public IP / ISP lookup is unavailable"
+            _wan_info_cache.update(
+                expires_at=now + WAN_INFO_ERROR_CACHE_TTL, data=None, error=error
+            )
+            raise RuntimeError(error) from exc
+
+
+def get_cached_wan_info():
+    """Return the latest successful WAN lookup without blocking the probe loop."""
+    cache = _wan_info_cache
+    if cache["data"] is not None and time.monotonic() < cache["expires_at"]:
+        return dict(cache["data"])
+    return None
+
+
+def refresh_wan_info_loop():
+    while True:
+        try:
+            get_wan_info()
+        except RuntimeError:
+            pass
+        time.sleep(WAN_INFO_CACHE_TTL)
 
 
 @app.route("/")
@@ -1733,6 +1807,14 @@ def api_config():
     )
 
 
+@app.route("/api/wan-info")
+def api_wan_info():
+    try:
+        return jsonify(data=get_wan_info())
+    except RuntimeError as exc:
+        return jsonify(error=str(exc)), 502
+
+
 @app.route("/api/speedtest/history")
 def api_speedtest_history():
     try:
@@ -1822,6 +1904,7 @@ def api_logs_live():
 
 
 def start_background_thread():
+    threading.Thread(target=refresh_wan_info_loop, daemon=True).start()
     thread = threading.Thread(target=probe_loop, daemon=True)
     thread.start()
 

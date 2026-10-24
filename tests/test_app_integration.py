@@ -1,5 +1,6 @@
 """Run the real app loop on an isolated copy; only external probes are replaced."""
 import importlib.util
+import io
 import os
 from pathlib import Path
 import shutil
@@ -46,7 +47,9 @@ class AppIntegrationTests(unittest.TestCase):
         with patch.object(self.module, "get_default_gateway", return_value="172.17.0.1"), \
              patch.object(self.module.subprocess, "run", side_effect=external_run), \
              patch.object(self.module, "measure_dns_latency_multi", return_value=2.0), \
-             patch.object(self.module.time, "sleep", side_effect=EndCycle) as sleep:
+        patch.object(self.module, "get_cached_wan_info",
+                     return_value={"public_ip": "9.9.9.9", "isp": "Sample ISP"}), \
+        patch.object(self.module.time, "sleep", side_effect=EndCycle) as sleep:
             with self.assertRaises(EndCycle):
                 self.module.probe_loop()
         self.assertEqual(len(calls), 3)
@@ -55,6 +58,8 @@ class AppIntegrationTests(unittest.TestCase):
         data = self.module.app.test_client().get("/api/targets/recent").get_json()["data"]
         google = next(r for r in data if r["target"] == "google.com")
         self.assertEqual((google["address"], google["loss"], google["latency"]), ("142.250.1.1", 25, 25))
+        self.assertEqual((google["wan_ip"], google["wan_isp"]), ("9.9.9.9", "Sample ISP"))
+        self.assertEqual(google["wan_sources"][0]["samples"], 1)
         self.assertEqual(len(data), 4)
         self.assertEqual(self.module.app.test_client().get("/api/score/latest").status_code, 200)
         conn = sqlite3.connect(self.db)
@@ -120,6 +125,39 @@ class AppIntegrationTests(unittest.TestCase):
             self.assertEqual(module.app.test_client().get("/api/config").get_json()["router_name"], "ASUS RT-AX86U")
             roles = module.notification_roles("172.17.0.1")
             self.assertEqual(roles[module.ROUTER_IP], ("router", "ASUS RT-AX86U"))
+
+    def test_wan_info_endpoint_returns_public_ip_and_isp_and_caches_lookup(self):
+        module = self.module
+        module._wan_info_cache.update(expires_at=0, data=None, error=None)
+        provider_response = io.BytesIO(
+            b'{"success":true,"ip":"8.8.8.8","connection":{"isp":"Example ISP"}}'
+        )
+        with patch.object(module, "urlopen", return_value=provider_response) as lookup:
+            client = module.app.test_client()
+            first = client.get("/api/wan-info")
+            second = client.get("/api/wan-info")
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(first.get_json()["data"]["public_ip"], "8.8.8.8")
+        self.assertEqual(first.get_json()["data"]["isp"], "Example ISP")
+        self.assertEqual(second.get_json(), first.get_json())
+        lookup.assert_called_once()
+        self.assertEqual(lookup.call_args.kwargs["timeout"], module.WAN_INFO_TIMEOUT)
+
+    def test_wan_info_lookup_failure_is_explicit_and_short_cached(self):
+        from urllib.error import URLError
+
+        module = self.module
+        module._wan_info_cache.update(expires_at=0, data=None, error=None)
+        with patch.object(module, "urlopen", side_effect=URLError("offline")) as lookup:
+            client = module.app.test_client()
+            first = client.get("/api/wan-info")
+            second = client.get("/api/wan-info")
+
+        self.assertEqual(first.status_code, 502)
+        self.assertEqual(second.status_code, 502)
+        self.assertIn("unavailable", first.get_json()["error"])
+        lookup.assert_called_once()
 
 
 if __name__ == "__main__":

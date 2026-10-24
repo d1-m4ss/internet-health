@@ -142,6 +142,11 @@ class Extension:
                     last_ts INTEGER NOT NULL, kind TEXT NOT NULL, status TEXT NOT NULL, sent_ts INTEGER);
                 CREATE INDEX IF NOT EXISTS np_outages_start ON np_outages(start_ts);
             """)
+            target_columns = {row["name"] for row in conn.execute("PRAGMA table_info(np_targets)")}
+            if "wan_ip" not in target_columns:
+                conn.execute("ALTER TABLE np_targets ADD COLUMN wan_ip TEXT")
+            if "wan_isp" not in target_columns:
+                conn.execute("ALTER TABLE np_targets ADD COLUMN wan_isp TEXT")
             conn.execute("UPDATE np_outages SET status='stopped',end_ts=last_ts WHERE status='open'")
             self.turbo_pending = bool(conn.execute("SELECT 1 FROM np_outages WHERE status='pending'").fetchone())
 
@@ -265,9 +270,25 @@ class Extension:
                 reasons.append("%s %.1f %s" % (label, row[field], suffix))
         return ("DEGRADED" if reasons else "OK"), reasons
 
-    def record_probe(self, ts, ping_results, dns_per_server, dns_failed=()):
+    def record_probe(self, ts, ping_results, dns_per_server, dns_failed=(), wan_info=None):
         if type(ts) is not int or ts <= 0:
             raise ValueError("Invalid probe timestamp")
+        wan_ip = wan_isp = None
+        if wan_info is not None:
+            if not isinstance(wan_info, dict):
+                raise ValueError("Invalid WAN information")
+            try:
+                parsed_wan_ip = ipaddress.ip_address(wan_info.get("public_ip", ""))
+            except ValueError as exc:
+                raise ValueError("Invalid WAN public IP") from exc
+            if not parsed_wan_ip.is_global:
+                raise ValueError("WAN address must be public")
+            wan_ip = str(parsed_wan_ip)
+            wan_isp = wan_info.get("isp")
+            if wan_isp is not None:
+                if not isinstance(wan_isp, str):
+                    raise ValueError("WAN ISP must be text")
+                wan_isp = " ".join(wan_isp.split())[:120] or None
         rows = []
         for r in ping_results:
             loss = float(r["loss"])
@@ -295,8 +316,10 @@ class Extension:
                 if previous and ts <= previous["last_ts"]:
                     continue
                 conn.execute("""INSERT OR IGNORE INTO np_targets
-                    (cycle_ts,ts,target,address,kind,latency,jitter,loss) VALUES (?,?,?,?,?,?,?,?)""",
-                    (ts, row["ts"], target, row["address"], row["kind"], row["latency"], row["jitter"], row["loss"]))
+                    (cycle_ts,ts,target,address,kind,latency,jitter,loss,wan_ip,wan_isp)
+                    VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                    (ts, row["ts"], target, row["address"], row["kind"], row["latency"],
+                     row["jitter"], row["loss"], wan_ip, wan_isp))
                 observed, reasons = self.classify(row, cfg)
                 active = previous["active"] if previous else "OK"
                 # Leaving OK counts consecutive non-OK samples (DOWN/DEGRADED alternate on lossy links);
@@ -723,26 +746,63 @@ class Extension:
                 latest["addresses"] = [dict(x) for x in conn.execute("""SELECT address,COUNT(*) samples,
                     AVG(latency) avg_latency,MAX(latency) max_latency,AVG(loss) avg_loss,MAX(loss) max_loss
                     FROM np_targets WHERE target=? AND ts>=? AND ts<=? GROUP BY address""", (r["target"], start, upper))]
+                latest["wan_sources"] = [dict(x) for x in conn.execute("""SELECT wan_ip,wan_isp,
+                    COUNT(*) samples,AVG(latency) avg_latency,MAX(latency) max_latency,
+                    AVG(loss) avg_loss,MAX(loss) max_loss
+                    FROM np_targets WHERE target=? AND ts>=? AND ts<=?
+                    GROUP BY wan_ip,wan_isp ORDER BY samples DESC,wan_ip,wan_isp""",
+                    (r["target"], start, upper))]
                 out.append(latest)
             return out
 
-    def target_history(self, target, seconds, address=None, end=None):
+    def target_history(self, target, seconds, address=None, end=None, wan_ip=None, wan_isp=None):
         step = max(1, math.ceil(seconds / 599))
-        condition = "target=?" if address is None else "target=? AND address=?"
-        start, upper = self.window_bounds(seconds, end)
-        params = [step, start, upper, target]
+        conditions = ["target=?"]
+        values = [target]
         if address is not None:
-            params.append(address)
+            conditions.append("address=?")
+            values.append(address)
+        if wan_ip is not None:
+            conditions.extend(["wan_ip IS NULL" if not wan_ip else "wan_ip=?",
+                               "COALESCE(wan_isp,'')=?"])
+            if wan_ip:
+                values.append(wan_ip)
+            values.append(wan_isp or "")
+        start, upper = self.window_bounds(seconds, end)
+        params = [step, start, upper] + values
         with self.db() as conn:
             return [dict(r) for r in conn.execute("""SELECT CAST(ts/? AS INTEGER) bucket,MAX(ts) ts,
                 AVG(latency) latency,AVG(jitter) jitter,AVG(loss) loss,MAX(loss) max_loss,
                 CASE WHEN COUNT(DISTINCT address)=1 THEN MAX(address) ELSE NULL END address
-                FROM np_targets WHERE ts>=? AND ts<=? AND """ + condition + " GROUP BY bucket ORDER BY bucket", params)]
+                FROM np_targets WHERE ts>=? AND ts<=? AND """ + " AND ".join(conditions) +
+                " GROUP BY bucket ORDER BY bucket", params)]
 
-    def history(self, seconds, end=None):
+    def history(self, seconds, end=None, wan_ip=None, wan_isp=None):
         step = max(1, math.ceil(seconds / 599))
         start, upper = self.window_bounds(seconds, end)
         with self.db() as conn:
+            if wan_ip is not None:
+                wan_clause = "wan_ip IS NULL" if not wan_ip else "wan_ip=?"
+                params = [step, start, upper] + ([wan_ip] if wan_ip else []) + [wan_isp or ""]
+                rows = [dict(r) for r in conn.execute("""SELECT CAST(ts/? AS INTEGER) bucket,MAX(ts) ts,
+                    AVG(CASE WHEN kind='ping' THEN latency END) avg_latency_ms,
+                    AVG(CASE WHEN kind='ping' THEN jitter END) avg_jitter_ms,
+                    AVG(CASE WHEN kind='ping' THEN loss END) avg_loss_pct,
+                    MAX(CASE WHEN kind='ping' THEN loss END) max_loss_pct,
+                    AVG(CASE WHEN kind='dns' THEN latency END) avg_dns_latency_ms
+                    FROM np_targets WHERE ts>=? AND ts<=? AND """ + wan_clause +
+                    """ AND COALESCE(wan_isp,'')=?
+                    GROUP BY bucket ORDER BY bucket""", params)]
+                dns = {}
+                for r in conn.execute("""SELECT CAST(ts/? AS INTEGER) bucket,target,AVG(latency) latency
+                    FROM np_targets WHERE ts>=? AND ts<=? AND """ + wan_clause +
+                    """ AND COALESCE(wan_isp,'')=? AND kind='dns' GROUP BY bucket,target""", params):
+                    dns.setdefault(r["bucket"], {})[r["target"][4:]] = r["latency"]
+                for row in rows:
+                    row["dns_per_server"] = dns.get(row.pop("bucket"), {})
+                    row["score"] = None
+                    row["iso"] = datetime.fromtimestamp(row["ts"], timezone.utc).isoformat()
+                return rows
             rows = [dict(r) for r in conn.execute("""SELECT CAST(ts/? AS INTEGER) bucket,MAX(ts) ts,
                 AVG(avg_latency_ms) avg_latency_ms,AVG(avg_jitter_ms) avg_jitter_ms,
                 AVG(avg_loss_pct) avg_loss_pct,MAX(avg_loss_pct) max_loss_pct,
@@ -823,14 +883,14 @@ class Extension:
             rows = conn.execute("SELECT * FROM np_targets WHERE ts>=? AND ts<=? ORDER BY ts,id LIMIT 50001", (start, upper)).fetchall()
         output = io.StringIO(newline="")
         writer = csv.writer(output)
-        writer.writerow(["timestamp", "target", "address", "kind", "loss_pct", "rtt_ms", "jitter_ms"])
+        writer.writerow(["timestamp", "target", "address", "kind", "loss_pct", "rtt_ms", "jitter_ms", "wan_ip", "wan_isp"])
         def safe(value):
             if isinstance(value, str) and (value.lstrip().startswith(("=", "+", "-", "@")) or value.startswith(("\t", "\r", "\n"))):
                 return "'" + value
             return value
         for row in rows[:50000]:
             writer.writerow([datetime.fromtimestamp(row["ts"], timezone.utc).isoformat()] +
-                            [safe(row[k]) for k in ("target", "address", "kind", "loss", "latency", "jitter")])
+                            [safe(row[k]) for k in ("target", "address", "kind", "loss", "latency", "jitter", "wan_ip", "wan_isp")])
         return output.getvalue(), len(rows) > 50000
 
 
@@ -868,12 +928,17 @@ def install_routes(app, ext):
     @app.get("/api/targets/history")
     def np_history_target():
         seconds, end = window()
-        return jsonify(data=ext.target_history(request.args.get("target", ""), seconds, request.args.get("address"), end))
+        wan_ip = request.args.get("wan_ip") if "wan_ip" in request.args else None
+        wan_isp = request.args.get("wan_isp", "")
+        return jsonify(data=ext.target_history(request.args.get("target", ""), seconds,
+                                               request.args.get("address"), end, wan_ip, wan_isp))
 
     @app.get("/api/history")
     def np_history():
         seconds, end = window()
-        return jsonify(data=ext.history(seconds, end))
+        wan_ip = request.args.get("wan_ip") if "wan_ip" in request.args else None
+        wan_isp = request.args.get("wan_isp", "")
+        return jsonify(data=ext.history(seconds, end, wan_ip, wan_isp))
 
     @app.get("/api/events")
     def np_events():
