@@ -108,6 +108,38 @@ class FastClientTests(unittest.TestCase):
         self.assertTrue(any(p.startswith("/speedtest/range/0-0?") for _, p in self.server.hits), "latency uses a one-byte range")
         self.assertTrue(any(p.startswith("/speedtest/range/0-%d?" % npx.FAST_CHUNK) for _, p in self.server.hits), "download asks for a large range")
 
+    def test_the_delay_under_load_is_measured_while_the_transfer_runs(self):
+        with patch.object(npx, "FAST_LOADED_EVERY", 0.05):
+            result = self.run_test()
+        for key in ("loaded_ping_ms", "loaded_up_ping_ms"):
+            self.assertIsInstance(result[key], float, key)
+            self.assertGreater(result[key], 0)
+        self.assertGreaterEqual(result["jitter_ms"] or 0, 0)
+        zero_range = [p for m, p in self.server.hits if m == "GET" and p.startswith("/speedtest/range/0-0?")]
+        self.assertGreater(len(zero_range), 12, "idle probes plus the probes made during both transfers")
+
+    def test_too_few_answers_is_not_a_measurement(self):
+        result = self.run_test()      # the default probe interval is longer than this short run
+        self.assertIsNone(result["loaded_ping_ms"])
+        self.assertIsNone(result["loaded_up_ping_ms"])
+        self.assertGreater(result["download_mbps"], 1)
+
+    def test_a_failing_probe_never_spoils_the_speed(self):
+        def broken(url, delay, out):
+            def run(deadline, counter):
+                raise OSError("probe connection refused")
+            return run
+        with patch.object(npx, "_fast_loaded_probe", broken):
+            result = self.run_test()
+        self.assertGreater(result["download_mbps"], 1)
+        self.assertGreater(result["upload_mbps"], 1)
+        self.assertIsNone(result["loaded_ping_ms"])
+
+    def test_the_median_needs_a_few_samples(self):
+        self.assertIsNone(npx._median_or_none([]))
+        self.assertIsNone(npx._median_or_none([5.0, 6.0]))
+        self.assertEqual(npx._median_or_none([5.0, 9.0, 7.0]), 7.0)
+
     def test_download_is_spread_over_the_returned_servers(self):
         self.run_test()
         used = {p.split("t=")[1] for m, p in self.server.hits if m == "GET" and p.startswith("/speedtest/range/")}

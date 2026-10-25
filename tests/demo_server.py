@@ -84,8 +84,8 @@ def main():
     ext = module.custom_extension
     wans = {"primary": ("198.51.100.23", "Example Broadband Ltd"), "backup": ("203.0.113.45", "Sample Mobile Backup")}
     ext.ip_fetch = lambda url, timeout=None: wans["primary"]
-    ext.update_prefs({"show_public_ip": True, "speedtest_service": "python", "speedtest_schedule": "daily",
-                      "speedtest_times": ["03:00"], "speedtest_notify": True})
+    ext.update_prefs({"show_public_ip": True, "speedtest_service": "fast", "speedtest_schedule": "daily",
+                      "speedtest_times": ["03:00"], "speedtest_notify": True, "speedtest_drop_pct": 30})
 
     def carried_by(name):
         ext.ip_cache = dict(ip=wans[name][0], isp=wans[name][1], source="ipwho.is", checked_at=int(ext.clock()), error=None)
@@ -98,10 +98,21 @@ def main():
         conn.execute("DELETE FROM measurements WHERE ts < ?", (now - int(args.hours * 3600) - 3600,))
         conn.execute("DELETE FROM dns_measurements WHERE ts < ?", (now - int(args.hours * 3600) - 3600,))
         conn.execute("DELETE FROM speedtests")
-        for hours_ago, down, up, ping in ((26, 468.0, 88.0, 24.0), (14, 479.5, 90.1, 23.0), (2.5, 472.8, 89.4, 25.0)):
+        extras = []
+        # invented Speedtest.net-like history: a test every ~8 hours for a week, one slow evening, delay under load next to every test
+        for i in range(21):
+            hours_ago = 6 + (20 - i) * 8 + (i % 3)
+            down = 470 + 12 * ((i * 7) % 5) - 6 * (i % 4) - (210 if i == 13 else 0)
+            up = 88 + 2 * ((i * 3) % 4)
+            ping = 22 + (i % 5)
+            ts = now - int(hours_ago * 3600)
             conn.execute("INSERT INTO speedtests(ts,ping_ms,download_mbps,upload_mbps,server_id,server_name,server_host,server_country,"
                          "requested_server_id,backend) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                         (now - int(hours_ago * 3600), ping, down, up, "10001", "Example City", "speedtest.example.net:8080", "Exampleland", None, "python"))
+                         (ts, float(ping), float(down), float(up), None, "Netflix, Example City", "ipv4-c001.example.net", "Exampleland", None, "fast"))
+            extras.append((ts, {"jitter_ms": 1.0 + (i % 4) * 0.4, "loaded_ping_ms": ping + 18 + (i % 6) * 3 + (45 if i == 13 else 0),
+                                          "loaded_up_ping_ms": ping + 40 + (i % 5) * 4}))
+    for ts, values in extras:  # after the seeding connection has committed
+        ext.save_speedtest_extra(ts, values)
 
     def keep_probing():  # new probe every STEP seconds so the dashboard stays LIVE
         index = total

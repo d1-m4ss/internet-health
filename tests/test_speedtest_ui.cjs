@@ -11,7 +11,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
   try {
     const now = Math.floor(Date.now() / 1000);
     const api = {
-      prefs: {speedtest_service: '', speedtest_schedule: 'container', speedtest_interval_h: 6, speedtest_times: ['03:00'], speedtest_notify: false, show_public_ip: false, wan_check_min: 15, wan_notify: false, history_retention_days: 0, notify_unraid: true}, history: {last: null, next_ts: null, db_bytes: 5320000, oldest_ts: now - 86400 * 40}, cleanupTotal: 1234, cleanupError: null, publicIp: {enabled: false}, targets: [], wanData: {sources: [], current: null}, publicIpDelay: 0, tg: {enabled: false, configured: false, token_set: false, chat_id: '', source: null, last_ok_ts: null, last_error: null, last_error_ts: null}, tgFail: null, delays: {}, statusSeq: [], status: {running: false, success: null, error: null, result: null}, runStatus: 202, prefsFail: false, prefsReadFail: false, speedRun: null, calls: [],
+      prefs: {speedtest_service: '', speedtest_schedule: 'container', speedtest_interval_h: 6, speedtest_times: ['03:00'], speedtest_notify: false, show_public_ip: false, wan_check_min: 15, wan_notify: false, history_retention_days: 0, notify_unraid: true}, history: {last: null, next_ts: null, db_bytes: 5320000, oldest_ts: now - 86400 * 40}, cleanupTotal: 1234, cleanupError: null, publicIp: {enabled: false}, targets: [], wanData: {sources: [], current: null}, publicIpDelay: 0, series: [], tg: {enabled: false, configured: false, token_set: false, chat_id: '', source: null, last_ok_ts: null, last_error: null, last_error_ts: null}, tgFail: null, delays: {}, statusSeq: [], status: {running: false, success: null, error: null, result: null}, runStatus: 202, prefsFail: false, prefsReadFail: false, speedRun: null, calls: [],
       latest: {ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server: {id: '1', name: 'Example City', country: 'EX'}, backend: 'python'},
       history: [{ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server_id: '1', server_name: 'Example City', backend: 'python'}],
     };
@@ -68,6 +68,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
           }
           case '/api/public-ip': if (api.publicIpDelay) await new Promise(r => setTimeout(r, api.publicIpDelay)); return route.fulfill({json: api.publicIp});
           case '/api/speedtest/latest': return route.fulfill({json: {result: api.latest}});
+          case '/api/speedtest/series': return route.fulfill({json: {tests: api.series.filter(r => r.ts >= now - Number(url.searchParams.get('range'))), range: Number(url.searchParams.get('range'))}});
           case '/api/speedtest/history': return route.fulfill({json: {tests: api.history}});
           case '/api/speedtest/run': return route.fulfill(api.runStatus === 202 ? {status: 202, json: {success: true, started: true}} : {status: api.runStatus, json: {success: false, error: 'A Speedtest is already running. Wait for it to finish and try again.'}});
           case '/api/speedtest/status': return route.fulfill({json: api.statusSeq.length ? api.statusSeq.shift() : api.status});
@@ -205,7 +206,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       await page.locator('#schedForm button[type="submit"]').click();
       await page.waitForFunction(() => /Schedule saved/.test(document.getElementById('schedMessage').textContent));
       const sent = posts().pop();
-      assert.deepEqual(sent.body, {speedtest_schedule: 'daily', speedtest_notify: true, speedtest_times: ['03:00', '15:30']});
+      assert.deepEqual(sent.body, {speedtest_schedule: 'daily', speedtest_notify: true, speedtest_notify_manual: false, speedtest_drop_pct: 0, speedtest_times: ['03:00', '15:30']});
       assert.equal(sent.headers['x-netprobe-request'], 'settings');
       assert.equal(await page.locator('#schedTimes').inputValue(), '03:00, 15:30');
       assert.match(await page.locator('#schedNote').textContent(), /Next test: .+ · time zone Europe\/Berlin/);
@@ -222,7 +223,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       await page.locator('#schedInterval').fill('12');
       await page.locator('#schedForm button[type="submit"]').click();
       await page.waitForFunction(() => /Schedule saved/.test(document.getElementById('schedMessage').textContent));
-      assert.deepEqual(posts().pop().body, {speedtest_schedule: 'interval', speedtest_notify: true, speedtest_interval_h: 12});
+      assert.deepEqual(posts().pop().body, {speedtest_schedule: 'interval', speedtest_notify: true, speedtest_notify_manual: false, speedtest_drop_pct: 0, speedtest_interval_h: 12});
 
       await page.locator('#schedMode').selectOption('off');
       assert.match(await page.locator('#schedNote').textContent(), /Automatic tests are off/);
@@ -233,7 +234,18 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       api.prefsFail = false;
       await page.locator('#schedForm button[type="submit"]').click();
       await page.waitForFunction(() => /Schedule saved/.test(document.getElementById('schedMessage').textContent));
-      assert.deepEqual(posts().pop().body, {speedtest_schedule: 'off', speedtest_notify: true});
+      assert.deepEqual(posts().pop().body, {speedtest_schedule: 'off', speedtest_notify: true, speedtest_notify_manual: false, speedtest_drop_pct: 0});
+      // manual-test messages and the drop warning
+      assert.deepEqual(await page.locator('#schedDrop option').allTextContents(), ['Do not warn', '20 % or more below the usual', '30 % or more below the usual', '50 % or more below the usual']);
+      assert.equal(await page.locator('#schedNotifyManual').isChecked(), false);
+      assert.equal(await page.locator('#schedDrop').inputValue(), '0');
+      assert.match(await page.locator('#schedBox .card-sub').nth(1).textContent(), /median of the same service over the last 7 days/);
+      await page.locator('#schedNotifyManual').check();
+      await page.locator('#schedDrop').selectOption('30');
+      await page.locator('#schedForm button[type="submit"]').click();
+      await page.waitForFunction(() => /Schedule saved/.test(document.getElementById('schedMessage').textContent));
+      assert.deepEqual(posts().pop().body, {speedtest_schedule: 'off', speedtest_notify: true, speedtest_notify_manual: true, speedtest_drop_pct: 30});
+      assert.equal(await page.locator('#schedDrop').inputValue(), '30');
       assert.deepEqual(errors, []);
       await page.close();
     }
@@ -245,9 +257,64 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       assert.equal(await page.locator('#schedNotify').isChecked(), true);
       assert.equal(await page.locator('#schedInterval').inputValue(), '12');
       assert.match(await page.locator('#schedNote').textContent(), /Автоматические тесты выключены/);
+      assert.equal(await page.locator('#schedNotifyManual').isChecked(), true, 'the saved choices come back after a reload');
+      assert.equal(await page.locator('#schedDrop').inputValue(), '30');
+      assert.equal(await page.locator('#schedDrop option:checked').textContent(), 'Ниже обычной на 30 % и больше');
       assert.match(await page.locator('#schedMode option').nth(0).textContent(), /Как задано в контейнере: каждые 4 ч/);
       assert.deepEqual(errors, []);
       api.prefs.speedtest_schedule = 'container';
+      await page.close();
+    }
+
+    // --- Speedtest chart: speed / delay modes, range, gaps for unmeasured values, extras next to the numbers ---
+    {
+      const day = 86400;
+      api.series = [
+        {ts: now - 5 * day, ping_ms: 14, download_mbps: 410, upload_mbps: 88, backend: 'fast', jitter_ms: 1.2, loaded_down_ms: 40, loaded_up_ms: 90, packet_loss_pct: null},
+        {ts: now - 3 * day, ping_ms: 15, download_mbps: 395, upload_mbps: null, backend: 'fast', jitter_ms: null, loaded_down_ms: null, loaded_up_ms: null, packet_loss_pct: null},
+        {ts: now - 2 * day, ping_ms: 13, download_mbps: 120, upload_mbps: 80, backend: 'python', jitter_ms: null, loaded_down_ms: null, loaded_up_ms: null, packet_loss_pct: null},
+        {ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, backend: 'fast', jitter_ms: 2.5, loaded_down_ms: 55, loaded_up_ms: 110, packet_loss_pct: 0.5},
+      ];
+      api.latest = {ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server: {id: '1', name: 'Example City', country: 'EX'}, backend: 'fast'};
+      api.history = [{ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server_id: '1', server_name: 'Example City', backend: 'fast'}];
+      const {page, errors} = await open('netprobe', 'en');
+      const circles = () => page.locator('#speedChart circle').count();
+      const legend = () => page.locator('#speedLegend span').allTextContents();
+      await page.waitForFunction(() => document.querySelectorAll('#speedChart circle').length > 0);
+      assert.deepEqual(await legend(), ['Download, Mbps', 'Upload, Mbps']);
+      assert.equal(await circles(), 7, 'one point per measured value: 4 downloads + 3 uploads (an unmeasured upload is not a point)');
+      assert.equal(await page.locator('#speedChart path.sp-line').count(), 2);
+      const upPath = await page.locator('#speedChart path.sp-line').nth(1).getAttribute('d');
+      assert.equal((upPath.match(/M/g) || []).length, 2, 'the unmeasured upload breaks the line: a gap, not a zero');
+      assert.match(await page.locator('#speedChart circle title').first().textContent(), /Download, Mbps: 410\.0 · Fast\.com/);
+      assert.equal(await page.locator('#speedChartNote').textContent(), '');
+      assert.match(await page.locator('#speedExtra').textContent(), /^Jitter 3 ms · delay under load: ↓ 55 ms \/ ↑ 110 ms · loss 0\.5 %$/);
+      assert.match(await page.locator('#speedHistory').textContent(), /jitter/, 'rows of tests that have extras mention them');
+      // the delay view
+      await page.locator('#spModeDelay').click();
+      assert.deepEqual(await legend(), ['Idle ping, ms', 'Ping while downloading, ms', 'Ping while uploading, ms', 'Jitter, ms']);
+      assert.equal(await page.locator('#spModeDelay').evaluate(e => e.classList.contains('active')), true);
+      assert.equal(await circles(), 4 + 2 + 2 + 2);
+      assert.equal((await page.evaluate(() => JSON.parse(localStorage.getItem('netprobe.speedchart')))).mode, 'delay');
+      // another period asks the server again
+      api.calls.length = 0;
+      await page.locator('#spRange').selectOption('86400');
+      await page.waitForFunction(() => document.querySelectorAll('#speedChart circle').length === 4);
+      assert(api.calls.some(c => c.path === '/api/speedtest/series' && c.query === '?range=86400'));
+      // the choice is remembered over a reload
+      await page.reload();
+      await page.waitForFunction(() => document.getElementById('spRange').value === '86400' && document.getElementById('spModeDelay').classList.contains('active'));
+      // no tests in the period: a note instead of an empty plot
+      api.series = [];
+      await page.locator('#spRange').selectOption('2592000');
+      await page.waitForFunction(() => document.getElementById('speedChartNote').textContent === 'No tests in this period.');
+      assert.equal(await circles(), 0);
+      // only Ookla/Speedtest.net-like data: the delay view says why the load lines are missing
+      api.series = [{ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, backend: 'python', jitter_ms: null, loaded_down_ms: null, loaded_up_ms: null, packet_loss_pct: null}];
+      await page.locator('#spRange').selectOption('604800');
+      await page.waitForFunction(() => /measured by Fast\.com only/.test(document.getElementById('speedChartNote').textContent));
+      assert.deepEqual(await legend(), ['Idle ping, ms']);
+      assert.deepEqual(errors, []);
       await page.close();
     }
 

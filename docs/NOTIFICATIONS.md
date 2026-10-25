@@ -119,7 +119,23 @@ The *Speedtest* tab (*Schedule and notifications*) can run the test automaticall
   retried before the next slot.
 - **Notification** (off by default; follows the main *notifications enabled* switch): after every automatic test one
   message, level `normal`; when the test fails, level `warning` with the reason. The measuring service (Speedtest.net,
-  Ookla CLI or Fast.com) is named; an unmeasured upload reads *not measured*, never 0.
+  Ookla CLI or Fast.com) is named; an unmeasured upload reads *not measured*, never 0. A second switch does the same
+  **after manual tests** (the message says *Manual Speedtest*). Messages go to the integrations that are switched on.
+- **Jitter and delay under load:** when the service measured them (Fast.com measures the delay while it downloads and while it
+  uploads, Ookla CLI reports jitter), the message and the page show them next to the speed.
+- **Warning when the speed drops** (off by default; 20 / 30 / 50 %): an automatic test is compared with the median of the tests of
+  the same service in the last 7 days (at least three are needed; manual tests are not judged, they may be run under load).
+  One `warning` when the speed falls that far below it (download and upload are checked separately) and one `normal` message
+  when it is back; nothing in between. The numbers are in the message:
+
+```text
+📶 Speedtest is slower than usual (Fast.com)
+
+• Download: 260 Mbps — usually 400 Mbps (-35 %)
+• Compared with the median of 21 tests in the last 7 days
+
+Time: 03:02, 10.03.2026 EET
+```
 
 ```text
 📶 Scheduled Speedtest (Fast.com)

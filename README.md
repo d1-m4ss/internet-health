@@ -72,6 +72,10 @@ bind-mounted read-only over it. Removing the mounts brings the stock NetProbe ba
 - **Compare mode** — several metrics and several targets (for example all DNS servers) on one chart, with a
   shared scale when the units match and a per-series scale otherwise.
 - **Path to the internet:** Unraid → router → Internet, drawn from the real targets, with measured RTT on the links.
+- **Speedtest chart, jitter and delay under load.** The *Speedtest* tab draws the results over 24 hours, 7 or 30 days — speed
+  (download and upload) or delay (idle ping, ping while downloading and while uploading, jitter). Fast.com also measures the
+  delay under load (bufferbloat), and the numbers appear next to each test. An unmeasured value is a gap in the line, never a zero.
+  Optional messages after manual tests, and a warning when the speed falls 20 / 30 / 50 % below the 7-day median of the same service.
 - **Speedtest service of your choice.** The *Speedtest* tab says which service measures: Speedtest.net (Ookla servers,
   through speedtest-cli — the default), the official Ookla CLI (when you install its binary in the container) or
   **Fast.com (Netflix)**, measured by NetProbe itself — no account, key or extra software. The choice applies to
@@ -92,6 +96,10 @@ bind-mounted read-only over it. Removing the mounts brings the stock NetProbe ba
 ![The chart for one WAN source](docs/screenshots/wan-chart.png)
 
 ![Speedtest: service, schedule and notifications](docs/screenshots/speedtest-schedule.png)
+
+![Speedtest chart: speed](docs/screenshots/speedtest-chart.png)
+
+![Speedtest chart: delay under load](docs/screenshots/speedtest-delay.png)
 
 ![Settings: history retention and external IP](docs/screenshots/settings-history.png)
 

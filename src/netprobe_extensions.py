@@ -68,6 +68,9 @@ SPEEDTEST_SCHEDULES = ("container", "off", "interval", "daily")
 SPEEDTEST_CATCHUP = 7200  # a daily test missed by up to two hours (container was restarting) still runs
 SPEEDTEST_TIMES_MAX = 4
 SPEED_ICON = "📶"
+SPEED_DROP_CHOICES = (0, 20, 30, 50)  # percent below the 7-day median that counts as a drop; 0 = off
+SPEED_DROP_WINDOW = 7 * 86400
+SPEED_DROP_MIN_TESTS = 3              # earlier tests of the same service needed before a "typical" speed exists
 SPEED_NAMES = {"python": "Speedtest.net", "ookla": "Ookla CLI", "fast": "Fast.com"}
 TIME_OF_DAY = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 # History retention: 0 keeps everything (the default). A positive value deletes records older than that many days
@@ -85,11 +88,11 @@ CLEANUP_VACUUM_MAX = 256 * 1024 * 1024  # larger databases are not VACUUMed in t
 # (table, condition on the cutoff); tables that are missing are skipped. State tables (np_state, np_flap) are never cleaned,
 # queued notifications that were not delivered yet and outages still being decided are kept.
 CLEANUP_TABLES = (("measurements", "ts < ?"), ("dns_measurements", "ts < ?"), ("speedtests", "ts < ?"),
-                  ("np_targets", "ts < ?"), ("np_events", "ts < ?"), ("np_notifications", "(acked=1 OR tg=1) AND ts < ?"),
+                  ("np_targets", "ts < ?"), ("np_speedtest_extra", "ts < ?"), ("np_events", "ts < ?"), ("np_notifications", "(acked=1 OR tg=1) AND ts < ?"),
                   ("np_outages", "status NOT IN ('open','pending') AND COALESCE(end_ts,last_ts) < ?"))
 PREFS_DEFAULTS = dict(speedtest_service="", speedtest_schedule="container", speedtest_interval_h=6,
                       speedtest_times=["03:00"], speedtest_notify=False, show_public_ip=False, wan_check_min=15, wan_notify=False,
-                      history_retention_days=0, notify_unraid=True)
+                      history_retention_days=0, notify_unraid=True, speedtest_notify_manual=False, speedtest_drop_pct=0)
 # Public IP and provider (opt-in: nothing is requested while show_public_ip is off). ipwho.is answers with JSON
 # (address and ISP name); the plain-text services after it only know the address.
 PUBLIC_IP_SOURCES = ("https://ipwho.is/", "https://api.ipify.org", "https://icanhazip.com")
@@ -298,7 +301,37 @@ def _fast_run(workers, seconds, warmup, clock=time.monotonic):
     return (end_bytes - mark_bytes) * 8 / (end_time - mark_time) / 1e6
 
 
-def fast_download(urls, seconds=FAST_DOWN_SECONDS, warmup=FAST_WARMUP, connections=FAST_DOWN_CONNECTIONS):
+FAST_LOADED_EVERY = 0.4   # seconds between latency probes while a transfer runs
+FAST_LOADED_MIN = 3       # fewer answers than this is not a measurement
+
+
+def _fast_loaded_probe(url, delay, out, clock=time.monotonic):
+    """A worker for _fast_run: once the ramp-up is over, a one-byte request every FAST_LOADED_EVERY s on its own connection; the times
+    (ms) go to `out`. It measures what the same link costs while it is busy; failures only mean fewer samples."""
+    def run(deadline, _counter):
+        conn = _fast_connect(url)
+        try:
+            conn.request("GET", _fast_path(url, 0), headers={"User-Agent": "Internet-Health"})
+            conn.getresponse().read()   # the first request pays for the TLS handshake and is not counted
+            time.sleep(max(0.0, delay))
+            while clock() < deadline - 0.2:
+                start = time.perf_counter()
+                conn.request("GET", _fast_path(url, 0), headers={"User-Agent": "Internet-Health"})
+                response = conn.getresponse()
+                response.read()
+                if response.status < 400:
+                    out.append((time.perf_counter() - start) * 1000.0)
+                time.sleep(FAST_LOADED_EVERY)
+        finally:
+            conn.close()
+    return run
+
+
+def _median_or_none(samples):
+    return statistics.median(samples) if len(samples) >= FAST_LOADED_MIN else None
+
+
+def fast_download(urls, seconds=FAST_DOWN_SECONDS, warmup=FAST_WARMUP, connections=FAST_DOWN_CONNECTIONS, loaded=None):
     def worker(url):
         def run(deadline, counter):
             while time.monotonic() < deadline:
@@ -316,10 +349,13 @@ def fast_download(urls, seconds=FAST_DOWN_SECONDS, warmup=FAST_WARMUP, connectio
                 finally:
                     conn.close()
         return run
-    return _fast_run([worker(urls[i % len(urls)]) for i in range(connections)], seconds, warmup)
+    workers = [worker(urls[i % len(urls)]) for i in range(connections)]
+    if loaded is not None:
+        workers.append(_fast_loaded_probe(urls[0], warmup, loaded))
+    return _fast_run(workers, seconds, warmup)
 
 
-def fast_upload(urls, seconds=FAST_UP_SECONDS, warmup=FAST_WARMUP, connections=FAST_UP_CONNECTIONS):
+def fast_upload(urls, seconds=FAST_UP_SECONDS, warmup=FAST_WARMUP, connections=FAST_UP_CONNECTIONS, loaded=None):
     body = os.urandom(FAST_UPLOAD_BODY)
 
     def worker(url):
@@ -337,7 +373,10 @@ def fast_upload(urls, seconds=FAST_UP_SECONDS, warmup=FAST_WARMUP, connections=F
             finally:
                 conn.close()
         return run
-    return _fast_run([worker(urls[i % len(urls)]) for i in range(connections)], seconds, warmup)
+    workers = [worker(urls[i % len(urls)]) for i in range(connections)]
+    if loaded is not None:
+        workers.append(_fast_loaded_probe(urls[0], warmup, loaded))
+    return _fast_run(workers, seconds, warmup)
 
 
 def run_fast_test(page=FAST_PAGE, api=FAST_API, down_seconds=FAST_DOWN_SECONDS, up_seconds=FAST_UP_SECONDS, warmup=FAST_WARMUP):
@@ -345,9 +384,10 @@ def run_fast_test(page=FAST_PAGE, api=FAST_API, down_seconds=FAST_DOWN_SECONDS, 
     client, targets = fast_targets(page, api)
     urls = [t["url"] for t in targets]
     ping, jitter = fast_latency(urls[0])
-    download = fast_download(urls, down_seconds, min(warmup, down_seconds / 2))
+    loaded_down, loaded_up = [], []
+    download = fast_download(urls, down_seconds, min(warmup, down_seconds / 2), loaded=loaded_down)
     try:
-        upload = fast_upload(urls, up_seconds, min(warmup, up_seconds / 2))
+        upload = fast_upload(urls, up_seconds, min(warmup, up_seconds / 2), loaded=loaded_up)
     except FastTestError as exc:  # download is still a real result; upload stays unknown
         logger.warning("fast.com upload failed: %s", exc)
         upload = None
@@ -357,6 +397,7 @@ def run_fast_test(page=FAST_PAGE, api=FAST_API, down_seconds=FAST_DOWN_SECONDS, 
             "server": {"id": None, "name": "Netflix, " + where["city"] if where.get("city") else "Netflix", "host": host,
                        "country": where.get("country")},
             "jitter_ms": jitter, "packet_loss_pct": None, "isp": client.get("isp"), "result_url": None,
+            "loaded_ping_ms": _median_or_none(loaded_down), "loaded_up_ping_ms": _median_or_none(loaded_up),
             "protocol": "https", "secure": True}
 
 
@@ -394,6 +435,7 @@ class Extension:
         self.prefs_path = self.data_dir / "netprobe-prefs.json"
         self.cleanup_path = self.data_dir / "history-cleanup.json"
         self.wan_state_path = self.data_dir / "wan-state.json"
+        self.speed_state_path = self.data_dir / "speedtest-state.json"  # whether the last scheduled test was a "drop" (one message per episode)
         self.telegram_path = self.data_dir / "telegram.json"          # token, chat, on/off (written 0600, never sent to the browser)
         self.telegram_state_path = self.data_dir / "telegram-state.json"  # last success / last error, shown in the UI
         self.tg_post = telegram_post  # replaced in tests
@@ -437,6 +479,10 @@ class Extension:
                     id INTEGER PRIMARY KEY, ts INTEGER NOT NULL UNIQUE,
                     level TEXT NOT NULL, subject TEXT NOT NULL, message TEXT NOT NULL,
                     acked INTEGER NOT NULL DEFAULT 0, description TEXT NOT NULL DEFAULT '');
+
+                -- what the native speedtests table has no columns for: jitter, packet loss and the delay under load (by test time)
+                CREATE TABLE IF NOT EXISTS np_speedtest_extra (
+                    ts INTEGER PRIMARY KEY, jitter_ms REAL, packet_loss_pct REAL, loaded_down_ms REAL, loaded_up_ms REAL);
 
                 CREATE TABLE IF NOT EXISTS np_flap (
                     target TEXT PRIMARY KEY, muted INTEGER NOT NULL,
@@ -583,7 +629,9 @@ class Extension:
             raise ValueError("history_retention_days must be one of: " + ", ".join(str(x) for x in RETENTION_CHOICES))
         if "wan_check_min" in values and (type(values["wan_check_min"]) is not int or values["wan_check_min"] not in WAN_CHECK_CHOICES):
             raise ValueError("wan_check_min must be one of: " + ", ".join(str(x) for x in WAN_CHECK_CHOICES))
-        for key in ("speedtest_notify", "show_public_ip", "wan_notify", "notify_unraid"):
+        if "speedtest_drop_pct" in values and (type(values["speedtest_drop_pct"]) is not int or values["speedtest_drop_pct"] not in SPEED_DROP_CHOICES):
+            raise ValueError("speedtest_drop_pct must be one of: " + ", ".join(str(x) for x in SPEED_DROP_CHOICES))
+        for key in ("speedtest_notify", "speedtest_notify_manual", "show_public_ip", "wan_notify", "notify_unraid"):
             if key in values and type(values[key]) is not bool:
                 raise ValueError(key + " must be a boolean")
 
@@ -1154,28 +1202,45 @@ class Extension:
             return min((x for x in self.schedule_slots(prefs["speedtest_times"], now) if x > now), default=None)
         return None
 
-    def notify_speedtest(self, result=None, error=None, backend=None):
-        """Queue a message for a finished (result) or failed (error) scheduled test, when the user asked for them."""
-        if not self.effective_prefs()["speedtest_notify"] or not self.effective_settings()["enabled"]:
+    def notify_speedtest(self, result=None, error=None, backend=None, manual=False):
+        """After a finished (result) or failed (error) test: the completion message when asked for (scheduled tests: speedtest_notify,
+        manual ones: speedtest_notify_manual) and, for scheduled results, the drop check against the 7-day median."""
+        prefs = self.effective_prefs()
+        if not self.effective_settings()["enabled"]:
             return None
+        sent = None
+        if prefs["speedtest_notify_manual" if manual else "speedtest_notify"]:
+            sent = self._speedtest_message(result, error, backend, manual)
+        if result is not None and not manual and prefs["speedtest_drop_pct"]:
+            try:
+                self._speedtest_drop(result, prefs["speedtest_drop_pct"])
+            except Exception:
+                logger.exception("Speedtest drop check failed")
+        return sent
+
+    def _speedtest_message(self, result, error, backend, manual):
         ts = int(self.clock())
         service = SPEED_NAMES.get((result or {}).get("backend") or backend, "Speedtest")
+        kind = "Manual" if manual else "Scheduled"
         stamp = lambda t, fmt: datetime.fromtimestamp(t, self.tz).strftime(fmt)  # the schedule's zone, whatever TZ the process has
         clock = stamp(ts, "%H:%M, %d.%m.%Y %Z")
         if error is not None:
             reason = " ".join(CONTROL_CHARS.sub(" ", str(error)).split())[:300] or "unknown error"
-            lines = ["⚠️ Scheduled Speedtest failed (%s)" % service, "", "• Reason: " + reason, "", "Time: " + clock]
+            lines = ["⚠️ %s Speedtest failed (%s)" % (kind, service), "", "• Reason: " + reason, "", "Time: " + clock]
             subject, level = "⚠️ NetProbe: Speedtest failed (%s)" % service, "warning"
-            description = "The scheduled Speedtest (%s) failed: %s" % (service, reason)
+            description = "The %s Speedtest (%s) failed: %s" % (kind.lower(), service, reason)
         else:
             def mbps(value):
                 return "%.1f Mbps" % value if isinstance(value, (int, float)) else "not measured"
             down, up, ping = result.get("download_mbps"), result.get("upload_mbps"), result.get("ping_ms")
             server = result.get("server") or {}
             where = " ".join(CONTROL_CHARS.sub(" ", ", ".join(str(x) for x in (server.get("name"), server.get("country")) if x)).split())
-            lines = ["%s Scheduled Speedtest (%s)" % (SPEED_ICON, service), "",
+            lines = ["%s %s Speedtest (%s)" % (SPEED_ICON, kind, service), "",
                      "• Download: " + mbps(down), "• Upload: " + mbps(up),
                      "• Ping: " + ("%.1f ms" % ping if isinstance(ping, (int, float)) else "not measured")]
+            for label, key in (("Jitter", "jitter_ms"), ("Ping under load", "loaded_ping_ms")):
+                if isinstance(result.get(key), (int, float)):
+                    lines.append("• %s: %.1f ms" % (label, result[key]))
             if where:
                 lines.append("• Server: " + where)
             with self.db() as conn:
@@ -1189,12 +1254,78 @@ class Extension:
                 SPEED_ICON, "%.0f" % down if isinstance(down, (int, float)) else "—",
                 "%.0f" % up if isinstance(up, (int, float)) else "—")
             level = "normal"
-            description = "Scheduled Speedtest (%s): download %s, upload %s." % (service, mbps(down), mbps(up))
+            description = "%s Speedtest (%s): download %s, upload %s." % (kind, service, mbps(down), mbps(up))
         with self.lock, self.db() as conn:
             return self.queue(conn, ts, level, subject[:120], description[:240], NEWLINE.join(lines)[:MAX_MESSAGE])
 
+    def _speedtest_drop(self, result, pct):
+        """Compare a scheduled test with the median of the last 7 days (same service, at least SPEED_DROP_MIN_TESTS earlier tests).
+        One warning when the speed falls pct % below it, one message when it is back; nothing in between."""
+        ts = int(result.get("timestamp") or self.clock())
+        backend = result.get("backend") or ""
+        with self.db() as conn:
+            rows = conn.execute("""SELECT download_mbps,upload_mbps FROM speedtests
+                                   WHERE ts>=? AND ts<? AND COALESCE(backend,'')=?""", (ts - SPEED_DROP_WINDOW, ts, backend)).fetchall()
+        usual, dropped = {}, {}
+        for name, key in (("Download", "download_mbps"), ("Upload", "upload_mbps")):
+            history = [r[key] for r in rows if isinstance(r[key], (int, float)) and r[key] > 0]
+            value = result.get(key)
+            if len(history) < SPEED_DROP_MIN_TESTS or not isinstance(value, (int, float)):
+                continue
+            usual[name] = (value, statistics.median(history), len(history))
+            if value < usual[name][1] * (1 - pct / 100):
+                dropped[name] = usual[name]
+        if not usual:
+            return None
+        state = self._read_json(self.speed_state_path)
+        low = state.get("low") is True
+        if dropped == {} and not low or dropped and low:
+            return None
+        service = SPEED_NAMES.get(backend, "Speedtest")
+        now = int(self.clock())
+        clock = datetime.fromtimestamp(now, self.tz).strftime("%H:%M, %d.%m.%Y %Z")
+        rows_text = []
+        for name, (value, median, count) in (dropped or usual).items():
+            change = (value - median) / median * 100
+            rows_text.append("• %s: %.0f Mbps — usually %.0f Mbps (%+.0f %%)" % (name, value, median, change))
+        if dropped:
+            subject = "%s NetProbe: Speedtest slowed down (%s)" % (SPEED_ICON, service)
+            lines = ["%s Speedtest is slower than usual (%s)" % (SPEED_ICON, service), ""] + rows_text + [
+                "• Compared with the median of %d tests in the last 7 days" % max(c for _v, _m, c in dropped.values()), "", "Time: " + clock]
+            level, description = "warning", "Speed is %d %% or more below the 7-day median (%s)." % (pct, service)
+        else:
+            subject = "%s NetProbe: Speedtest is back to normal (%s)" % (SPEED_ICON, service)
+            lines = ["%s Speedtest is back to normal (%s)" % (SPEED_ICON, service), ""] + rows_text + ["", "Time: " + clock]
+            level, description = "normal", "Speed is within the usual range again (%s)." % service
+        with self.lock, self.db() as conn:
+            queued = self.queue(conn, now, level, subject[:120], description[:240], NEWLINE.join(lines)[:MAX_MESSAGE])
+        self._write_settings(dict(state, low=bool(dropped)), self.speed_state_path)
+        return queued
+
     def run_fast_speedtest(self):
         return run_fast_test()
+
+    def save_speedtest_extra(self, ts, result):
+        """Keep what a finished test measured besides the native columns (jitter, packet loss, delay under load), by test time."""
+        number = lambda v: float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) else None
+        values = (number(result.get("jitter_ms")), number(result.get("packet_loss_pct")),
+                  number(result.get("loaded_ping_ms")), number(result.get("loaded_up_ping_ms")))
+        if all(v is None for v in values):
+            return False
+        with self.lock, self.db() as conn:
+            conn.execute("INSERT OR REPLACE INTO np_speedtest_extra(ts,jitter_ms,packet_loss_pct,loaded_down_ms,loaded_up_ms) VALUES (?,?,?,?,?)",
+                         (int(ts),) + values)
+        return True
+
+    def speedtest_series(self, seconds, end=None, limit=2000):
+        """Tests of the last `seconds`, oldest first, with the extras; the chart and the history table read this."""
+        end = int(end if end is not None else self.clock())
+        with self.db() as conn:
+            rows = conn.execute("""SELECT s.ts, s.ping_ms, s.download_mbps, s.upload_mbps, s.backend, s.server_name, s.server_country,
+                                          e.jitter_ms, e.packet_loss_pct, e.loaded_down_ms, e.loaded_up_ms
+                                   FROM speedtests s LEFT JOIN np_speedtest_extra e ON e.ts = s.ts
+                                   WHERE s.ts >= ? AND s.ts <= ? ORDER BY s.ts DESC LIMIT ?""", (end - seconds, end, limit)).fetchall()
+        return [dict(r) for r in reversed(rows)]
 
     @staticmethod
     def classify(row, cfg):
@@ -1995,6 +2126,11 @@ def install_routes(app, ext):
             return jsonify(error=str(exc)), 400
         except CleanupBusy as exc:
             return jsonify(error=str(exc)), 409
+
+    @app.get("/api/speedtest/series")
+    def np_speedtest_series():
+        seconds, end = window(7 * 86400)
+        return jsonify(tests=ext.speedtest_series(seconds, end), range=seconds)
 
     @app.get("/api/about")
     def np_about():

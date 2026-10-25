@@ -2,7 +2,8 @@
 # Copyright (c) 2025-2026 Brandon Martino -- see THIRD_PARTY_NOTICES.md.
 # Modified: optional netprobe_extensions integration (per-target history, alerts, loss report), ROUTER_NAME,
 # DNS reply tracking for alerting, Turbo mode watcher, Fast.com backend, the speedtest service choice,
-# the speedtest schedule and its notifications, manual tests in the background.
+# the speedtest schedule and its notifications (also after manual tests), manual tests in the background,
+# jitter / delay under load stored next to each test.
 # Every change is listed in app.py.patch.
 import json
 import logging
@@ -1498,6 +1499,11 @@ def run_speedtest_internal(
             requested_server_id=requested_server_value,
             backend=selected_backend,
         )
+        if custom_extension is not None:  # jitter, packet loss and the delay under load have no column in the native table
+            try:
+                custom_extension.save_speedtest_extra(ts, normalized)
+            except Exception:
+                logger.exception("Speedtest extras could not be stored")
 
         logger.info(
             "Speedtest: backend=%s ping=%sms down=%sMbps up=%sMbps server=%s protocol=%s selection_mode=%s requested_server_ids=%s excluded_server_ids=%s forced_auto=%s",
@@ -1528,6 +1534,8 @@ def run_speedtest_internal(
             "secure": normalized["secure"],
             "forced_auto": selection["forced_auto"],
             "jitter_ms": normalized.get("jitter_ms"),
+            "loaded_ping_ms": normalized.get("loaded_ping_ms"),
+            "loaded_up_ping_ms": normalized.get("loaded_up_ping_ms"),
             "packet_loss_pct": normalized.get("packet_loss_pct"),
             "isp": normalized.get("isp"),
             "result_url": normalized.get("result_url"),
@@ -1549,6 +1557,14 @@ def _speedtest_job_main(kwargs):
         message = str(exc).strip() or type(exc).__name__
         logger.exception("Manual speedtest failed: %s", message)
         outcome = {"success": False, "error": message, "result": None}
+    if custom_extension is not None:  # a message only when the user asked for them after manual tests
+        try:
+            if outcome["success"]:
+                custom_extension.notify_speedtest(outcome["result"], manual=True)
+            else:
+                custom_extension.notify_speedtest(error=outcome["error"], backend=resolve_speedtest_backend(), manual=True)
+        except Exception:
+            logger.exception("Speedtest notification could not be queued")
     with speedtest_job_lock:
         speedtest_job.update(running=False, finished_at=int(time.time()), **outcome)
 

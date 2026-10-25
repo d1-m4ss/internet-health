@@ -5,6 +5,15 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+- **Speedtest, extended.**
+  - A **chart** in the *Speedtest* tab: speed (download, upload) or delay (idle ping, ping while downloading / uploading, jitter) over 24 h,
+    7 or 30 days (the choice is remembered); an unmeasured value is a gap. `GET /api/speedtest/series`.
+  - **Jitter and the delay under load** are measured by the Fast.com test (a one-byte request every 0.4 s while it downloads and
+    uploads, median of at least three answers), stored next to each test (`np_speedtest_extra`) and shown in the card, the history and
+    the messages; Ookla's jitter and packet loss are kept too.
+  - A message **after manual tests** too (a second switch, `speedtest_notify_manual`).
+  - A **warning when the speed drops** 20 / 30 / 50 % below the 7-day median of the same service (`speedtest_drop_pct`, scheduled tests
+    only, at least three earlier tests): one warning per drop and one message when it is back.
 ## 1.0.1 — 2026-10-26
 
 - **The product is now called Internet Health** (it matches the repository and the image: `ghcr.io/d1-m4ss/internet-health`). New page

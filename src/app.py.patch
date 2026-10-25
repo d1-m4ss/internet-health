@@ -1,16 +1,17 @@
 --- upstream/app.py	2026-10-23 20:43:28
-+++ src/app.py	2026-10-25 20:59:20
-@@ -1,3 +1,9 @@
++++ src/app.py	2026-10-26 01:17:24
+@@ -1,3 +1,10 @@
 +# Derived from NetProbe_Python (https://github.com/bmartino1/NetProbe_Python), MIT License,
 +# Copyright (c) 2025-2026 Brandon Martino -- see THIRD_PARTY_NOTICES.md.
 +# Modified: optional netprobe_extensions integration (per-target history, alerts, loss report), ROUTER_NAME,
 +# DNS reply tracking for alerting, Turbo mode watcher, Fast.com backend, the speedtest service choice,
-+# the speedtest schedule and its notifications, manual tests in the background.
++# the speedtest schedule and its notifications (also after manual tests), manual tests in the background,
++# jitter / delay under load stored next to each test.
 +# Every change is listed in app.py.patch.
  import json
  import logging
  import os
-@@ -14,6 +20,13 @@
+@@ -14,6 +21,13 @@
  from flask import Flask, jsonify, render_template, request
  import dns.resolver
  import speedtest
@@ -24,7 +25,7 @@
  
  try:
      import psycopg2
-@@ -126,7 +139,7 @@
+@@ -126,7 +140,7 @@
  
  
  def normalize_speedtest_backend(value, variable_name="SPEEDTEST_BACKEND"):
@@ -33,7 +34,7 @@
      normalized = str(value or "python").strip().lower()
      aliases = {
          "python": "python",
-@@ -135,10 +148,12 @@
+@@ -135,10 +149,12 @@
          "ookla": "ookla",
          "official": "ookla",
          "speedtest": "ookla",
@@ -47,7 +48,7 @@
          )
      return aliases[normalized]
  
-@@ -229,6 +244,7 @@
+@@ -229,6 +245,7 @@
  
  # Optional router IP on the LAN.
  ROUTER_IP = os.getenv("ROUTER_IP", "").strip()
@@ -55,7 +56,7 @@
  
  # DNS lookup targets.
  #
-@@ -854,9 +870,14 @@
+@@ -854,9 +871,14 @@
              rtt_avg,
              jitter,
          )
@@ -71,7 +72,7 @@
          logger.error(
              "ping to %s failed: %s; stdout=%r stderr=%r",
              host,
-@@ -869,9 +890,42 @@
+@@ -869,9 +891,42 @@
              "latency": THRESHOLD_LATENCY * 2,
              "jitter": THRESHOLD_JITTER * 2,
              "loss": 100.0,
@@ -114,7 +115,7 @@
  def measure_dns_latency(domain, server, count):
      resolver = dns.resolver.Resolver(configure=False)
      resolver.nameservers = [server]
-@@ -881,6 +935,9 @@
+@@ -881,6 +936,9 @@
          start = time.perf_counter()
          try:
              resolver.resolve(domain, "A", lifetime=3)
@@ -124,7 +125,7 @@
          except Exception:
              pass
          elapsed = (time.perf_counter() - start) * 1000.0
-@@ -1036,6 +1093,9 @@
+@@ -1036,6 +1094,9 @@
  
  def resolve_speedtest_backend(requested_backend=None):
      if requested_backend is None or str(requested_backend).strip() == "":
@@ -134,7 +135,7 @@
          return SPEEDTEST_BACKEND
      return normalize_speedtest_backend(requested_backend, "backend")
  
-@@ -1415,6 +1475,11 @@
+@@ -1415,6 +1476,11 @@
  
          if selected_backend == "python":
              normalized = run_python_speedtest(selection, secure_mode)
@@ -146,8 +147,15 @@
          else:
              normalized = run_ookla_speedtest(selection)
  
-@@ -1435,11 +1500,11 @@
+@@ -1433,13 +1499,18 @@
+             requested_server_id=requested_server_value,
+             backend=selected_backend,
          )
++        if custom_extension is not None:  # jitter, packet loss and the delay under load have no column in the native table
++            try:
++                custom_extension.save_speedtest_extra(ts, normalized)
++            except Exception:
++                logger.exception("Speedtest extras could not be stored")
  
          logger.info(
 -            "Speedtest: backend=%s ping=%sms down=%.2fMbps up=%.2fMbps server=%s protocol=%s selection_mode=%s requested_server_ids=%s excluded_server_ids=%s forced_auto=%s",
@@ -161,7 +169,16 @@
              server.get("name"),
              normalized["protocol"],
              selection_mode,
-@@ -1471,25 +1536,69 @@
+@@ -1463,6 +1534,8 @@
+             "secure": normalized["secure"],
+             "forced_auto": selection["forced_auto"],
+             "jitter_ms": normalized.get("jitter_ms"),
++            "loaded_ping_ms": normalized.get("loaded_ping_ms"),
++            "loaded_up_ping_ms": normalized.get("loaded_up_ping_ms"),
+             "packet_loss_pct": normalized.get("packet_loss_pct"),
+             "isp": normalized.get("isp"),
+             "result_url": normalized.get("result_url"),
+@@ -1471,25 +1544,77 @@
          speedtest_run_lock.release()
  
  
@@ -178,6 +195,14 @@
 +        message = str(exc).strip() or type(exc).__name__
 +        logger.exception("Manual speedtest failed: %s", message)
 +        outcome = {"success": False, "error": message, "result": None}
++    if custom_extension is not None:  # a message only when the user asked for them after manual tests
++        try:
++            if outcome["success"]:
++                custom_extension.notify_speedtest(outcome["result"], manual=True)
++            else:
++                custom_extension.notify_speedtest(error=outcome["error"], backend=resolve_speedtest_backend(), manual=True)
++        except Exception:
++            logger.exception("Speedtest notification could not be queued")
 +    with speedtest_job_lock:
 +        speedtest_job.update(running=False, finished_at=int(time.time()), **outcome)
 +
@@ -235,7 +260,7 @@
  
      while True:
          ts = int(time.time())
-@@ -1515,6 +1624,7 @@
+@@ -1515,6 +1640,7 @@
          # ---------- DNS probes ----------
          dns_times = []
          dns_per_server = {}
@@ -243,7 +268,7 @@
          for server_ip in DNS_SERVERS:
              measured = measure_dns_latency_multi(
                  DNS_TEST_SITES,
-@@ -1531,6 +1641,12 @@
+@@ -1531,6 +1657,12 @@
          score = compute_score(avg_loss, avg_latency, avg_jitter, avg_dns)
          insert_measurement(ts, avg_latency, avg_jitter, avg_loss, avg_dns, score)
          insert_dns_measurements(ts, dns_per_server)
@@ -256,7 +281,7 @@
  
          logger.info(
              "Probe ts=%s score=%.2f loss=%.2f%% latency=%.1fms jitter=%.1fms dns=%.1fms",
-@@ -1542,7 +1658,7 @@
+@@ -1542,7 +1674,7 @@
              avg_dns,
          )
  
@@ -265,7 +290,7 @@
              threading.Thread(target=run_speedtest_if_due, daemon=True).start()
  
          time.sleep(PROBE_INTERVAL)
-@@ -1626,6 +1742,7 @@
+@@ -1626,6 +1758,7 @@
          app_timezone=APP_TIMEZONE,
          gateway_ip=gw,
          router_ip=ROUTER_IP or None,
@@ -273,7 +298,7 @@
          sites=SITES,
          dns_test_site=DNS_TEST_SITE,
          dns_test_sites=DNS_TEST_SITES,
-@@ -1645,6 +1762,7 @@
+@@ -1645,6 +1778,7 @@
          speedtest_backends_available={
              "python": True,
              "ookla": ookla_binary_available(),
@@ -281,7 +306,7 @@
          },
          speedtest_secure=SPEEDTEST_SECURE,
          speedtest_ookla_path=SPEEDTEST_OOKLA_PATH,
-@@ -1731,6 +1849,12 @@
+@@ -1731,6 +1865,12 @@
          secure = payload.get("secure")
          force_auto = payload.get("force_auto", False)
          backend = payload.get("backend")
@@ -294,7 +319,7 @@
          result = run_speedtest_internal(
              requested_server_id=requested_server_id,
              secure=secure,
-@@ -1744,6 +1868,15 @@
+@@ -1744,6 +1884,15 @@
          return jsonify(success=False, error=error_message), 500
  
  
@@ -310,7 +335,7 @@
  @app.route("/api/logs/live")
  def api_logs_live():
      """
-@@ -1766,6 +1899,18 @@
+@@ -1766,6 +1915,18 @@
  # Start probe loop when imported (for gunicorn worker start).
  ensure_db()
  ensure_speedtests_schema()
