@@ -5,6 +5,7 @@ The project is called **NetProbe Enhanced** (container, image, file and table na
 
 ## Unreleased
 
+- Phones and tablets: the menu bar now stays pinned to the top while the page scrolls (both styles); in the UniFi style the *Speedtest* and *Targets* menu links open the matching tab instead of doing nothing.
 - **Turbo mode** (opt-in, off by default): a 5-second ICMP watcher for the router and up to two public IPs that
   reports outages from about 10 s which the regular checks miss — one message after recovery, at most 3 per hour,
   silent when the regular monitor already alerted. New setting `turbo`, new table `np_outages`, `outages` in
