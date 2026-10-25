@@ -5,6 +5,8 @@ The project is called **NetProbe Enhanced** (container, image, file and table na
 
 ## Unreleased
 
+- **Settings tidy-up:** the database size line moved into the *History* block, and the external-IP options (checkbox, interval,
+  notification) are now a draft with a **Save** button instead of applying at once; a failed save keeps what you typed.
 - **How often the external IP is checked** (settings, next to *Show my external IP and provider*): every 15 minutes (default),
   every minute, or **manually**. In manual mode nothing is requested until *Refresh* is pressed in the *WAN / ISP* card
   (`POST /api/public-ip/refresh`; ticking the option counts as one request); no WAN history is recorded and no change message
