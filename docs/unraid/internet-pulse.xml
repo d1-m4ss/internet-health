@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>InternetPulse</Name>
+  <Repository>ghcr.io/d1-m4ss/netprobe-enhanced:latest</Repository>
+  <Registry>https://github.com/d1-m4ss/netprobe-enhanced/pkgs/container/netprobe-enhanced</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/d1-m4ss/netprobe-enhanced/issues</Support>
+  <Project>https://github.com/d1-m4ss/netprobe-enhanced</Project>
+  <Overview>Internet monitoring for Unraid: per-target history, WAN / ISP card, packet-loss report, Speedtest (Speedtest.net, Ookla, Fast.com) with a schedule, and alerts to Telegram or through Unraid notifications. Built on NetProbe (MIT). The web UI has no authentication: keep the port on your LAN.</Overview>
+  <Category>Network:Other Tools:</Category>
+  <WebUI>http://[IP]:[PORT:8080]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/d1-m4ss/netprobe-enhanced/main/docs/unraid/internet-pulse.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/d1-m4ss/netprobe-enhanced/main/docs/icon.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+  <Config Name="Web UI port" Target="8080" Default="8788" Mode="tcp" Description="Port of the web interface (no authentication: LAN only)." Type="Port" Display="always" Required="true" Mask="false">8788</Config>
+  <Config Name="Data" Target="/data" Default="/mnt/user/appdata/netprobe_database" Mode="rw" Description="Database, settings and the Telegram token. Keep the default if you use the Unraid notification bridge." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/netprobe_database</Config>
+  <Config Name="Router IP" Target="ROUTER_IP" Default="192.168.1.1" Mode="" Description="Your router (first hop of the path)." Type="Variable" Display="always" Required="true" Mask="false">192.168.1.1</Config>
+  <Config Name="Router name" Target="ROUTER_NAME" Default="Router" Mode="" Description="Shown in the path view." Type="Variable" Display="always" Required="false" Mask="false">Router</Config>
+  <Config Name="Sites to ping" Target="SITES" Default="fast.com,google.com,youtube.com,1.1.1.1,8.8.8.8" Mode="" Description="Comma separated. Keep two IP addresses in the list: they tell 'DNS is down' from 'the internet is down'." Type="Variable" Display="always" Required="true" Mask="false">fast.com,google.com,youtube.com,1.1.1.1,8.8.8.8</Config>
+  <Config Name="Time zone" Target="TZ" Default="UTC" Mode="" Description="For example Europe/Berlin." Type="Variable" Display="always" Required="false" Mask="false">UTC</Config>
+  <Config Name="Schedule time zone" Target="APP_TIMEZONE" Default="UTC" Mode="" Description="Zone of the daily Speedtest times (same value as above)." Type="Variable" Display="always" Required="false" Mask="false">UTC</Config>
+  <Config Name="Telegram bot token" Target="TELEGRAM_BOT_TOKEN" Default="" Mode="" Description="Optional. Or enter it in the web UI (Settings, Telegram)." Type="Variable" Display="always" Required="false" Mask="true"/>
+  <Config Name="Telegram chat ID" Target="TELEGRAM_CHAT_ID" Default="" Mode="" Description="Optional. For example -1001234567890." Type="Variable" Display="always" Required="false" Mask="false"/>
+  <Config Name="Probe interval (s)" Target="PROBE_INTERVAL" Default="30" Mode="" Description="Pause between probe cycles." Type="Variable" Display="advanced" Required="false" Mask="false">30</Config>
+  <Config Name="Pings per target" Target="PING_COUNT" Default="4" Mode="" Description="" Type="Variable" Display="advanced" Required="false" Mask="false">4</Config>
+  <Config Name="Speedtest enabled" Target="SPEEDTEST_ENABLED" Default="False" Mode="" Description="Scheduled tests; the schedule and the service can also be set in the web UI." Type="Variable" Display="advanced" Required="false" Mask="false">False</Config>
+  <Config Name="Speedtest interval (s)" Target="SPEEDTEST_INTERVAL" Default="14400" Mode="" Description="Used while the UI schedule is 'container'." Type="Variable" Display="advanced" Required="false" Mask="false">14400</Config>
+  <Config Name="Database engine" Target="DB_ENGINE" Default="sqlite" Mode="" Description="Leave as sqlite." Type="Variable" Display="advanced" Required="false" Mask="false">sqlite</Config>
+  <Config Name="Use PostgreSQL" Target="USE_POSTGRES" Default="false" Mode="" Description="Leave as false." Type="Variable" Display="advanced" Required="false" Mask="false">false</Config>
+</Container>

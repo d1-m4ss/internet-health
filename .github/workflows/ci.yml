@@ -40,3 +40,17 @@ jobs:
           node tests/test_ui.cjs
           node tests/test_mobile_nav.cjs
           node tests/test_speedtest_ui.cjs
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash -n scripts/smoke-image.sh
+      - name: Build the image (this pulls the pinned base)
+        run: docker build --build-arg REVISION="$GITHUB_SHA" -t internet-pulse:ci .
+      - name: The base image is the one the patch was made for
+        run: |
+          docker pull "$(awk '/^FROM /{print $2}' Dockerfile)"
+          bash scripts/verify-image.sh
+      - name: Start the image on an empty data folder
+        run: bash scripts/smoke-image.sh internet-pulse:ci

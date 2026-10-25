@@ -1,0 +1,23 @@
+# Internet Pulse from the ready-made image (nothing to copy, nothing to mount besides the data folder).
+# Full guide: docs/INSTALL-UNRAID.md ("Install the ready image"). The web UI has no authentication: keep it on your LAN.
+services:
+  internet-pulse:
+    image: ghcr.io/d1-m4ss/netprobe-enhanced:latest   # or a version tag such as :1.0.0
+    container_name: InternetPulse
+    restart: unless-stopped
+    ports:
+      - "8788:8080"            # web UI: http://<unraid>:8788
+    environment:
+      TZ: Europe/Berlin
+      APP_TIMEZONE: Europe/Berlin
+      ROUTER_IP: 192.168.1.1
+      ROUTER_NAME: Router
+      # Two IP targets next to the names let it tell "DNS is down" from "the internet is down".
+      SITES: fast.com,google.com,youtube.com,1.1.1.1,8.8.8.8
+      DB_ENGINE: sqlite
+      USE_POSTGRES: "false"
+      # Optional: Telegram without the Unraid bridge (or set it up in the web UI, Settings -> Telegram)
+      # TELEGRAM_BOT_TOKEN: "123456789:AAH..."
+      # TELEGRAM_CHAT_ID: "-1001234567890"
+    volumes:
+      - /mnt/user/appdata/netprobe_database:/data

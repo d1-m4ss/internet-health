@@ -4,6 +4,8 @@ Use this guide for a **fresh** install: you create the container from a YAML fil
 container's data folder, and add a one-line cron job on the Unraid host. If you already run NetProbe and want to
 convert that container, use [INSTALL-UNRAID.md](INSTALL-UNRAID.md) instead (it also covers backup and rollback).
 
+> **Shortcut:** from the first release there is a ready image, no files to copy: see [INSTALL-UNRAID.md → Install the ready image](INSTALL-UNRAID.md#install-the-ready-image-recommended) and [`examples/docker-compose.image.yml`](../examples/docker-compose.image.yml). This guide is the file-mount way.
+
 > The web UI has **no authentication** (as in upstream NetProbe). Keep port 8788 on your LAN.
 
 What ends up where:

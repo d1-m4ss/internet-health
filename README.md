@@ -114,15 +114,20 @@ More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Requirements
 
-- Unraid with the **NetProbe** container from Community Applications (`bmmbmm01/netprobe`, SQLite backend).
-- Unraid notifications configured (*Settings → Notification Settings*: email and/or Telegram agent).
-- `curl`, `jq`, `flock`, `bash` on the host (all present on stock Unraid).
+- Unraid (or any Docker host). With the ready image there is nothing else to install; with the file-mount way you need the **NetProbe** container from Community Applications (`bmmbmm01/netprobe`, SQLite backend).
+- Notifications: Telegram straight from the container (settings), and/or Unraid notifications configured (*Settings → Notification Settings*: email and/or Telegram agent) with the host bridge (`curl`, `jq`, `flock`, `bash`, all present on stock Unraid).
 
 Tested with image `bmmbmm01/netprobe@sha256:386bdc2c177b11aef4a1223dfd91ae47fe2f9804c5449c5f4c2caae1d048c155`
 (Python 3.14, Flask 3.1). Other image versions may need `src/app.py.patch` re-applied — see
 [upstream/UPSTREAM.md](upstream/UPSTREAM.md).
 
 ## Install (short version)
+
+**Easiest — the ready image** (from the first release): Unraid *Add Container* from the template
+[`docs/unraid/internet-pulse.xml`](docs/unraid/internet-pulse.xml) (image `ghcr.io/d1-m4ss/netprobe-enhanced`), or
+[`examples/docker-compose.image.yml`](examples/docker-compose.image.yml). Nothing to copy or mount; moving an existing install to
+it keeps your data — see **[docs/INSTALL-UNRAID.md → Install the ready image](docs/INSTALL-UNRAID.md#install-the-ready-image-recommended)**.
+The rest of this section is the file-mount way.
 
 **New install from scratch** (example `docker-compose.yml`, then three files in the data folder):
 **[docs/INSTALL-COMPOSE.md](docs/INSTALL-COMPOSE.md)**. Converting an existing NetProbe container, with backup and rollback:

@@ -79,6 +79,12 @@ Unraid (email и/или Telegram), на хосте `curl`, `jq`, `flock`. Про
 
 ## Установка
 
+**Проще всего — готовый образ** (с первого релиза): *Add Container* в Unraid по шаблону
+[`docs/unraid/internet-pulse.xml`](docs/unraid/internet-pulse.xml) (образ `ghcr.io/d1-m4ss/netprobe-enhanced`) или
+[`examples/docker-compose.image.yml`](examples/docker-compose.image.yml). Ничего копировать и монтировать не нужно; переезд с
+текущей установки сохраняет данные — см. **[docs/INSTALL-UNRAID.md → Install the ready image](docs/INSTALL-UNRAID.md#install-the-ready-image-recommended)**
+(на английском). Дальше в разделе — способ с монтированием файлов.
+
 Установка с нуля (пример `docker-compose.yml`, затем три файла в папке данных): **[docs/INSTALL-COMPOSE.md](docs/INSTALL-COMPOSE.md)**.
 Подробное руководство для уже работающего контейнера (проверки, откат, обновление образа): **[docs/INSTALL-UNRAID.md](docs/INSTALL-UNRAID.md)**. Оба на английском.
 Коротко: резервная копия → закрепить образ по дайджесту → скопировать `src/app.py`, `src/netprobe_extensions.py`,

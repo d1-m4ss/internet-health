@@ -1,0 +1,5 @@
+# only these three files go into the image (see the Dockerfile)
+*
+!src/app.py
+!src/netprobe_extensions.py
+!src/index.html
