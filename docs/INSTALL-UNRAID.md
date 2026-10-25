@@ -17,14 +17,14 @@ C=$D/custom                                # where the three override files will
 ## Install the ready image (recommended)
 
 From the first release on, Internet Pulse is published as a container image, so there is nothing to copy or mount:
-`ghcr.io/d1-m4ss/netprobe-enhanced` (tags `latest` and the version numbers). It is the NetProbe image with the Internet Pulse
+`ghcr.io/d1-m4ss/internet-health` (tags `latest` and the version numbers). It is the NetProbe image with the Internet Pulse
 files baked in (see the [Dockerfile](../Dockerfile)); the base is pinned by digest and checked in CI.
 
 **New install.** On the Unraid terminal fetch the template once, then add the container from it:
 
 ```sh
 wget -O /boot/config/plugins/dockerMan/templates-user/my-InternetPulse.xml \
-  https://raw.githubusercontent.com/d1-m4ss/netprobe-enhanced/main/docs/unraid/internet-pulse.xml
+  https://raw.githubusercontent.com/d1-m4ss/internet-health/main/docs/unraid/internet-pulse.xml
 ```
 
 *Docker → Add Container → Template: **InternetPulse*** → set *Router IP*, *Sites to ping*, the time zone (and, if you like, the Telegram
@@ -35,10 +35,12 @@ the Unraid notification bridge of step 5 below is optional now. With docker comp
 **Switching an existing install** (the three read-only mounts of this guide). Keep the data folder, so history and settings stay:
 
 1. Back up as in step 1 below.
-2. *Docker → NetProbe → Edit*: change **Repository** to `ghcr.io/d1-m4ss/netprobe-enhanced:latest` and **remove the three file
+2. *Docker → NetProbe → Edit*: change **Repository** to `ghcr.io/d1-m4ss/internet-health:latest` and **remove the three file
    mounts** (`app.py`, `netprobe_extensions.py`, `index.html`). If a mount stays, that old file overrides the new one inside the image.
 3. *Apply*. The container keeps its name, port, variables and `/data`; the first start adds the new database columns by itself.
 4. Check `http://<unraid>:8788` (the title reads *Internet Pulse*) and `docker logs NetProbe | tail`.
+
+Use `:latest` to follow releases or a version tag such as `:1.0.0` to stay on one until you decide to move; the version is shown in the page footer and by `GET /api/about`.
 
 To go back, restore the old repository and the three mounts (see [Rollback](#rollback)). Updating later is the usual *Check for
 updates / Update* of the container.

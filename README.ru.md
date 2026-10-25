@@ -82,7 +82,7 @@ Unraid (email и/или Telegram), на хосте `curl`, `jq`, `flock`. Про
 ## Установка
 
 **Проще всего — готовый образ** (с первого релиза): *Add Container* в Unraid по шаблону
-[`docs/unraid/internet-pulse.xml`](docs/unraid/internet-pulse.xml) (образ `ghcr.io/d1-m4ss/netprobe-enhanced`) или
+[`docs/unraid/internet-pulse.xml`](docs/unraid/internet-pulse.xml) (образ `ghcr.io/d1-m4ss/internet-health`) или
 [`examples/docker-compose.image.yml`](examples/docker-compose.image.yml). Ничего копировать и монтировать не нужно; переезд с
 текущей установки сохраняет данные — см. **[docs/INSTALL-UNRAID.md → Install the ready image](docs/INSTALL-UNRAID.md#install-the-ready-image-recommended)**
 (на английском). Дальше в разделе — способ с монтированием файлов.

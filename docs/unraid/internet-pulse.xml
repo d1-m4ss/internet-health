@@ -1,19 +1,19 @@
 <?xml version="1.0"?>
 <Container version="2">
   <Name>InternetPulse</Name>
-  <Repository>ghcr.io/d1-m4ss/netprobe-enhanced:latest</Repository>
-  <Registry>https://github.com/d1-m4ss/netprobe-enhanced/pkgs/container/netprobe-enhanced</Registry>
+  <Repository>ghcr.io/d1-m4ss/internet-health:latest</Repository>
+  <Registry>https://github.com/d1-m4ss/internet-health/pkgs/container/internet-health</Registry>
   <Network>bridge</Network>
   <MyIP/>
   <Shell>sh</Shell>
   <Privileged>false</Privileged>
-  <Support>https://github.com/d1-m4ss/netprobe-enhanced/issues</Support>
-  <Project>https://github.com/d1-m4ss/netprobe-enhanced</Project>
+  <Support>https://github.com/d1-m4ss/internet-health/issues</Support>
+  <Project>https://github.com/d1-m4ss/internet-health</Project>
   <Overview>Internet monitoring for Unraid: per-target history, WAN / ISP card, packet-loss report, Speedtest (Speedtest.net, Ookla, Fast.com) with a schedule, and alerts to Telegram or through Unraid notifications. Built on NetProbe (MIT). The web UI has no authentication: keep the port on your LAN.</Overview>
   <Category>Network:Other Tools:</Category>
   <WebUI>http://[IP]:[PORT:8080]/</WebUI>
-  <TemplateURL>https://raw.githubusercontent.com/d1-m4ss/netprobe-enhanced/main/docs/unraid/internet-pulse.xml</TemplateURL>
-  <Icon>https://raw.githubusercontent.com/d1-m4ss/netprobe-enhanced/main/docs/icon.png</Icon>
+  <TemplateURL>https://raw.githubusercontent.com/d1-m4ss/internet-health/main/docs/unraid/internet-pulse.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/d1-m4ss/internet-health/main/docs/icon.png</Icon>
   <ExtraParams/>
   <PostArgs/>
   <CPUset/>

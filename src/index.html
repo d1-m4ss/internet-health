@@ -585,7 +585,7 @@
         <section class="card" id="diagCard"><div class="card-head"><div><h2 data-i18n="diag.title">Диагностика</h2><div class="card-sub" data-i18n="diag.sub">Логи и активные настройки NetProbe</div></div></div><details id="detailsLog"><summary data-i18n="diag.logs">Логи приложения</summary><pre class="log-box" id="logOutput"></pre><div class="section-status" id="logStatus" role="status"></div></details><details><summary data-i18n="diag.config">Конфигурация (без секретов)</summary><pre class="log-box" id="configOutput">…</pre></details></section>
       </div>
     </div>
-    <div class="footer">NETPROBE · SQLite history · <span id="footerMode">—</span></div>
+    <div class="footer">NETPROBE · SQLite history · <span id="footerMode">—</span> · <span id="footerVersion"></span></div>
   </main>
 </div>
 <dialog class="turbo-dialog" id="turboDialog" aria-labelledby="turboTitle">
@@ -1198,7 +1198,7 @@
       ['speedHistory', '/api/speedtest/history?limit=10', r => { if (!Array.isArray(r.tests)) throw bad(); state.speedHistory = r.tests; }]
     ];
     resumeSpeedWatch();
-    loadTelegram(); loadPrefs().then(() => { loadPublicIp(); loadWanSources(); }); // optional extras never hold the dashboard back (a slow lookup service must not delay the data)
+    loadVersion(); loadTelegram(); loadPrefs().then(() => { loadPublicIp(); loadWanSources(); }); // optional extras never hold the dashboard back (a slow lookup service must not delay the data)
     await Promise.allSettled([state.cmp.on ? loadCompare() : loadChart(), ...tasks.map(async ([name, url, apply]) => { try { const result = await api(url); if ((name === 'targets' || name === 'events' || name === 'summary' || name === 'loss' || name === 'live') && rk !== rangeKey()) return; apply(result); delete state.errors[name]; state.loaded.add(name); scheduleDraw(); } catch (e) { state.errors[name] = errorText(e); } })]);
     state.refreshing = false; $('refreshBtn').disabled = false; draw();
     if (state.refreshQueued) { state.refreshQueued = false; refresh(); }
@@ -1378,6 +1378,10 @@
     finally { state.ipSaving = false; renderPublicIp(); }
   }
   /* ---------- Telegram: a draft with Save, a test button; the token is write-only (the server never returns it) ---------- */
+  async function loadVersion() {   // optional: an older server without /api/about just shows nothing
+    if (state.version) return;
+    try { const about = await api('/api/about'); if (typeof about.version === 'string' && /^[0-9A-Za-z.+-]{1,40}$/.test(about.version)) { state.version = about.version; $('footerVersion').textContent = 'v' + about.version; } } catch (e) { /* optional */ }
+  }
   async function loadTelegram() {
     try { state.tg = await api('/api/telegram'); state.tgError = null; } catch (e) { state.tgError = errorText(e); }
     renderTelegram();

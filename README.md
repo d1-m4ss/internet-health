@@ -126,7 +126,7 @@ Tested with image `bmmbmm01/netprobe@sha256:386bdc2c177b11aef4a1223dfd91ae47fe2f
 ## Install (short version)
 
 **Easiest — the ready image** (from the first release): Unraid *Add Container* from the template
-[`docs/unraid/internet-pulse.xml`](docs/unraid/internet-pulse.xml) (image `ghcr.io/d1-m4ss/netprobe-enhanced`), or
+[`docs/unraid/internet-pulse.xml`](docs/unraid/internet-pulse.xml) (image `ghcr.io/d1-m4ss/internet-health`), or
 [`examples/docker-compose.image.yml`](examples/docker-compose.image.yml). Nothing to copy or mount; moving an existing install to
 it keeps your data — see **[docs/INSTALL-UNRAID.md → Install the ready image](docs/INSTALL-UNRAID.md#install-the-ready-image-recommended)**.
 The rest of this section is the file-mount way.

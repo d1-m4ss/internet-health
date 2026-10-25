@@ -15,11 +15,11 @@ ARG VERSION=dev
 ARG REVISION=unknown
 LABEL org.opencontainers.image.title="Internet Pulse" \
       org.opencontainers.image.description="Internet monitoring for Unraid: per-target history, WAN / ISP, packet-loss report, Speedtest and Telegram alerts (NetProbe with extensions)" \
-      org.opencontainers.image.source="https://github.com/d1-m4ss/netprobe-enhanced" \
+      org.opencontainers.image.source="https://github.com/d1-m4ss/internet-health" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${REVISION}" \
-      net.unraid.docker.icon="https://raw.githubusercontent.com/d1-m4ss/netprobe-enhanced/main/docs/icon.png"
+      net.unraid.docker.icon="https://raw.githubusercontent.com/d1-m4ss/internet-health/main/docs/icon.png"
 
 HEALTHCHECK --interval=60s --timeout=8s --start-period=90s --retries=3 \
   CMD python -c "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/api/prefs' % os.getenv('WEB_PORT', '8080'), timeout=6)" || exit 1

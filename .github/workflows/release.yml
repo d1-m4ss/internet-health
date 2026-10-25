@@ -1,34 +1,57 @@
-name: Release image
+name: Release
 
-# Publishes the container image to GitHub Container Registry when a version tag is pushed (git tag v1.0.0 && git push origin v1.0.0).
+# Publishes a version: the container image on GitHub Container Registry and a GitHub Release with the CHANGELOG notes.
+# Start it with scripts/release.py (see CONTRIBUTING.md): it sets the version, cuts the CHANGELOG, commits and tags;
+# pushing the tag (git push origin main v1.2.3) runs this workflow.
 on:
   push:
-    tags: ["v*"]
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
 
 permissions:
-  contents: read
-  packages: write
+  contents: write   # the GitHub Release
+  packages: write   # the image
 
 jobs:
-  image:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+
+      - name: The tag, the version in the code and the CHANGELOG agree
+        run: python scripts/release.py check-tag "$GITHUB_REF_NAME"
+      - name: Unit and integration tests
+        run: python -m unittest discover -s tests -q
+
+      - name: Build the image
         run: |
           IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
           VERSION="${GITHUB_REF_NAME#v}"
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          docker build --build-arg VERSION="$VERSION" --build-arg REVISION="$GITHUB_SHA" -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
+          docker build --build-arg VERSION="$VERSION" --build-arg REVISION="$GITHUB_SHA" \
+            -t "$IMAGE:$VERSION" -t "$IMAGE:${VERSION%.*}" -t "$IMAGE:latest" .
       - name: The base image is the one the patch was made for
         run: |
           docker pull "$(awk '/^FROM /{print $2}' Dockerfile)"
           bash scripts/verify-image.sh
       - name: Smoke test (starts the image on an empty data folder)
         run: bash scripts/smoke-image.sh "$IMAGE:$VERSION"
-      - name: Publish
+
+      - name: Publish the image (X.Y.Z, X.Y and latest)
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           docker push "$IMAGE:$VERSION"
+          docker push "$IMAGE:${VERSION%.*}"
           docker push "$IMAGE:latest"
+      - name: GitHub Release with the CHANGELOG notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python scripts/release.py notes "$VERSION" > notes.md
+          printf '\nImage: `%s:%s`\n' "$IMAGE" "$VERSION" >> notes.md
+          gh release create "$GITHUB_REF_NAME" --title "Internet Pulse $VERSION" --notes-file notes.md --verify-tag

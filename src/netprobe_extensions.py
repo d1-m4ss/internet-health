@@ -28,6 +28,8 @@ from urllib.parse import urljoin, urlsplit
 from zoneinfo import ZoneInfo
 
 
+VERSION = "1.0.0-dev"  # the only place: scripts/release.py sets it; GET /api/about and the page footer show it
+
 DEFAULTS = dict(enabled=True, loss_pct=10.0, latency_ms=150.0,
                 jitter_ms=80.0, dns_ms=250.0, confirm_samples=2, recovery_samples=2, turbo=False)
 SWITCHES = ("enabled", "turbo")  # booleans; toggling them never restarts confirmation streaks
@@ -1993,6 +1995,10 @@ def install_routes(app, ext):
             return jsonify(error=str(exc)), 400
         except CleanupBusy as exc:
             return jsonify(error=str(exc)), 409
+
+    @app.get("/api/about")
+    def np_about():
+        return jsonify(name="Internet Pulse", version=VERSION)
 
     @app.get("/api/telegram")
     def np_telegram():

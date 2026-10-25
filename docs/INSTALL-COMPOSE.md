@@ -35,11 +35,11 @@ Applications and paste the same YAML there, or use plain `docker run`, see [INST
 On your computer (or directly on Unraid):
 
 ```sh
-git clone https://github.com/<you>/netprobe-enhanced.git && cd netprobe-enhanced
+git clone https://github.com/<you>/internet-health.git && cd internet-health
 ```
 
 Everything below is run on the Unraid server as `root` (SSH or the web terminal); copy the repository there first,
-for example `scp -r netprobe-enhanced root@<unraid>:/root/`.
+for example `scp -r internet-health root@<unraid>:/root/`.
 
 ## 2. Create the data folder and add the three extension files
 
