@@ -5,6 +5,8 @@ The project is called **Internet Pulse** (formerly “NetProbe Enhanced”; cont
 
 ## Unreleased
 
+## 1.0.0 — 2026-10-26
+
 - **Versions and releases.** One version in the code (`VERSION`, shown by `GET /api/about` and in the page footer), semver, and
   `scripts/release.py` that turns the CHANGELOG's *Unreleased* into a release, commits and tags; pushing the tag publishes the image
   (`X.Y.Z`, `X.Y`, `latest`) and creates the GitHub Release with the notes (`.github/workflows/release.yml`). See *Releasing* in
