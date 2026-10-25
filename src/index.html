@@ -64,6 +64,8 @@
     .btn.primary:hover { background:var(--primary-hover) }
     .btn:disabled { opacity:.45;cursor:not-allowed }
     a.btn { text-decoration:none }
+    .btn.danger { border-color:var(--bad-line);color:var(--bad) } .btn.danger:hover:not(:disabled) { background:var(--bad-bg) }
+    #retBox { margin-top:18px;padding-top:14px;border-top:1px solid var(--line) }
     .pick { display:inline-flex;align-items:center;gap:6px;color:var(--mute);font-size:12px }
     .pick select { background:var(--input-bg);color:var(--text);border:1px solid var(--input-line);border-radius:var(--rad-sm);padding:8px 9px;max-width:100% }
     .main-status { display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:17px;border:1px solid var(--line);background:var(--status-bg);border-radius:var(--rad);padding:19px 22px }
@@ -555,7 +557,11 @@
       <div class="stack">
         <section class="card" id="dnsCard"><div class="card-head"><div><h2 data-i18n="dns.title">DNS-серверы</h2><div class="card-sub" data-i18n="dns.sub">Ответ на DNS-запросы</div></div></div><div id="dnsList"><p class="muted">…</p></div></section>
         <section class="card" id="eventsCard"><div class="card-head"><div><h2 data-i18n="events.title">События</h2><div class="card-sub" data-i18n="events.sub">Подтверждённые изменения состояния</div></div></div><div class="events" id="eventList"><p class="muted">…</p></div><div id="eventsStatus" class="section-status"></div><div class="info-note" data-i18n="events.note">Предупреждения и восстановление передаются через штатные уведомления Unraid.</div></section>
-        <section class="card" id="settingsCard"><details id="alertSettings" style="margin:0;padding:0;border:0"><summary data-i18n="set.title">Пороги уведомлений</summary><p class="card-sub" data-i18n="set.note">Изменение подтверждается последовательными замерами. Короткий сбой между пробами может остаться незамеченным.</p><form id="settingsForm"><fieldset id="settingsFields" disabled style="border:0;padding:0;margin:0"><label class="check"><input type="checkbox" id="enabled"> <span data-i18n="set.enabled">Уведомления включены</span></label><div class="turbo-row"><label class="check"><input type="checkbox" id="turbo"> <span data-i18n="set.turbo">⚡ Turbo-режим: ловить короткие обрывы</span></label><button type="button" class="info-btn" id="turboInfo" aria-haspopup="dialog" aria-controls="turboDialog" data-i18n-attr="aria-label:turbo.about;title:turbo.about">ⓘ</button></div><p class="card-sub" id="turboUnavailable" hidden data-i18n="turbo.unavailable"></p><div class="setting-grid" style="margin-top:12px"><label><span data-i18n="set.loss">Потеря пакетов, %</span><input id="loss_pct" type="number" min="0" max="100" step="any" required></label><label><span>RTT, ms</span><input id="latency_ms" type="number" min="0" max="60000" step="any" required></label><label><span data-i18n="set.jitter">Джиттер, ms</span><input id="jitter_ms" type="number" min="0" max="60000" step="any" required></label><label><span>DNS, ms</span><input id="dns_ms" type="number" min="0" max="60000" step="any" required></label><label><span data-i18n="set.confirm">Замеров для тревоги</span><input id="confirm_samples" type="number" min="1" max="20" step="1" required></label><label><span data-i18n="set.recovery">Замеров для восстановления</span><input id="recovery_samples" type="number" min="1" max="20" step="1" required></label></div><div class="settings-actions"><button class="btn" type="submit" data-i18n="set.save">Сохранить</button><span class="card-sub" id="settingsMessage" role="status"></span></div></fieldset></form><div id="settingsStatus" class="section-status"></div><div class="info-note" id="storageInfo"></div><div class="pref-row"><label class="check"><input type="checkbox" id="show_public_ip" disabled> <span data-i18n="ip.label">Показывать мой внешний IP</span></label><p class="card-sub" data-i18n="ip.note" style="margin:6px 0 0"></p><span class="card-sub" id="ipMessage" role="status"></span></div></details></section>
+        <section class="card" id="settingsCard"><details id="alertSettings" style="margin:0;padding:0;border:0"><summary data-i18n="set.title">Пороги уведомлений</summary><p class="card-sub" data-i18n="set.note">Изменение подтверждается последовательными замерами. Короткий сбой между пробами может остаться незамеченным.</p><form id="settingsForm"><fieldset id="settingsFields" disabled style="border:0;padding:0;margin:0"><label class="check"><input type="checkbox" id="enabled"> <span data-i18n="set.enabled">Уведомления включены</span></label><div class="turbo-row"><label class="check"><input type="checkbox" id="turbo"> <span data-i18n="set.turbo">⚡ Turbo-режим: ловить короткие обрывы</span></label><button type="button" class="info-btn" id="turboInfo" aria-haspopup="dialog" aria-controls="turboDialog" data-i18n-attr="aria-label:turbo.about;title:turbo.about">ⓘ</button></div><p class="card-sub" id="turboUnavailable" hidden data-i18n="turbo.unavailable"></p><div class="setting-grid" style="margin-top:12px"><label><span data-i18n="set.loss">Потеря пакетов, %</span><input id="loss_pct" type="number" min="0" max="100" step="any" required></label><label><span>RTT, ms</span><input id="latency_ms" type="number" min="0" max="60000" step="any" required></label><label><span data-i18n="set.jitter">Джиттер, ms</span><input id="jitter_ms" type="number" min="0" max="60000" step="any" required></label><label><span>DNS, ms</span><input id="dns_ms" type="number" min="0" max="60000" step="any" required></label><label><span data-i18n="set.confirm">Замеров для тревоги</span><input id="confirm_samples" type="number" min="1" max="20" step="1" required></label><label><span data-i18n="set.recovery">Замеров для восстановления</span><input id="recovery_samples" type="number" min="1" max="20" step="1" required></label></div><div class="settings-actions"><button class="btn" type="submit" data-i18n="set.save">Сохранить</button><span class="card-sub" id="settingsMessage" role="status"></span></div></fieldset></form><div id="settingsStatus" class="section-status"></div><div class="info-note" id="storageInfo"></div><div class="pref-row"><label class="check"><input type="checkbox" id="show_public_ip" disabled> <span data-i18n="ip.label">Показывать мой внешний IP</span></label><p class="card-sub" data-i18n="ip.note" style="margin:6px 0 0"></p><span class="card-sub" id="ipMessage" role="status"></span></div>
+          <div class="pref-row" id="retBox"><strong data-i18n="hist.title">История данных</strong>
+            <div class="form-line"><label><span data-i18n="hist.keep">Хранить историю</span><select id="retKeep" disabled><option value="0" data-i18n="hist.forever"></option><option value="7" data-i18n="hist.r7"></option><option value="30" data-i18n="hist.r30"></option><option value="90" data-i18n="hist.r90"></option><option value="180" data-i18n="hist.r180"></option><option value="365" data-i18n="hist.r365"></option></select></label><label><span data-i18n="hist.clean">Удалить сейчас данные старше</span><select id="retDays" disabled><option value="7" data-i18n="hist.r7"></option><option value="30" data-i18n="hist.r30"></option><option value="90" data-i18n="hist.r90" selected></option><option value="180" data-i18n="hist.r180"></option><option value="365" data-i18n="hist.r365"></option></select></label></div>
+            <div class="settings-actions"><button type="button" class="btn" id="retPreview" disabled data-i18n="hist.preview">Показать, сколько</button><button type="button" class="btn danger" id="retDelete" disabled data-i18n="hist.delete">Удалить…</button></div>
+            <p class="card-sub" id="retNote" style="margin:8px 0 0"></p><p class="card-sub" id="retLast" style="margin:4px 0 0"></p><span class="card-sub" id="retMsg" role="status"></span></div></details></section>
         <section class="card" id="diagCard"><div class="card-head"><div><h2 data-i18n="diag.title">Диагностика</h2><div class="card-sub" data-i18n="diag.sub">Логи и активные настройки NetProbe</div></div></div><details id="detailsLog"><summary data-i18n="diag.logs">Логи приложения</summary><pre class="log-box" id="logOutput"></pre><div class="section-status" id="logStatus" role="status"></div></details><details><summary data-i18n="diag.config">Конфигурация (без секретов)</summary><pre class="log-box" id="configOutput">…</pre></details></section>
       </div>
     </div>
@@ -625,6 +631,9 @@
       'sched.invalidInterval':'Интервал — целое число часов от 1 до 168.','sched.invalidTimes':'Время — от 1 до 4 разных значений ЧЧ:ММ, например 03:00, 15:30.','sched.saving':'Сохранение…','sched.saved':'Расписание сохранено.','sched.notSaved':'Не сохранено: {e}','sched.unavailable':'Настройки расписания сейчас недоступны.',
       'set.title':'Пороги уведомлений','set.note':'Изменение подтверждается последовательными замерами. Короткий сбой между пробами может остаться незамеченным.','set.enabled':'Уведомления включены','set.loss':'Потеря пакетов, %','set.jitter':'Джиттер, ms','set.confirm':'Замеров для тревоги','set.recovery':'Замеров для восстановления','set.save':'Сохранить',
       'ip.label':'Показывать мой внешний IP и провайдера (карточка WAN / провайдер)','ip.note':'Включает запрос к ipwho.is (запасные: api.ipify.org, icanhazip.com) из контейнера не чаще раза в 5 минут; сервис видит адрес, с которого идёт запрос. Пока галка снята, наружу ничего не отправляется.','wan.title':'WAN / провайдер','wan.ip':'Внешний IP','wan.isp':'Провайдер','wan.pending':'Определяется…','wan.unknown':'не указан','wan.meta':'Проверено {when} · источник {source} · обновляется раз в 5 минут','wan.fail':'Не удалось определить адрес: {e}','ip.saveFail':'Не удалось сохранить: {e}',
+      'hist.title':'История данных','hist.keep':'Хранить историю','hist.forever':'Всегда (не удалять)','hist.r7':'7 дней','hist.r30':'30 дней','hist.r90':'90 дней','hist.r180':'180 дней','hist.r365':'1 год','hist.clean':'Удалить сейчас данные старше','hist.preview':'Показать, сколько','hist.delete':'Удалить…',
+      'hist.noteOff':'Сейчас история не удаляется. Выберите срок: данные старше него будут удаляться раз в сутки ночью (проверки целей, DNS, события, Speedtest). Это необратимо — перед первым включением полезна копия базы.','hist.noteOn':'Данные старше {range} удаляются раз в сутки ночью. Следующая очистка: {when}.','hist.last':'Последняя очистка: {when} — удалено записей: {n}; база {from} → {to}.','hist.never':'Очисток ещё не было.',
+      'hist.confirmKeep':'Срок хранения: {range}. Данные старше него будут необратимо удаляться раз в сутки ночью. Включить?','hist.previewResult':'Будет удалено записей: {n} (старше {range}).','hist.nothing':'Нечего удалять: записей старше {range} нет.','hist.confirmDelete':'Удалить {n} записей старше {range}? Это нельзя отменить.','hist.deleted':'Удалено записей: {n}; база {from} → {to}.','hist.fail':'Не удалось: {e}','hist.saved':'Срок хранения сохранён.',
       'set.turbo':'⚡ Turbo-режим: ловить короткие обрывы','turbo.about':'Что такое Turbo-режим','turbo.chipTitle':'Turbo-режим включён: обрывы от ~10 с',
       'turbo.title':'⚡ Turbo-режим','turbo.unavailable':'Turbo недоступен: среди SITES и DNS-серверов нет публичного IP-адреса. Добавьте, например, 1.1.1.1 в SITES.','turbo.close':'Закрыть',
       'turbo.what':'Что делает: каждые 5 секунд отправляет один ping роутеру и двум IP-адресам в интернете (IP-цели из SITES или публичные DNS-серверы) — независимо от обычного цикла проверок.',
@@ -685,6 +694,9 @@
       'sched.container':'As set in the container: {state}','sched.cEvery':'every {h} h','sched.cOff':'off','sched.noteContainer':'The schedule comes from the container variables SPEEDTEST_ENABLED and SPEEDTEST_INTERVAL ({state}). Pick another option to manage it here.','sched.noteOff':'Automatic tests are off; manual runs still work.','sched.noteNext':'Next test: {when} · time zone {tz}','sched.noteApply':'Save to apply the schedule.',
       'sched.invalidInterval':'The interval is a whole number of hours from 1 to 168.','sched.invalidTimes':'Times are 1 to 4 different HH:MM values, for example 03:00, 15:30.','sched.saving':'Saving…','sched.saved':'Schedule saved.','sched.notSaved':'Not saved: {e}','sched.unavailable':'Schedule settings are unavailable right now.',
       'ip.label':'Show my external IP and provider (WAN / ISP card)','ip.note':'Makes the container ask ipwho.is (fallbacks: api.ipify.org, icanhazip.com) at most once every 5 minutes; the service sees the address the request comes from. While the box is unticked nothing is sent anywhere.','wan.title':'WAN / ISP','wan.ip':'Public IP','wan.isp':'ISP','wan.pending':'Looking up…','wan.unknown':'not reported','wan.meta':'Checked {when} · source {source} · refreshed every 5 minutes','wan.fail':'The address could not be determined: {e}','ip.saveFail':'Could not save: {e}',
+      'hist.title':'History','hist.keep':'Keep history','hist.forever':'Forever (never delete)','hist.r7':'7 days','hist.r30':'30 days','hist.r90':'90 days','hist.r180':'180 days','hist.r365':'1 year','hist.clean':'Delete now what is older than','hist.preview':'Show how many','hist.delete':'Delete…',
+      'hist.noteOff':'History is not deleted now. Pick a period: data older than it is deleted once a day at night (target checks, DNS, events, Speedtests). This cannot be undone — a copy of the database before the first use is a good idea.','hist.noteOn':'Data older than {range} is deleted once a day at night. Next cleanup: {when}.','hist.last':'Last cleanup: {when} — {n} records deleted; database {from} → {to}.','hist.never':'No cleanup has run yet.',
+      'hist.confirmKeep':'Keep history for {range}. Older data will be deleted irreversibly once a day at night. Turn it on?','hist.previewResult':'{n} records would be deleted (older than {range}).','hist.nothing':'Nothing to delete: no records are older than {range}.','hist.confirmDelete':'Delete {n} records older than {range}? This cannot be undone.','hist.deleted':'{n} records deleted; database {from} → {to}.','hist.fail':'Failed: {e}','hist.saved':'Retention saved.',
       'set.title':'Notification thresholds','set.note':'A change is confirmed by consecutive samples. A short glitch between probes may go unnoticed.','set.enabled':'Notifications enabled','set.loss':'Packet loss, %','set.jitter':'Jitter, ms','set.confirm':'Samples to raise an alert','set.recovery':'Samples to recover','set.save':'Save',
       'set.turbo':'⚡ Turbo mode: catch short outages','turbo.about':'What is Turbo mode','turbo.chipTitle':'Turbo mode is on: outages from ~10 s',
       'turbo.title':'⚡ Turbo mode','turbo.unavailable':'Turbo is unavailable: SITES and the DNS servers contain no public IP address. Add, for example, 1.1.1.1 to SITES.','turbo.close':'Close',
@@ -720,6 +732,8 @@
   const numeric = v => typeof v === 'number' && Number.isFinite(v);
   const fmt = (v, d = 1) => numeric(v) ? v.toFixed(d) : '—';
   const escape = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  /* schedule times are the server's (APP_TIMEZONE), not the browser's */
+  const whenIn = (ts, tz) => { try { return new Date(ts * 1000).toLocaleString(locale(), {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit', timeZone: tz || undefined}); } catch (e) { return when(ts); } };
   const when = ts => numeric(ts) ? new Date(ts * 1000).toLocaleString(locale(), {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit', second:'2-digit'}) : '—';
   const stateLabel = s => t(['OK','DEGRADED','DOWN'].includes(s) ? 'state.' + s : 'state.UNKNOWN');
   const stateIcon = s => s === 'DOWN' ? '🔴' : s === 'DEGRADED' ? '🟠' : s === 'OK' ? '🟢' : '🟡';
@@ -1116,7 +1130,7 @@
   }
   let drawQueued = false;
   const scheduleDraw = () => { if (drawQueued) return; drawQueued = true; requestAnimationFrame(() => { drawQueued = false; draw(); }); };  // show each answer as it arrives
-  const draw = () => { renderLoss(); renderUnifi(); renderStatus(); renderPath(); renderTargets(); renderChart(); renderEvents(); renderSpeed(); renderSchedule(); renderPublicIp(); renderSettings(); renderConfig(); renderMsgs(); if (!state.logs.length) $('logOutput').textContent = state.logRead && $('detailsLog').open ? t('diag.noLines') : t('diag.logHint'); };
+  const draw = () => { renderLoss(); renderUnifi(); renderStatus(); renderPath(); renderTargets(); renderChart(); renderEvents(); renderSpeed(); renderSchedule(); renderPublicIp(); renderHistory(); renderSettings(); renderConfig(); renderMsgs(); if (!state.logs.length) $('logOutput').textContent = state.logRead && $('detailsLog').open ? t('diag.noLines') : t('diag.logHint'); };
   async function loadChart() {
     const request = ++state.chartRequest, key = chartKey(), target = state.target, query = rq(), address = state.address;
     try {
@@ -1175,10 +1189,10 @@
     try {
       const r = await api('/api/prefs');
       if (!r.prefs) throw new Error(t('err.badResponse'));
-      state.prefs = r.prefs; state.schedule = r.schedule || null; state.prefsError = null;
+      state.prefs = r.prefs; state.schedule = r.schedule || null; state.history = r.history || null; state.prefsError = null;
       if (!state.prefsInitialized) { $('speedBackend').value = r.prefs.speedtest_service || ''; fillSchedule(); state.prefsInitialized = true; updateSpeedControls(); }
     } catch (e) { state.prefsError = errorText(e); }
-    renderSchedule();
+    renderSchedule(); renderHistory();
   }
   async function loadPublicIp() {
     clearTimeout(state.ipTimer);
@@ -1196,6 +1210,44 @@
     $('wanIp').textContent = r.pending ? t('wan.pending') : r.ip || '—';
     $('wanIsp').textContent = r.pending ? '' : r.ip ? r.isp || t('wan.unknown') : '—';
     $('wanMeta').textContent = r.pending ? '' : r.ip ? t('wan.meta', {when: () => when(r.checked_at), source: r.source}) : t('wan.fail', {e: r.error || '—'});
+  }
+  /* ---------- history retention: a period for the nightly cleanup, and an on-demand cleanup with preview and confirmation ---------- */
+  const mib = b => numeric(b) ? (b / 1048576).toFixed(2) + ' MiB' : '—';
+  const rangeText = d => t('hist.r' + d);
+  const num = n => Number(n).toLocaleString(locale());
+  function renderHistory() {
+    const p = state.prefs, h = state.history, days = p?.history_retention_days || 0;
+    for (const id of ['retKeep', 'retDays', 'retPreview', 'retDelete']) $(id).disabled = !p || state.historyBusy === true;
+    if (p && !state.historyEditing) $('retKeep').value = String(days);
+    $('retNote').textContent = !p ? '' : days ? t('hist.noteOn', {range: rangeText(days), when: () => h?.next_ts ? whenIn(h.next_ts, state.schedule?.timezone) : '—'}) : t('hist.noteOff');
+    $('retLast').textContent = !p ? '' : h?.last ? t('hist.last', {when: () => when(h.last.ts), n: num(h.last.total), from: mib(h.last.bytes_before), to: mib(h.last.bytes_after)}) : t('hist.never');
+  }
+  async function cleanupRequest(body) {
+    return api('/api/history/cleanup', {method:'POST', headers:{'Content-Type':'application/json', 'X-NetProbe-Request':'settings'}, body:JSON.stringify(body)}, 120000);
+  }
+  async function previewHistory(andDelete) {
+    const days = Number($('retDays').value);
+    state.historyBusy = true; renderHistory(); say('retMsg', null);
+    try {
+      const plan = await cleanupRequest({days, dry_run: true});
+      if (!plan.total) { say('retMsg', 'hist.nothing', {range: rangeText(days)}); return; }
+      if (!andDelete) { say('retMsg', 'hist.previewResult', {n: num(plan.total), range: rangeText(days)}); return; }
+      if (!window.confirm(t('hist.confirmDelete', {n: num(plan.total), range: rangeText(days)}))) { say('retMsg', null); return; }
+      const done = await cleanupRequest({days, confirm: true});
+      say('retMsg', 'hist.deleted', {n: num(done.total), from: mib(done.bytes_before), to: mib(done.bytes_after)});
+      refresh();
+    } catch (e) { say('retMsg', 'hist.fail', {e: errorText(e)}); }
+    finally { state.historyBusy = false; await loadPrefs(); }
+  }
+  async function saveRetention() {
+    const days = Number($('retKeep').value);
+    if (days && !window.confirm(t('hist.confirmKeep', {range: rangeText(days)}))) { state.historyEditing = false; renderHistory(); return; }
+    state.historyBusy = true; renderHistory();
+    try {
+      const result = await api('/api/prefs', {method:'POST', headers:{'Content-Type':'application/json', 'X-NetProbe-Request':'settings'}, body:JSON.stringify({history_retention_days: days})});
+      state.prefs = result.prefs; state.history = result.history || state.history; say('retMsg', 'hist.saved');
+    } catch (e) { say('retMsg', 'hist.fail', {e: errorText(e)}); }
+    finally { state.historyBusy = false; state.historyEditing = false; renderHistory(); }
   }
   async function savePublicIp() {
     const on = $('show_public_ip').checked;
@@ -1222,7 +1274,7 @@
     const saved = state.prefs?.speedtest_schedule, next = state.schedule?.next_ts;
     $('schedNote').textContent = !state.prefs ? t('sched.unavailable')
       : mode === 'container' ? t('sched.noteContainer', {state: cState}) : mode === 'off' ? t('sched.noteOff')
-      : mode !== saved ? t('sched.noteApply') : numeric(next) ? t('sched.noteNext', {when: () => when(next), tz: state.schedule.timezone || ''}) : '';
+      : mode !== saved ? t('sched.noteApply') : numeric(next) ? t('sched.noteNext', {when: () => whenIn(next, state.schedule.timezone), tz: state.schedule.timezone || ''}) : '';
   }
   async function saveSchedule(event) {
     event.preventDefault();
@@ -1336,7 +1388,7 @@
   $('goSettings').addEventListener('click', () => { openTab('settings'); $('unifiTabs').scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block:'start'}); });
   $('tilesRow').addEventListener('click', event => { const b = event.target.closest('[data-target]'); if (b) { selectTarget(b.dataset.target); $('diagnostics').scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block:'start'}); } });
   $('chartTarget').addEventListener('change', () => selectTarget($('chartTarget').value));
-  $('refreshBtn').addEventListener('click', refresh); $('speedBtn').addEventListener('click', runSpeed); $('speedBackend').addEventListener('change', saveService); $('schedForm').addEventListener('submit', saveSchedule); $('show_public_ip').addEventListener('change', savePublicIp); $('schedMode').addEventListener('change', renderSchedule); $('forceAuto').addEventListener('change', updateSpeedControls);
+  $('refreshBtn').addEventListener('click', refresh); $('speedBtn').addEventListener('click', runSpeed); $('speedBackend').addEventListener('change', saveService); $('schedForm').addEventListener('submit', saveSchedule); $('show_public_ip').addEventListener('change', savePublicIp); $('retKeep').addEventListener('focus', () => { state.historyEditing = true; }); $('retKeep').addEventListener('change', saveRetention); $('retKeep').addEventListener('blur', () => { state.historyEditing = false; }); $('retPreview').addEventListener('click', () => previewHistory(false)); $('retDelete').addEventListener('click', () => previewHistory(true)); $('schedMode').addEventListener('change', renderSchedule); $('forceAuto').addEventListener('change', updateSpeedControls);
   $('settingsForm').addEventListener('submit', saveSettings); $('settingsForm').addEventListener('input', () => { state.settingsDirty = true; say('settingsMessage', 'set.dirty'); });
   $('detailsLog').addEventListener('toggle', loadLogs);
   $('turboInfo').addEventListener('click', () => $('turboDialog').showModal());

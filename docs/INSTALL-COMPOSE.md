@@ -16,7 +16,8 @@ What ends up where:
 │   └── index.html
 ├── netprobe.sqlite                          ← created by the container
 ├── alert-settings.json                      ← created by the container on first start (alert thresholds)
-├── netprobe-prefs.json                      ← created the first time you change a Speedtest / external-IP setting in the UI
+├── netprobe-prefs.json                      ← created the first time you change a Speedtest / external-IP / history setting in the UI
+├── history-cleanup.json                     ← created by the first cleanup (what was deleted when)
 └── notify-token                             ← created by the container on first start (secret, mode 600)
 
 /boot/config/custom/netprobe-unraid-notify.sh                 ← the bridge, on the Unraid host
@@ -139,6 +140,9 @@ All of this is set in the web UI and needs no restart (stored in `$D/netprobe-pr
   with the result after every automatic test (a failed test sends a warning with the reason). Leaving *As set in the
   container* keeps the old behaviour: `SPEEDTEST_ENABLED` / `SPEEDTEST_INTERVAL` decide, and with
   `SPEEDTEST_ENABLED: "false"` nothing runs by itself.
+- Settings → **History** → *Keep history*: the database grows forever by default. Choose 7 / 30 / 90 / 180 days or 1 year and records older than that are deleted once a night. *Show how many*
+  previews, *Delete…* deletes on demand after a confirmation. Deletion cannot be undone — copy `$D/netprobe.sqlite`
+  first if the history matters.
 - Settings → **Show my external IP and provider**: off by default; when ticked, the container asks `ipwho.is` for
   your address and provider name (at most every 5 minutes) and shows them in the *WAN / ISP* card under the status
   banner.

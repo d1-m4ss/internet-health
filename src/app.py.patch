@@ -1,5 +1,5 @@
 --- upstream/app.py	2026-10-23 20:43:28
-+++ src/app.py	2026-10-25 19:59:15
++++ src/app.py	2026-10-25 20:18:36
 @@ -1,3 +1,9 @@
 +# Derived from NetProbe_Python (https://github.com/bmartino1/NetProbe_Python), MIT License,
 +# Copyright (c) 2025-2026 Brandon Martino -- see THIRD_PARTY_NOTICES.md.
@@ -79,8 +79,8 @@
 +            "measured": False,
 +            "sample_ts": int(time.time()),
          }
-+
-+
+ 
+ 
 +KNOWN_SITE_NAMES = {"google.com": "Google", "cloudflare.com": "Cloudflare", "fast.com": "Netflix Fast.com",
 +                    "youtube.com": "YouTube", "netflix.com": "Netflix", "github.com": "GitHub",
 +                    "1.1.1.1": "Cloudflare IP", "1.0.0.1": "Cloudflare IP", "8.8.8.8": "Google IP",
@@ -103,8 +103,8 @@
 +            name = "DNS " + (detail["name"] or detail["ip"]).replace("_DNS", "").replace("_", " ").strip()
 +        roles["dns:" + detail["ip"]] = ("dns", name)
 +    return roles
- 
- 
++
++
 +# Servers that produced at least one DNS reply (any rcode that proves the server is alive) in the
 +# current probe cycle. The native latency/score values are unchanged; this only feeds alerting,
 +# because a refused/timed-out query still yields an "elapsed time".
@@ -161,16 +161,18 @@
              server.get("name"),
              normalized["protocol"],
              selection_mode,
-@@ -1471,25 +1536,69 @@
+@@ -1469,27 +1534,71 @@
+         }
+     finally:
          speedtest_run_lock.release()
- 
- 
++
++
 +# A test started from the web UI runs in this background thread: the web worker is single-threaded, so a test
 +# run inside the request (20-45 s) would keep the page and every other request waiting until it finished.
 +speedtest_job = {"running": False, "started_at": None, "finished_at": None, "success": None, "error": None, "result": None}
 +speedtest_job_lock = threading.Lock()
 +
-+
+ 
 +def _speedtest_job_main(kwargs):
 +    try:
 +        outcome = {"success": True, "error": None, "result": run_speedtest_internal(**kwargs)}
@@ -180,7 +182,7 @@
 +        outcome = {"success": False, "error": message, "result": None}
 +    with speedtest_job_lock:
 +        speedtest_job.update(running=False, finished_at=int(time.time()), **outcome)
-+
+ 
 +
 +def start_speedtest_job(kwargs):
 +    """Start a background test; False when one is already running (manual or scheduled)."""
@@ -310,7 +312,7 @@
  @app.route("/api/logs/live")
  def api_logs_live():
      """
-@@ -1766,6 +1899,16 @@
+@@ -1766,6 +1899,17 @@
  # Start probe loop when imported (for gunicorn worker start).
  ensure_db()
  ensure_speedtests_schema()
@@ -320,6 +322,7 @@
 +    custom_extension = Extension(DB_PATH, os.path.dirname(DB_PATH))
 +    install_routes(app, custom_extension)
 +    custom_extension.start_turbo(ROUTER_IP, SITES, DNS_SERVERS)  # idle (no pings) until enabled in the UI
++    custom_extension.start_maintenance()  # deletes old history only when a retention period was chosen in the UI
 +except Exception:
 +    # The extension is additive: if it cannot start, native monitoring and UI keep running.
 +    logger.exception("Persistent target history / alerts disabled: extension failed to start")

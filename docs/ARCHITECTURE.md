@@ -14,7 +14,21 @@
 Only additive tables are created in the existing SQLite file: `np_targets` (every sample of every target),
 `np_state` (current state and streaks), `np_events` (confirmed changes), `np_notifications` (the delivery queue),
 `np_flap` (muting state). Settings live in `/data/alert-settings.json` and the bridge token in
-`/data/notify-token`. Nothing is deleted automatically.
+`/data/notify-token`. Nothing is deleted unless a retention period is chosen (below).
+
+## History retention
+
+`history_retention_days` in `/data/netprobe-prefs.json` is `0` (keep everything, the default) or one of 7, 30, 90, 180,
+365. With a period chosen, a background thread checks every ten minutes and, in the quiet hours 03:00–05:59 of the
+`APP_TIMEZONE` day (and at most once per night; a night missed for two days is made up at any hour), deletes records
+older than the period from `measurements`, `dns_measurements`, `speedtests`, `np_targets`, `np_events`, delivered
+`np_notifications` and finished `np_outages`. `np_state`, `np_flap`, undelivered notifications and open or pending
+outages are never touched. Deletion runs in batches of 20 000 rows with a pause between them and waits for the probe
+loop's write lock instead of failing; afterwards the WAL is checkpointed and, for databases under 256 MiB, the file is
+`VACUUM`ed. Choosing a period never deletes at once: the first run waits for the next quiet window at least three
+hours later. The same code serves the settings page (`POST /api/history/cleanup`: preview with `dry_run`, deletion needs
+`confirm`) and a command line: `docker exec NetProbe python /app/netprobe_extensions.py cleanup --days 90 --dry-run`.
+The result of the last run is kept in `/data/history-cleanup.json`.
 
 ## State machine
 

@@ -1905,6 +1905,7 @@ try:
     custom_extension = Extension(DB_PATH, os.path.dirname(DB_PATH))
     install_routes(app, custom_extension)
     custom_extension.start_turbo(ROUTER_IP, SITES, DNS_SERVERS)  # idle (no pings) until enabled in the UI
+    custom_extension.start_maintenance()  # deletes old history only when a retention period was chosen in the UI
 except Exception:
     # The extension is additive: if it cannot start, native monitoring and UI keep running.
     logger.exception("Persistent target history / alerts disabled: extension failed to start")

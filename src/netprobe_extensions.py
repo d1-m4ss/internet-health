@@ -67,8 +67,25 @@ SPEEDTEST_TIMES_MAX = 4
 SPEED_ICON = "📶"
 SPEED_NAMES = {"python": "Speedtest.net", "ookla": "Ookla CLI", "fast": "Fast.com"}
 TIME_OF_DAY = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+# History retention: 0 keeps everything (the default). A positive value deletes records older than that many days
+# once a day in the quiet hours (CLEANUP_HOURS of the APP_TIMEZONE day); the same ranges can be cleaned on demand.
+RETENTION_CHOICES = (0, 7, 30, 90, 180, 365)
+CLEANUP_HOURS = (3, 4, 5)
+CLEANUP_EVERY = 86400
+CLEANUP_CATCHUP = 2 * 86400  # a night missed (container stopped) is made up at any hour after two days
+CLEANUP_BATCH = 20000        # rows per DELETE statement, so writers are never locked out for long
+CLEANUP_PAUSE = 0.05
+CLEANUP_LOCK_TIMEOUT = 5     # seconds VACUUM waits for the probe loop's writes before it gives up
+CLEANUP_ARM_DELAY = 3 * 3600  # after choosing a period the first run is at least this much later, in a quiet window
+CLEANUP_VACUUM_MIN = 1000    # rows deleted before the file is compacted
+CLEANUP_VACUUM_MAX = 256 * 1024 * 1024  # larger databases are not VACUUMed in the background (it needs free space and time)
+# (table, condition on the cutoff); tables that are missing are skipped. State tables (np_state, np_flap) are never cleaned,
+# queued notifications that were not delivered yet and outages still being decided are kept.
+CLEANUP_TABLES = (("measurements", "ts < ?"), ("dns_measurements", "ts < ?"), ("speedtests", "ts < ?"),
+                  ("np_targets", "ts < ?"), ("np_events", "ts < ?"), ("np_notifications", "acked=1 AND ts < ?"),
+                  ("np_outages", "status NOT IN ('open','pending') AND COALESCE(end_ts,last_ts) < ?"))
 PREFS_DEFAULTS = dict(speedtest_service="", speedtest_schedule="container", speedtest_interval_h=6,
-                      speedtest_times=["03:00"], speedtest_notify=False, show_public_ip=False)
+                      speedtest_times=["03:00"], speedtest_notify=False, show_public_ip=False, history_retention_days=0)
 # Public IP and provider (opt-in: nothing is requested while show_public_ip is off). ipwho.is answers with JSON
 # (address and ISP name); the plain-text services after it only know the address.
 PUBLIC_IP_SOURCES = ("https://ipwho.is/", "https://api.ipify.org", "https://icanhazip.com")
@@ -125,6 +142,10 @@ def ping_address(host, output):
     except ValueError:
         return None
     return candidate
+
+
+class CleanupBusy(RuntimeError):
+    """Another history cleanup is running."""
 
 
 class FastTestError(RuntimeError):
@@ -330,6 +351,8 @@ class Extension:
         self.roles = dict(roles or {})  # target -> (role, display name); roles: gateway|router|site|dns
         self.settings_path = self.data_dir / "alert-settings.json"
         self.prefs_path = self.data_dir / "netprobe-prefs.json"
+        self.cleanup_path = self.data_dir / "history-cleanup.json"
+        self.cleanup_lock = threading.Lock()
         if not self.settings_path.exists():
             self._write_settings(DEFAULTS)
         self.token = self._load_token(self.data_dir / "notify-token")
@@ -499,6 +522,9 @@ class Extension:
             if (not isinstance(times, list) or not 1 <= len(times) <= SPEEDTEST_TIMES_MAX or len(set(times)) != len(times)
                     or not all(isinstance(x, str) and TIME_OF_DAY.match(x) for x in times)):
                 raise ValueError("speedtest_times must be 1 to %d different times of day as HH:MM" % SPEEDTEST_TIMES_MAX)
+        if "history_retention_days" in values and (type(values["history_retention_days"]) is not int
+                                                   or values["history_retention_days"] not in RETENTION_CHOICES):
+            raise ValueError("history_retention_days must be one of: " + ", ".join(str(x) for x in RETENTION_CHOICES))
         for key in ("speedtest_notify", "show_public_ip"):
             if key in values and type(values[key]) is not bool:
                 raise ValueError(key + " must be a boolean")
@@ -522,9 +548,146 @@ class Extension:
     def update_prefs(self, patch):
         self.validate_prefs(patch)
         with self.lock:
-            values = dict(self.effective_prefs(), **patch)
+            old = self.effective_prefs()
+            values = dict(old, **patch)
             self._write_settings(values, self.prefs_path)
+            if values["history_retention_days"] != old["history_retention_days"]:
+                # the first deletion waits for the next quiet night: switching the option on never deletes at once
+                state = self.cleanup_state()
+                state["armed_at"] = int(self.clock())
+                self._write_settings(state, self.cleanup_path)
         return values
+
+    # ---- history retention -------------------------------------------------------------
+    def cleanup_state(self):
+        try:
+            state = json.loads(self.cleanup_path.read_text())
+            return state if isinstance(state, dict) else {}
+        except (OSError, ValueError):
+            return {}
+
+    def db_bytes(self):
+        return sum(p.stat().st_size for p in [Path(self.db_path), Path(self.db_path + "-wal")] if p.exists())
+
+    def cleanup(self, days, dry_run=False):
+        """Delete records older than `days` days from every history table; with dry_run only count them.
+        -> {days, cutoff, dry_run, deleted: {table: rows}, total, bytes_before, bytes_after, ts}"""
+        if type(days) is not int or days not in RETENTION_CHOICES or days == 0:
+            raise ValueError("days must be one of: " + ", ".join(str(x) for x in RETENTION_CHOICES if x))
+        if not self.cleanup_lock.acquire(blocking=False):
+            raise CleanupBusy("A history cleanup is already running")
+        try:
+            now = int(self.clock())
+            cutoff = now - days * 86400
+            before = self.db_bytes()
+            with self.db() as conn:
+                tables = [(t, c) for t, c in CLEANUP_TABLES
+                          if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (t,)).fetchone()]
+                deleted = {t: conn.execute("SELECT COUNT(*) FROM %s WHERE %s" % (t, c), (cutoff,)).fetchone()[0] for t, c in tables}
+            if not dry_run:
+                for table, condition in tables:
+                    while deleted[table]:
+                        for attempt in range(20):  # the probe loop writes now and then: wait for its lock instead of failing
+                            try:
+                                with self.db() as conn:
+                                    rows = conn.execute("DELETE FROM %s WHERE rowid IN (SELECT rowid FROM %s WHERE %s LIMIT ?)" % (table, table, condition),
+                                                        (cutoff, CLEANUP_BATCH)).rowcount
+                                break
+                            except sqlite3.OperationalError as exc:
+                                if "locked" not in str(exc) or attempt == 19:
+                                    raise
+                                time.sleep(0.5)
+                        if rows < CLEANUP_BATCH:
+                            break
+                        time.sleep(CLEANUP_PAUSE)
+                if sum(deleted.values()) >= CLEANUP_VACUUM_MIN:
+                    self.compact()
+            result = dict(days=days, cutoff=cutoff, dry_run=dry_run, deleted=deleted, total=sum(deleted.values()),
+                          bytes_before=before, bytes_after=self.db_bytes(), ts=now)
+            if not dry_run:
+                with self.lock:
+                    state = self.cleanup_state()
+                    state["last"] = {k: result[k] for k in ("ts", "days", "total", "bytes_before", "bytes_after")}
+                    self._write_settings(state, self.cleanup_path)
+                logger.info("History cleanup: %d records older than %d days deleted (%s), database %d -> %d bytes",
+                            result["total"], days, ", ".join("%s %d" % kv for kv in deleted.items() if kv[1]) or "nothing", before, result["bytes_after"])
+            return result
+        finally:
+            self.cleanup_lock.release()
+
+    def compact(self):
+        """Give the freed pages back to the file system. Skipped for big databases or when a writer holds the lock."""
+        if self.db_bytes() > CLEANUP_VACUUM_MAX:
+            return False
+        conn = sqlite3.connect(self.db_path, timeout=CLEANUP_LOCK_TIMEOUT, isolation_level=None)
+        try:
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            conn.execute("VACUUM")
+            return True
+        except sqlite3.Error as exc:
+            logger.warning("History cleanup: the file could not be compacted now (%s); the freed space is reused", exc)
+            return False
+        finally:
+            conn.close()
+
+    def _cleanup_floor(self, state):
+        """Earliest instant the next nightly cleanup may start: 18 h after the last one (one per night), or - when none ran
+        yet - a few hours after the retention period was chosen, so choosing it never deletes at once."""
+        last = (state.get("last") or {}).get("ts", 0)
+        return last + 18 * 3600 if last else state.get("armed_at", 0) + CLEANUP_ARM_DELAY
+
+    def next_cleanup(self, now=None):
+        """Epoch of the next automatic cleanup (start of the coming quiet window), or None when retention is off."""
+        if not self.effective_prefs()["history_retention_days"]:
+            return None
+        now = int(now if now is not None else self.clock())
+        threshold = max(now, self._cleanup_floor(self.cleanup_state()))
+        tz = self.tz
+        if datetime.fromtimestamp(threshold, tz).hour in CLEANUP_HOURS:
+            return int(threshold)
+        day = datetime.fromtimestamp(threshold, tz).date()
+        for offset in range(0, 3):
+            d = day + timedelta(days=offset)
+            slot = datetime(d.year, d.month, d.day, CLEANUP_HOURS[0], 0, tzinfo=tz).timestamp()
+            if slot >= threshold:
+                return int(slot)
+        return None
+
+    def maintenance_tick(self, now=None):
+        """One check of the automatic cleanup; -> the cleanup result when one ran."""
+        days = self.effective_prefs()["history_retention_days"]
+        if not days:
+            return None
+        now = int(now if now is not None else self.clock())
+        state = self.cleanup_state()
+        night = datetime.fromtimestamp(now, self.tz).hour in CLEANUP_HOURS and now >= self._cleanup_floor(state)
+        overdue = now - max((state.get("last") or {}).get("ts", 0), state.get("armed_at", 0)) >= CLEANUP_CATCHUP
+        if night or overdue:
+            try:
+                return self.cleanup(days)
+            except CleanupBusy:
+                return None
+        return None
+
+    def start_maintenance(self, sleep=time.sleep, rounds=None):
+        """Background thread: checks every ten minutes whether the nightly cleanup is due (never when retention is off)."""
+        def run():
+            done = 0
+            while rounds is None or done < rounds:
+                try:
+                    self.maintenance_tick()
+                except Exception:
+                    logger.exception("History cleanup failed")
+                done += 1
+                sleep(600)
+        thread = threading.Thread(target=run, name="netprobe-maintenance", daemon=True)
+        thread.start()
+        return thread
+
+    def history_info(self):
+        with self.db() as conn:
+            oldest = conn.execute("SELECT MIN(ts) FROM np_targets").fetchone()[0]
+        return dict(last=self.cleanup_state().get("last"), next_ts=self.next_cleanup(), db_bytes=self.db_bytes(), oldest_ts=oldest)
 
     def speedtest_service(self):
         return self.effective_prefs()["speedtest_service"]
@@ -1132,7 +1295,8 @@ class Extension:
                 latest = dict(conn.execute("SELECT * FROM np_targets WHERE target=? ORDER BY ts DESC,id DESC LIMIT 1", (r["target"],)).fetchone())
                 latest.update(dict(r))
                 state = conn.execute("SELECT active,candidate,streak FROM np_state WHERE target=?", (r["target"],)).fetchone()
-                latest.update(dict(state));latest["state"] = latest.pop("active")
+                # a target without a state row (database edited or restored by hand) is unknown, not a 500 for the whole page
+                latest.update(dict(state) if state else dict(active="UNKNOWN", candidate="UNKNOWN", streak=0));latest["state"] = latest.pop("active")
                 latest["addresses"] = [dict(x) for x in conn.execute("""SELECT address,COUNT(*) samples,
                     AVG(latency) avg_latency,MAX(latency) max_latency,AVG(loss) avg_loss,MAX(loss) max_loss
                     FROM np_targets WHERE target=? AND ts>=? AND ts<=? GROUP BY address""", (r["target"], start, upper))]
@@ -1337,8 +1501,8 @@ def install_routes(app, ext):
             values = ext.settings()
         except (ValueError, OSError):
             return jsonify(error="Persistent settings cannot be read"), 503
-        size = sum(p.stat().st_size for p in [Path(ext.db_path), Path(ext.db_path + "-wal")] if p.exists())
-        return jsonify(settings=values, storage=dict(bytes=size, retention_days=None), started_at=ext.started_at(),
+        retention = ext.effective_prefs()["history_retention_days"] or None
+        return jsonify(settings=values, storage=dict(bytes=ext.db_bytes(), retention_days=retention), started_at=ext.started_at(),
                        turbo_available=ext.turbo_available)
 
     @app.route("/api/prefs", methods=["GET", "POST"])
@@ -1351,9 +1515,30 @@ def install_routes(app, ext):
             except (ValueError, TypeError):
                 return jsonify(error="Invalid preferences"), 400
         try:
-            return jsonify(prefs=ext.prefs(), schedule=dict(next_ts=ext.next_speedtest(int(ext.clock())), timezone=str(ext.tz)))
+            return jsonify(prefs=ext.prefs(), schedule=dict(next_ts=ext.next_speedtest(int(ext.clock())), timezone=str(ext.tz)),
+                           history=ext.history_info())
         except (ValueError, OSError):
             return jsonify(error="Persistent preferences cannot be read"), 503
+
+    @app.post("/api/history/cleanup")
+    def np_cleanup():
+        """Delete (or, with dry_run, only count) history older than `days`; a real deletion needs "confirm": true."""
+        if not same_origin_request():
+            return jsonify(error="Same-origin settings request required"), 403
+        body = request.get_json(silent=True)
+        if not isinstance(body, dict) or set(body) - {"days", "dry_run", "confirm"}:
+            return jsonify(error="Expected {days, dry_run, confirm}"), 400
+        dry_run = body.get("dry_run", False)
+        if type(dry_run) is not bool or type(body.get("confirm", False)) is not bool:
+            return jsonify(error="dry_run and confirm must be booleans"), 400
+        if not dry_run and body.get("confirm") is not True:
+            return jsonify(error="Deleting history needs \"confirm\": true (or \"dry_run\": true to only count)"), 400
+        try:
+            return jsonify(ext.cleanup(body.get("days"), dry_run=dry_run))
+        except ValueError as exc:
+            return jsonify(error=str(exc)), 400
+        except CleanupBusy as exc:
+            return jsonify(error=str(exc)), 409
 
     @app.get("/api/public-ip")
     def np_public_ip():
@@ -1390,3 +1575,20 @@ def install_routes(app, ext):
                 return jsonify(error="Unknown notification"), 404
             conn.execute("UPDATE np_notifications SET acked=1 WHERE id=?", (notification_id,))
         return jsonify(ok=True)
+
+
+def main(argv=None):
+    """python netprobe_extensions.py cleanup --days 90 [--dry-run] [--db /data/netprobe.sqlite]  (run inside the container)"""
+    import argparse
+    parser = argparse.ArgumentParser(description=main.__doc__)
+    parser.add_argument("command", choices=["cleanup"])
+    parser.add_argument("--days", type=int, required=True, choices=[d for d in RETENTION_CHOICES if d])
+    parser.add_argument("--dry-run", action="store_true", help="only count what would be deleted")
+    parser.add_argument("--db", default=os.getenv("DB_PATH", "/data/netprobe.sqlite"))
+    args = parser.parse_args(argv)
+    ext = Extension(args.db, os.path.dirname(os.path.abspath(args.db)))
+    print(json.dumps(ext.cleanup(args.days, dry_run=args.dry_run), indent=2, sort_keys=True))
+
+
+if __name__ == "__main__":
+    main()

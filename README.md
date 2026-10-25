@@ -21,7 +21,7 @@ bind-mounted read-only over it. Removing the mounts brings the stock NetProbe ba
 
 ## What you get
 
-- **History per target and per measured IP** (SQLite, additive `np_*` tables — the upstream tables are never modified).
+- **History per target and per measured IP** (SQLite, additive `np_*` tables — the upstream tables keep their structure; rows are removed only when you choose a retention period, see *History retention* below).
   The upstream app only keeps aggregates.
 - **Alerts that explain themselves.** Instead of `google.com: DOWN`, the notification says what is wrong:
   *Router is not responding*, *No internet*, *Names do not resolve (DNS)*, *Unreachable: Google*, with icons,
@@ -40,6 +40,11 @@ bind-mounted read-only over it. Removing the mounts brings the stock NetProbe ba
   nothing is requested until you tick it; then the container asks `ipwho.is` (fallbacks `api.ipify.org`,
   `icanhazip.com`, which know the address only) at most once every 5 minutes. The service sees the address the
   request comes from.
+- **History retention (off by default).** The database grows without limit unless you say otherwise. In the settings
+  choose to keep history for 7 / 30 / 90 / 180 days or 1 year: older records (target checks, DNS, events, Speedtests,
+  delivered notifications) are then deleted once a night, in small batches, and the file is compacted. You can also
+  preview and delete on demand with a confirmation showing the number of records. Undelivered notifications, open
+  outages and the current state are never deleted. Deletion is irreversible: keep a copy of the database first.
 - **Packet-loss report for any period** — summary, per-target table and a list of loss episodes; click an
   episode to zoom the chart onto it. Periods from 1 minute to a month, or a custom *from–to* window.
 - **Compare mode** — several metrics and several targets (for example all DNS servers) on one chart, with a
@@ -59,6 +64,14 @@ bind-mounted read-only over it. Removing the mounts brings the stock NetProbe ba
 ![Compare several DNS servers](docs/screenshots/compare-dns.png)
 
 ![Packet loss report](docs/screenshots/loss-report.png)
+
+![Speedtest: service, schedule and notifications](docs/screenshots/speedtest-schedule.png)
+
+![Settings: history retention and external IP](docs/screenshots/settings-history.png)
+
+On a phone the menu bar stays pinned to the top while the page scrolls:
+
+![Pinned menu on a phone](docs/screenshots/mobile-menu-pinned.png)
 
 ## How it works
 

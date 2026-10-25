@@ -5,6 +5,14 @@ The project is called **NetProbe Enhanced** (container, image, file and table na
 
 ## Unreleased
 
+- **History retention** (settings → *History*, off by default): keep 7 / 30 / 90 / 180 days or 1 year; records older than that
+  are deleted once a night in the quiet hours (batches, no long locks, file compacted afterwards), with a preview and a
+  confirmed *Delete…* for on-demand cleaning and `python netprobe_extensions.py cleanup --days N [--dry-run]` inside the
+  container. Undelivered notifications, open outages and state tables are never deleted. Choosing a period deletes nothing at
+  once. The *Targets* page no longer fails with an error when a target has no state row.
+- Screenshots in `docs/screenshots` are regenerated (WAN / ISP card, Speedtest schedule, history settings, pinned menu); all
+  values are invented (documentation address `198.51.100.23`, fictional provider). Test fixtures no longer contain place names.
+- Schedule and cleanup times on the page are shown in the server's time zone (`APP_TIMEZONE`), not the browser's.
 - **Faster, no more frozen page.** A manual Speedtest used to run inside the request, and the stock image has a single
   synchronous web worker, so the page and every other request waited for the whole test (30–45 s). It now runs in the
   background (`POST /api/speedtest/run` with `"async": true` answers `202`; `GET /api/speedtest/status`); the page

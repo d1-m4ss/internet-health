@@ -11,14 +11,14 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
   try {
     const now = Math.floor(Date.now() / 1000);
     const api = {
-      prefs: {speedtest_service: '', speedtest_schedule: 'container', speedtest_interval_h: 6, speedtest_times: ['03:00'], speedtest_notify: false, show_public_ip: false}, publicIp: {enabled: false}, publicIpDelay: 0, delays: {}, statusSeq: [], status: {running: false, success: null, error: null, result: null}, runStatus: 202, prefsFail: false, prefsReadFail: false, speedRun: null, calls: [],
+      prefs: {speedtest_service: '', speedtest_schedule: 'container', speedtest_interval_h: 6, speedtest_times: ['03:00'], speedtest_notify: false, show_public_ip: false, history_retention_days: 0}, history: {last: null, next_ts: null, db_bytes: 5320000, oldest_ts: now - 86400 * 40}, cleanupTotal: 1234, cleanupError: null, publicIp: {enabled: false}, publicIpDelay: 0, delays: {}, statusSeq: [], status: {running: false, success: null, error: null, result: null}, runStatus: 202, prefsFail: false, prefsReadFail: false, speedRun: null, calls: [],
       latest: {ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server: {id: '1', name: 'Example City', country: 'EX'}, backend: 'python'},
       history: [{ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server_id: '1', server_name: 'Example City', backend: 'python'}],
     };
     async function open(style = 'netprobe', lang = 'en') {
       const page = await browser.newPage({viewport: {width: 1280, height: 900}, reducedMotion: 'reduce'});
       const errors = [];
-      page.on('pageerror', e => errors.push(e.message));
+      page.on('pageerror', e => { errors.push(e.message); console.error('PAGE ERROR:', e.message); });
       await page.addInitScript(([s, l]) => { try { localStorage.setItem('netprobe.style', s); localStorage.setItem('netprobe.lang', l); } catch (e) {} }, [style, lang]);
       await page.route('**/*', async route => {
         const request = route.request(), url = new URL(request.url());
@@ -36,7 +36,12 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
               Object.assign(api.prefs, body);
               if ('show_public_ip' in body) api.publicIp = body.show_public_ip ? {enabled: true, ip: '198.51.100.7', isp: 'Example Net', source: 'ipwho.is', checked_at: now, error: null} : {enabled: false};
             }
-            return route.fulfill({json: {prefs: api.prefs, schedule: {next_ts: api.prefs.speedtest_schedule === 'daily' ? now + 7200 : null, timezone: 'Europe/Bucharest'}}});
+            return route.fulfill({json: {prefs: api.prefs, schedule: {next_ts: api.prefs.speedtest_schedule === 'daily' ? now + 7200 : null, timezone: 'Europe/Berlin'}, history: {...api.history, next_ts: api.prefs.history_retention_days ? now + 36000 : null}}});
+          case '/api/history/cleanup':
+            if (api.cleanupError) return route.fulfill({status: 409, json: {error: api.cleanupError}});
+            if (body.dry_run) return route.fulfill({json: {days: body.days, dry_run: true, total: api.cleanupTotal, deleted: {}, bytes_before: 5320000, bytes_after: 5320000, ts: now}});
+            api.history.last = {ts: now, days: body.days, total: api.cleanupTotal, bytes_before: 5320000, bytes_after: 2100000};
+            return route.fulfill({json: {days: body.days, dry_run: false, total: api.cleanupTotal, deleted: {}, bytes_before: 5320000, bytes_after: 2100000, ts: now}});
           case '/api/public-ip': if (api.publicIpDelay) await new Promise(r => setTimeout(r, api.publicIpDelay)); return route.fulfill({json: api.publicIp});
           case '/api/speedtest/latest': return route.fulfill({json: {result: api.latest}});
           case '/api/speedtest/history': return route.fulfill({json: {tests: api.history}});
@@ -82,7 +87,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
 
       // a manual run starts in the background (the page must not wait for it) and uses fast.com;
       // an unmeasured upload is shown as a dash, never as zero
-      const result = {timestamp: now, ping_ms: 11.5, download_mbps: 321.5, upload_mbps: null, server: {name: 'Netflix, Brasov', country: 'RO'}, backend: 'fast'};
+      const result = {timestamp: now, ping_ms: 11.5, download_mbps: 321.5, upload_mbps: null, server: {name: 'Netflix, Example City', country: 'RO'}, backend: 'fast'};
       api.statusSeq = [{running: true, success: null}, {running: true, success: null}];
       api.status = {running: false, success: true, error: null, result};
       api.latest = {ts: now, ...result};  // what the server returns after the run
@@ -96,7 +101,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       assert.equal(run.body.server_id, null);
       assert(api.calls.filter(c => c.path === '/api/speedtest/status').length >= 3, 'the page polls the status');
       assert.match(await page.locator('#upload').textContent(), /^—/, 'unknown upload is a dash');
-      assert.match(await page.locator('#speedServer').textContent(), /Fast\.com · Netflix, Brasov · RO/);
+      assert.match(await page.locator('#speedServer').textContent(), /Fast\.com · Netflix, Example City · RO/);
       await page.waitForFunction(() => !document.getElementById('speedBtn').disabled);
 
       // a failed test: the reason is shown and the button is usable again
@@ -179,7 +184,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       assert.deepEqual(sent.body, {speedtest_schedule: 'daily', speedtest_notify: true, speedtest_times: ['03:00', '15:30']});
       assert.equal(sent.headers['x-netprobe-request'], 'settings');
       assert.equal(await page.locator('#schedTimes').inputValue(), '03:00, 15:30');
-      assert.match(await page.locator('#schedNote').textContent(), /Next test: .+ · time zone Europe\/Bucharest/);
+      assert.match(await page.locator('#schedNote').textContent(), /Next test: .+ · time zone Europe\/Berlin/);
 
       await page.locator('#schedMode').selectOption('interval');
       const count = posts().length;
@@ -230,7 +235,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       assert.equal(await card.isVisible(), false, 'no card while the option is off');
       assert.equal(await box.isChecked(), false);
       assert.equal(await box.isEnabled(), true);
-      assert.match(await page.locator('.pref-row').textContent(), /ipwho\.is.*nothing is sent anywhere/);
+      assert.match(await page.locator('.pref-row').first().textContent(), /ipwho\.is.*nothing is sent anywhere/);
       await box.check();
       await page.waitForFunction(() => document.getElementById('wanIp').textContent === '198.51.100.7');
       assert.deepEqual(api.calls.filter(c => c.path === '/api/prefs' && c.method === 'POST').pop().body, {show_public_ip: true});
@@ -277,7 +282,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       assert.equal(await page.locator('#wanCard strong').textContent(), 'WAN / провайдер');
       assert.deepEqual(await page.locator('.wan-label').allTextContents(), ['Внешний IP', 'Провайдер']);
       assert.match(await page.locator('#wanMeta').textContent(), /Проверено .+ · источник ipwho\.is/);
-      assert.match(await page.locator('.pref-row').textContent(), /Пока галка снята, наружу ничего не отправляется/);
+      assert.match(await page.locator('.pref-row').first().textContent(), /Пока галка снята, наружу ничего не отправляется/);
       const box = await page.locator('#wanCard').boundingBox();
       assert(box && box.x >= 0 && box.x + box.width <= 1280, 'the card fits the screen');
       assert.deepEqual(errors, []);
@@ -304,6 +309,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       await page.waitForFunction(() => document.getElementById('speedBtn').disabled && /Running/i.test(document.getElementById('speedBtn').textContent));
       const result = {timestamp: now, ping_ms: 9, download_mbps: 250, upload_mbps: 40, server: {name: 'Example City'}, backend: 'python'};
       api.status = {running: false, success: true, error: null, result};
+      api.latest = {ts: now, ...result};  // the server's latest result is the finished test
       await page.waitForFunction(() => document.getElementById('download').textContent.startsWith('250.00'), null, {timeout: 10000});
       await page.waitForFunction(() => !document.getElementById('speedBtn').disabled);
       assert.deepEqual(errors, []);
@@ -341,6 +347,78 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       await page.close();
     }
 
+    // --- history: retention period for the nightly cleanup, preview and confirmed deletion ---
+    {
+      const {page, errors} = await open('netprobe', 'en');
+      const dialogs = [];
+      let answer = false;
+      page.on('dialog', async d => { dialogs.push(d.message()); await (answer ? d.accept() : d.dismiss()); });
+      const cleanups = () => api.calls.filter(c => c.path === '/api/history/cleanup');
+      const retentionPosts = () => api.calls.filter(c => c.path === '/api/prefs' && c.method === 'POST' && c.body && 'history_retention_days' in c.body);
+      await page.locator('#alertSettings').evaluate(e => e.open = true);
+      assert.equal(await page.locator('#retKeep').inputValue(), '0');
+      assert.match(await page.locator('#retNote').textContent(), /History is not deleted now/);
+      assert.match(await page.locator('#retLast').textContent(), /No cleanup has run yet/);
+      assert.deepEqual(await page.locator('#retKeep option').allTextContents(), ['Forever (never delete)', '7 days', '30 days', '90 days', '180 days', '1 year']);
+
+      // choosing a period asks first; refusing changes nothing
+      await page.locator('#retKeep').selectOption('30');
+      await page.waitForFunction(() => document.getElementById('retKeep').value === '0');
+      assert.match(dialogs.pop(), /Keep history for 30 days\..*irreversibly/);
+      assert.equal(retentionPosts().length, 0);
+      answer = true;
+      await page.locator('#retKeep').selectOption('30');
+      await page.waitForFunction(() => /Retention saved/.test(document.getElementById('retMsg').textContent));
+      assert.deepEqual(retentionPosts().pop().body, {history_retention_days: 30});
+      assert.equal(await page.locator('#retKeep').inputValue(), '30');
+      assert.match(await page.locator('#retNote').textContent(), /older than 30 days is deleted once a day at night\. Next cleanup: .+/);
+      // going back to "forever" needs no scary question
+      dialogs.length = 0;
+      await page.locator('#retKeep').selectOption('0');
+      await page.waitForFunction(() => /History is not deleted now/.test(document.getElementById('retNote').textContent));
+      assert.deepEqual(dialogs, []);
+      assert.deepEqual(retentionPosts().pop().body, {history_retention_days: 0});
+
+      // preview: counts only
+      await page.locator('#retDays').selectOption('180');
+      await page.locator('#retPreview').click();
+      await page.waitForFunction(() => /1,234 records would be deleted \(older than 180 days\)/.test(document.getElementById('retMsg').textContent));
+      assert.deepEqual(cleanups().pop().body, {days: 180, dry_run: true});
+      assert.equal(cleanups().filter(c => c.body.confirm).length, 0, 'a preview never deletes');
+
+      // delete: the number is shown in the question, refusing deletes nothing, accepting sends the explicit confirmation
+      answer = false; dialogs.length = 0;
+      await page.locator('#retDelete').click();
+      await page.waitForFunction(() => !document.getElementById('retDelete').disabled);
+      assert.match(dialogs.pop(), /Delete 1,234 records older than 180 days\? This cannot be undone\./);
+      assert.equal(cleanups().filter(c => c.body.confirm).length, 0, 'refused: nothing was deleted');
+      answer = true;
+      await page.locator('#retDelete').click();
+      await page.waitForFunction(() => /1,234 records deleted; database 5\.07 MiB → 2\.00 MiB/.test(document.getElementById('retMsg').textContent));
+      assert.deepEqual(cleanups().filter(c => c.body.confirm).pop().body, {days: 180, confirm: true});
+      await page.waitForFunction(() => /Last cleanup: .+ — 1,234 records deleted; database 5\.07 MiB → 2\.00 MiB/.test(document.getElementById('retLast').textContent));
+
+      // nothing older: no question at all; a busy server is reported
+      api.cleanupTotal = 0; dialogs.length = 0;
+      await page.locator('#retDelete').click();
+      await page.waitForFunction(() => /Nothing to delete: no records are older than 180 days/.test(document.getElementById('retMsg').textContent));
+      assert.deepEqual(dialogs, []);
+      api.cleanupTotal = 5; api.cleanupError = 'A history cleanup is already running';
+      await page.locator('#retPreview').click();
+      await page.waitForFunction(() => /Failed: A history cleanup is already running/.test(document.getElementById('retMsg').textContent));
+      api.cleanupError = null; api.cleanupTotal = 1234; api.history.last = null; api.prefs.history_retention_days = 0;
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+    {
+      const {page} = await open('unifi', 'ru');
+      await page.locator('#unifiTabs [data-tab="settings"]').click();
+      assert.deepEqual(await page.locator('#retKeep option').allTextContents(), ['Всегда (не удалять)', '7 дней', '30 дней', '90 дней', '180 дней', '1 год']);
+      assert.match(await page.locator('#retNote').textContent(), /Сейчас история не удаляется/);
+      assert.equal(await page.locator('#retDelete').textContent(), 'Удалить…');
+      await page.close();
+    }
+
     // --- unreadable preferences never turn the whole dashboard OFFLINE ---
     {
       api.prefsReadFail = true;
@@ -352,7 +430,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       assert.deepEqual(errors, []);
       await page.close();
     }
-    console.log('PASS: background speedtest (start, poll, failure, busy, resumed), one request per address, progressive drawing, external IP checkbox and WAN / ISP card in both styles (provider, unknown provider, escaped, failure, failed save, RU, phone width), schedule form (container/off/N hours/daily times, validation, notify switch, next test, saved state after reload, RU texts), speedtest service list (Speedtest.net / Ookla CLI / Fast.com) with explanations, saved choice, form adapts to fast.com, unknown upload shown as a dash, failed save reverted, works without the preferences API');
+    console.log('PASS: history retention and cleanup (choice, preview, confirmed deletion, busy), background speedtest (start, poll, failure, busy, resumed), one request per address, progressive drawing, external IP checkbox and WAN / ISP card in both styles (provider, unknown provider, escaped, failure, failed save, RU, phone width), schedule form (container/off/N hours/daily times, validation, notify switch, next test, saved state after reload, RU texts), speedtest service list (Speedtest.net / Ookla CLI / Fast.com) with explanations, saved choice, form adapts to fast.com, unknown upload shown as a dash, failed save reverted, works without the preferences API');
   } finally {
     await browser.close();
   }

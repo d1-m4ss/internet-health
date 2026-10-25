@@ -6,8 +6,9 @@
   host bridge. Keep that file out of version control and backups you share.
 - The extension adds no privileges to the container: no Docker socket, no host root, no extra capabilities.
 - Outbound requests happen only on request: Speedtest runs (manual or scheduled) and, when *Show my external IP and
-  provider* is ticked, a public-IP lookup at `ipwho.is` (cached for 5 minutes). Preference changes (`POST /api/prefs`) are accepted only from
-  same-origin browser requests, like `/api/settings`.
+  provider* is ticked, a public-IP lookup at `ipwho.is` (cached for 5 minutes). Preference changes (`POST /api/prefs`) and history
+  cleanup (`POST /api/history/cleanup`) are accepted only from same-origin browser requests, like `/api/settings`; a real
+  deletion additionally needs an explicit `confirm`, and the nightly cleanup runs only after a retention period was chosen.
 
 To report a vulnerability, please use GitHub's private "Report a vulnerability" feature on this repository
 (Security → Advisories) instead of opening a public issue.
