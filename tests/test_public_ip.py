@@ -1,4 +1,5 @@
 """Public IP display: opt-in, cached, tolerant of failing lookup services, never requested while switched off."""
+import json
 from pathlib import Path
 import sys
 import tempfile
@@ -14,7 +15,7 @@ from fixture_db import make_database  # noqa: E402
 import netprobe_extensions as npx  # noqa: E402
 
 HEADERS = {"X-NetProbe-Request": "settings"}
-S1, S2, S3 = [u.split("//")[1].split("/")[0] for u in npx.PUBLIC_IP_SOURCES]
+S1, S2, S3 = [u.split("//")[1].split("/")[0] for u in npx.PUBLIC_IP_SOURCES]  # ipwho.is (address + ISP), then plain text
 
 
 class PublicIpTests(unittest.TestCase):
@@ -26,7 +27,7 @@ class PublicIpTests(unittest.TestCase):
         make_database(root / "netprobe.sqlite")
         self.now = 2_000_000_000
         self.ext = npx.Extension(str(root / "netprobe.sqlite"), str(root), clock=lambda: self.now)
-        self.answers = {S1: "8.8.8.8", S2: "8.8.4.4", S3: "1.1.1.1"}
+        self.answers = {S1: ("8.8.8.8", "Example Net"), S2: ("8.8.4.4", None), S3: ("1.1.1.1", None)}
         self.calls = []
 
         def fetch(url, timeout=None):
@@ -61,7 +62,7 @@ class PublicIpTests(unittest.TestCase):
 
     def test_enabled_returns_the_address_and_where_it_came_from(self):
         self.turn(True)
-        self.assertEqual(self.get(), {"enabled": True, "ip": "8.8.8.8", "source": S1, "checked_at": self.now, "error": None})
+        self.assertEqual(self.get(), {"enabled": True, "ip": "8.8.8.8", "isp": "Example Net", "source": S1, "checked_at": self.now, "error": None})
         self.assertEqual(self.calls, [S1])
 
     def test_answers_are_cached_and_refreshed_after_the_ttl(self):
@@ -69,11 +70,12 @@ class PublicIpTests(unittest.TestCase):
         for _ in range(5):
             self.assertEqual(self.get()["ip"], "8.8.8.8")
         self.assertEqual(self.calls, [S1], "five page refreshes, one lookup")
-        self.answers[S1] = "9.9.9.9"
+        self.answers[S1] = ("9.9.9.9", "Other Net")
         self.now += npx.PUBLIC_IP_TTL - 1
         self.assertEqual(self.get()["ip"], "8.8.8.8")
         self.now += 2
-        self.assertEqual(self.get()["ip"], "9.9.9.9", "a changed address shows up after the cache expires")
+        changed = self.get()
+        self.assertEqual((changed["ip"], changed["isp"]), ("9.9.9.9", "Other Net"), "a changed address shows up after the cache expires")
         self.assertEqual(self.calls, [S1, S1])
 
     def test_a_failing_service_falls_back_to_the_next_one(self):
@@ -81,7 +83,8 @@ class PublicIpTests(unittest.TestCase):
         self.answers[S2] = ValueError("not an IP")
         self.turn(True)
         result = self.get()
-        self.assertEqual((result["ip"], result["source"], result["error"]), ("1.1.1.1", S3, None))
+        self.assertEqual((result["ip"], result["isp"], result["source"], result["error"]), ("1.1.1.1", None, S3, None),
+                         "plain-text services know the address only; the provider stays unknown, not invented")
         self.assertEqual(self.calls, [S1, S2, S3])
 
     def test_all_services_failing_is_reported_and_retried_only_after_a_minute(self):
@@ -89,14 +92,14 @@ class PublicIpTests(unittest.TestCase):
             self.answers[host] = OSError("network is unreachable")
         self.turn(True)
         result = self.get()
-        self.assertEqual((result["enabled"], result["ip"], result["source"]), (True, None, None))
+        self.assertEqual((result["enabled"], result["ip"], result["isp"], result["source"]), (True, None, None, None))
         for host in (S1, S2, S3):
             self.assertIn(host + ": network is unreachable", result["error"])
         self.assertEqual(len(self.calls), 3)
         self.get()
         self.assertEqual(len(self.calls), 3, "no hammering while the network is down")
         self.now += npx.PUBLIC_IP_RETRY
-        self.answers[S1] = "8.8.8.8"
+        self.answers[S1] = ("8.8.8.8", "Example Net")
         self.assertEqual(self.get()["ip"], "8.8.8.8", "recovers by itself")
 
     def test_switching_off_stops_requests_and_forgets_the_address(self):
@@ -106,7 +109,7 @@ class PublicIpTests(unittest.TestCase):
         self.assertEqual(self.get(), {"enabled": False})
         self.assertIsNone(self.ext.ip_cache)
         self.turn(True)
-        self.answers[S1] = "9.9.9.9"
+        self.answers[S1] = ("9.9.9.9", "Other Net")
         self.assertEqual(self.get()["ip"], "9.9.9.9", "no stale address after switching it on again")
 
     def test_simultaneous_requests_cause_one_lookup(self):
@@ -159,10 +162,40 @@ class FetchTests(unittest.TestCase):
         self.addCleanup(self.server.shutdown)
         self.url = "http://127.0.0.1:%d/ip" % self.server.server_address[1]
 
-    def test_public_addresses_are_accepted(self):
-        self.assertEqual(npx.fetch_public_ip(self.url), "8.8.8.8")
+    def json_body(self, **fields):
+        payload = {"ip": "8.8.8.8", "success": True, "connection": {"asn": 15169, "org": "Org Name", "isp": "Example Net"}}
+        payload.update(fields)
+        self.body = json.dumps(payload).encode()
+
+    def test_plain_text_addresses_are_accepted_without_a_provider(self):
+        self.assertEqual(npx.fetch_public_ip(self.url), ("8.8.8.8", None))
         self.body = b" 2606:4700:4700::1111 \r\n"
-        self.assertEqual(npx.fetch_public_ip(self.url), "2606:4700:4700::1111")
+        self.assertEqual(npx.fetch_public_ip(self.url), ("2606:4700:4700::1111", None))
+
+    def test_json_answer_gives_address_and_provider(self):
+        self.json_body()
+        self.assertEqual(npx.fetch_public_ip(self.url), ("8.8.8.8", "Example Net"))
+
+    def test_provider_falls_back_to_the_organisation_and_is_cleaned(self):
+        self.json_body(connection={"org": "  Org \n Name\t<b>x</b> \\ "})
+        ip, isp = npx.fetch_public_ip(self.url)
+        self.assertEqual(isp, "Org Name <b>x</b>", "control characters and backslashes are dropped, spaces collapsed (the UI escapes markup)")
+        self.json_body(connection={"isp": "N" * 500})
+        self.assertEqual(len(npx.fetch_public_ip(self.url)[1]), 120)
+
+    def test_missing_or_odd_provider_is_unknown_not_invented(self):
+        for connection in (None, "text", [], {}, {"isp": 5}, {"isp": ""}, {"isp": "   "}):
+            with self.subTest(connection=connection):
+                self.json_body(connection=connection)
+                self.assertEqual(npx.fetch_public_ip(self.url), ("8.8.8.8", None))
+
+    def test_failed_or_malformed_json_is_refused(self):
+        for body in (b'{"success": false, "message": "limit"}', b'{"ip": "8.8.8.8"}', b'{"success": true}', b'{"success": true, "ip": 5}',
+                     b'{broken', b'[1]', b'{"success": true, "ip": "192.168.1.5"}', b'{"success": true, "ip": "10.1.1.1"}'):
+            with self.subTest(body=body):
+                self.body = body
+                with self.assertRaises(ValueError):
+                    npx.fetch_public_ip(self.url)
 
     def test_anything_else_is_refused(self):
         for body in (b"<html>captive portal</html>", b"", b"192.168.1.20", b"10.0.0.7", b"127.0.0.1", b"169.254.1.1",

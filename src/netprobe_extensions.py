@@ -68,8 +68,9 @@ SPEED_NAMES = {"python": "Speedtest.net", "ookla": "Ookla CLI", "fast": "Fast.co
 TIME_OF_DAY = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 PREFS_DEFAULTS = dict(speedtest_service="", speedtest_schedule="container", speedtest_interval_h=6,
                       speedtest_times=["03:00"], speedtest_notify=False, show_public_ip=False)
-# Public IP (opt-in: nothing is requested while show_public_ip is off). Plain-text services, tried in order.
-PUBLIC_IP_SOURCES = ("https://api.ipify.org", "https://icanhazip.com", "https://ifconfig.me/ip")
+# Public IP and provider (opt-in: nothing is requested while show_public_ip is off). ipwho.is answers with JSON
+# (address and ISP name); the plain-text services after it only know the address.
+PUBLIC_IP_SOURCES = ("https://ipwho.is/", "https://api.ipify.org", "https://icanhazip.com")
 PUBLIC_IP_TTL = 300    # seconds a successful answer is reused
 PUBLIC_IP_RETRY = 60   # seconds before another attempt after every source failed
 PUBLIC_IP_TIMEOUT = 5
@@ -134,17 +135,31 @@ def _fast_get(url, timeout=FAST_TIMEOUT, limit=4_000_000):
 
 
 def fetch_public_ip(url, timeout=PUBLIC_IP_TIMEOUT):
-    """The address the internet sees, from one plain-text service; ValueError when the answer is not a public IP."""
-    request = urllib.request.Request(url, headers={"User-Agent": "NetProbe-Enhanced"})
+    """(address, ISP name or None) the internet sees, from one service; ValueError when the answer is unusable."""
+    host = urlsplit(url).hostname
+    request = urllib.request.Request(url, headers={"User-Agent": "NetProbe-Enhanced", "Accept": "application/json, text/plain"})
     with urllib.request.urlopen(request, timeout=timeout) as response:
-        text = response.read(256).decode("ascii", "replace").strip()
+        text = response.read(16384).decode("utf-8", "replace").strip()
+    isp = None
+    if text.startswith("{"):
+        try:
+            payload = json.loads(text)
+        except ValueError:
+            raise ValueError("%s did not answer with valid JSON" % host) from None
+        if not isinstance(payload, dict) or payload.get("success") is not True:
+            raise ValueError("%s reported a failed lookup" % host)
+        text = str(payload.get("ip") or "")
+        connection = payload.get("connection") if isinstance(payload.get("connection"), dict) else {}
+        name = connection.get("isp") or connection.get("org")
+        if isinstance(name, str):
+            isp = " ".join(CONTROL_CHARS.sub(" ", name).split())[:120] or None
     try:
         address = ipaddress.ip_address(text)
     except ValueError:
-        raise ValueError("%s did not answer with an IP address" % urlsplit(url).hostname) from None
+        raise ValueError("%s did not answer with an IP address" % host) from None
     if not address.is_global:
-        raise ValueError("%s answered with a non-public address" % urlsplit(url).hostname)
-    return str(address)
+        raise ValueError("%s answered with a non-public address" % host)
+    return str(address), isp
 
 
 def fast_targets(page=FAST_PAGE, api=FAST_API, count=FAST_SERVERS):
@@ -511,7 +526,7 @@ class Extension:
         return self.effective_prefs()["speedtest_service"]
 
     def public_ip(self):
-        """The internet-facing address, or {enabled: False} without any network access while the option is off."""
+        """The internet-facing address and ISP, or {enabled: False} without any network access while the option is off."""
         if not self.effective_prefs()["show_public_ip"]:
             self.ip_cache = None
             return dict(enabled=False)
@@ -523,13 +538,14 @@ class Extension:
             failures = []
             for url in PUBLIC_IP_SOURCES:
                 try:
-                    result = dict(ip=self.ip_fetch(url), source=urlsplit(url).hostname, checked_at=int(now), error=None)
+                    address, isp = self.ip_fetch(url)
+                    result = dict(ip=address, isp=isp, source=urlsplit(url).hostname, checked_at=int(now), error=None)
                     break
                 except Exception as exc:
                     failures.append("%s: %s" % (urlsplit(url).hostname, str(exc) or type(exc).__name__))
             else:
                 logger.warning("Public IP lookup failed: %s", "; ".join(failures))
-                result = dict(ip=None, source=None, checked_at=int(now), error="; ".join(failures)[:300])
+                result = dict(ip=None, isp=None, source=None, checked_at=int(now), error="; ".join(failures)[:300])
             self.ip_cache = result
             return dict(result, enabled=True)
 

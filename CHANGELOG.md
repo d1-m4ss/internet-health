@@ -8,10 +8,12 @@ The project is called **NetProbe Enhanced** (container, image, file and table na
 - Times in Speedtest messages use the schedule's time zone (`APP_TIMEZONE`) even when the process runs in another one.
 - The external-IP lookup runs beside the dashboard refresh instead of inside it: a slow or unreachable lookup service
   can no longer delay the data on screen.
-- **External (public) IP on request** (setting *Show my external IP*, off by default): the header tag and, in the
-  UniFi style, a row in the *Internet* card. Nothing is requested while the setting is off; with it on the
-  container asks `api.ipify.org` (fallbacks `icanhazip.com`, `ifconfig.me`) at most every 5 minutes, accepts only
-  public IP addresses and shows lookup failures plainly (`GET /api/public-ip`).
+- **WAN / ISP card with the external IP on request** (setting *Show my external IP and provider*, off by default): a
+  card under the status banner with the address the internet sees and the provider's name (the layout follows the
+  proposal in PR 1). Nothing is requested while the setting is off; with it on the container asks `ipwho.is`
+  (fallbacks `api.ipify.org`, `icanhazip.com`, which give the address only) at most every 5 minutes, accepts only
+  public IP addresses and shows lookup failures plainly (`GET /api/public-ip`). An unknown provider reads *not
+  reported*.
 - **Speedtest schedule and notifications** (*Speedtest* tab → *Schedule and notifications*): automatic tests off, every
   N hours, or every day at up to four times in `APP_TIMEZONE` (a missed daily test still runs within two hours),
   with an optional Unraid message after every automatic test (`normal`) or failure (`warning`, with the reason).

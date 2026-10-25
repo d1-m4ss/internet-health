@@ -33,7 +33,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
             if (request.method() === 'POST') {
               if (api.prefsFail) return route.fulfill({status: 500, json: {error: 'disk full'}});
               Object.assign(api.prefs, body);
-              if ('show_public_ip' in body) api.publicIp = body.show_public_ip ? {enabled: true, ip: '198.51.100.7', source: 'api.ipify.org', checked_at: now, error: null} : {enabled: false};
+              if ('show_public_ip' in body) api.publicIp = body.show_public_ip ? {enabled: true, ip: '198.51.100.7', isp: 'Example Net', source: 'ipwho.is', checked_at: now, error: null} : {enabled: false};
             }
             return route.fulfill({json: {prefs: api.prefs, schedule: {next_ts: api.prefs.speedtest_schedule === 'daily' ? now + 7200 : null, timezone: 'Europe/Bucharest'}}});
           case '/api/public-ip': if (api.publicIpDelay) await new Promise(r => setTimeout(r, api.publicIpDelay)); return route.fulfill({json: api.publicIp});
@@ -199,33 +199,41 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       await page.close();
     }
 
-    // --- public IP: opt-in checkbox, tag in the header, row in the UniFi internet card ---
+    // --- external IP: opt-in checkbox and the WAN / ISP card (both styles) ---
     {
       const {page, errors} = await open('unifi', 'en');
-      const tag = page.locator('#ipTag'), box = page.locator('#show_public_ip');
+      const card = page.locator('#wanCard'), box = page.locator('#show_public_ip');
       await page.locator('#unifiTabs [data-tab="settings"]').click();
-      assert.equal(await tag.isVisible(), false, 'nothing shown while the option is off');
+      assert.equal(await card.isVisible(), false, 'no card while the option is off');
       assert.equal(await box.isChecked(), false);
       assert.equal(await box.isEnabled(), true);
-      assert.match(await page.locator('.pref-row').textContent(), /api\.ipify\.org.*nothing is sent anywhere/);
-      assert.doesNotMatch(await page.locator('#netKv').textContent(), /External IP/);
+      assert.match(await page.locator('.pref-row').textContent(), /ipwho\.is.*nothing is sent anywhere/);
       await box.check();
-      await page.waitForFunction(() => document.getElementById('ipTag').textContent === 'External IP: 198.51.100.7');
+      await page.waitForFunction(() => document.getElementById('wanIp').textContent === '198.51.100.7');
       assert.deepEqual(api.calls.filter(c => c.path === '/api/prefs' && c.method === 'POST').pop().body, {show_public_ip: true});
-      assert.match(await tag.getAttribute('title'), /Source: api\.ipify\.org/);
-      assert.match(await page.locator('#netKv').textContent(), /External IP198\.51\.100\.7/);
-      assert.equal(await tag.isVisible(), true);
-      // the address is data, not markup
-      api.publicIp = {enabled: true, ip: '<img src=x onerror=window.__xss=1>', source: 'api.ipify.org', checked_at: now, error: null};
+      assert.equal(await page.locator('#wanIsp').textContent(), 'Example Net');
+      assert.match(await page.locator('#wanMeta').textContent(), /Checked .+ · source ipwho\.is · refreshed every 5 minutes/);
+      assert.equal(await page.locator('#wanCard strong').textContent(), 'WAN / ISP');
+      assert.equal(await card.isVisible(), true);
+      // the card sits between the status banner and the path card, full width of the content column
+      const [status, wan, path] = await Promise.all(['.main-status', '#wanCard', '#pathCard'].map(sel => page.locator(sel).boundingBox()));
+      assert(status.y + status.height <= wan.y + 1 && wan.y + wan.height <= path.y + 1, 'order: status, WAN card, path');
+      assert(Math.abs(wan.x - status.x) < 2 && Math.abs(wan.width - status.width) < 2, 'same width as the status banner');
+      // unknown provider is said, not invented
+      api.publicIp = {enabled: true, ip: '198.51.100.7', isp: null, source: 'api.ipify.org', checked_at: now, error: null};
       await page.locator('#refreshBtn').click();
-      await page.waitForFunction(() => document.getElementById('ipTag').textContent.includes('<img'));
-      assert.equal(await page.locator('#ipTag img, #netKv img').count(), 0);
+      await page.waitForFunction(() => document.getElementById('wanIsp').textContent === 'not reported');
+      // the values are data, not markup
+      api.publicIp = {enabled: true, ip: '<img src=x onerror=window.__xss=1>', isp: '<b onmouseover=window.__xss=2>ISP</b>', source: 'ipwho.is', checked_at: now, error: null};
+      await page.locator('#refreshBtn').click();
+      await page.waitForFunction(() => document.getElementById('wanIp').textContent.includes('<img'));
+      assert.equal(await page.locator('#wanCard img, #wanCard b').count(), 0);
       assert.equal(await page.evaluate(() => window.__xss), undefined);
       // lookup failure is stated plainly
-      api.publicIp = {enabled: true, ip: null, source: null, checked_at: now, error: 'api.ipify.org: timed out'};
+      api.publicIp = {enabled: true, ip: null, isp: null, source: null, checked_at: now, error: 'ipwho.is: timed out'};
       await page.locator('#refreshBtn').click();
-      await page.waitForFunction(() => document.getElementById('ipTag').textContent === 'External IP: unknown');
-      assert.match(await tag.getAttribute('title'), /timed out/);
+      await page.waitForFunction(() => /could not be determined: ipwho\.is: timed out/.test(document.getElementById('wanMeta').textContent));
+      assert.equal(await page.locator('#wanIp').textContent(), '—');
       // failed save: the box returns to what is stored
       api.prefsFail = true;
       await box.uncheck();
@@ -233,34 +241,47 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       assert.equal(await box.isChecked(), true);
       api.prefsFail = false;
       await box.uncheck();
-      await page.waitForFunction(() => document.getElementById('ipTag').hidden);
+      await page.waitForFunction(() => document.getElementById('wanCard').hidden);
       assert.deepEqual(api.calls.filter(c => c.path === '/api/prefs' && c.method === 'POST').pop().body, {show_public_ip: false});
-      assert.doesNotMatch(await page.locator('#netKv').textContent(), /External IP/);
       assert.deepEqual(errors, []);
       await page.close();
     }
-    {
-      api.prefs.show_public_ip = true; api.publicIp = {enabled: true, ip: '198.51.100.7', source: 'api.ipify.org', checked_at: now, error: null};
-      const {page, errors} = await open('netprobe', 'ru');
-      await page.waitForFunction(() => document.getElementById('ipTag').textContent === 'Внешний IP: 198.51.100.7');
+    for (const [style, lang] of [['netprobe', 'ru'], ['unifi', 'ru']]) {
+      api.prefs.show_public_ip = true; api.publicIp = {enabled: true, ip: '198.51.100.7', isp: 'Example Net', source: 'ipwho.is', checked_at: now, error: null};
+      const {page, errors} = await open(style, lang);
+      await page.waitForFunction(() => document.getElementById('wanIp').textContent === '198.51.100.7');
       assert.equal(await page.locator('#show_public_ip').isChecked(), true, 'the saved choice survives a reload');
+      assert.equal(await page.locator('#wanCard strong').textContent(), 'WAN / провайдер');
+      assert.deepEqual(await page.locator('.wan-label').allTextContents(), ['Внешний IP', 'Провайдер']);
+      assert.match(await page.locator('#wanMeta').textContent(), /Проверено .+ · источник ipwho\.is/);
       assert.match(await page.locator('.pref-row').textContent(), /Пока галка снята, наружу ничего не отправляется/);
-      const box = await page.locator('#ipTag').boundingBox();
-      assert(box && box.x >= 0 && box.x + box.width <= 1280, 'the tag fits the header');
+      const box = await page.locator('#wanCard').boundingBox();
+      assert(box && box.x >= 0 && box.x + box.width <= 1280, 'the card fits the screen');
       assert.deepEqual(errors, []);
+      api.prefs.show_public_ip = false; api.publicIp = {enabled: false};
+      await page.close();
+    }
+    {
+      // phone width: the two values stack and nothing overflows
+      api.prefs.show_public_ip = true; api.publicIp = {enabled: true, ip: '2606:4700:4700:0000:0000:0000:0000:1111', isp: 'A Very Long Internet Provider Name Incorporated', source: 'ipwho.is', checked_at: now, error: null};
+      const {page} = await open('unifi', 'en');
+      await page.setViewportSize({width: 390, height: 844});
+      await page.waitForFunction(() => document.getElementById('wanIp').textContent.startsWith('2606'));
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, 'no horizontal overflow with a long IPv6 address');
+      const [ip, isp] = await Promise.all(['#wanIp', '#wanIsp'].map(sel => page.locator(sel).boundingBox()));
+      assert(isp.y > ip.y, 'stacked on a phone');
       api.prefs.show_public_ip = false; api.publicIp = {enabled: false};
       await page.close();
     }
 
     // --- a slow lookup service never delays the dashboard ---
     {
-      api.prefs.show_public_ip = true; api.publicIp = {enabled: true, ip: '198.51.100.7', source: 'api.ipify.org', checked_at: now, error: null}; api.publicIpDelay = 4000;
+      api.prefs.show_public_ip = true; api.publicIp = {enabled: true, ip: '198.51.100.7', isp: 'Example Net', source: 'ipwho.is', checked_at: now, error: null}; api.publicIpDelay = 4000;
       const started = Date.now();
       const {page, errors} = await open();
       await page.waitForFunction(() => document.getElementById('scoreValue').textContent === '90.0' && !document.getElementById('refreshBtn').disabled);
       assert(Date.now() - started < 3000, 'data is on screen and refresh is usable long before the 4 s lookup answers (' + (Date.now() - started) + ' ms)');
-      assert.equal(await page.locator('#ipTag').isVisible(), false, 'the tag waits for its own answer');
-      await page.waitForFunction(() => document.getElementById('ipTag').textContent === 'External IP: 198.51.100.7', null, {timeout: 8000});
+      await page.waitForFunction(() => document.getElementById('wanIp').textContent === '198.51.100.7', null, {timeout: 8000});
       assert.deepEqual(errors, []);
       api.prefs.show_public_ip = false; api.publicIp = {enabled: false}; api.publicIpDelay = 0;
       await page.close();
@@ -277,7 +298,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       assert.deepEqual(errors, []);
       await page.close();
     }
-    console.log('PASS: public IP checkbox, tag and UniFi row (escaped, failure, failed save, RU), schedule form (container/off/N hours/daily times, validation, notify switch, next test, saved state after reload, RU texts), speedtest service list (Speedtest.net / Ookla CLI / Fast.com) with explanations, saved choice, form adapts to fast.com, unknown upload shown as a dash, failed save reverted, works without the preferences API');
+    console.log('PASS: external IP checkbox and WAN / ISP card in both styles (provider, unknown provider, escaped, failure, failed save, RU, phone width), schedule form (container/off/N hours/daily times, validation, notify switch, next test, saved state after reload, RU texts), speedtest service list (Speedtest.net / Ookla CLI / Fast.com) with explanations, saved choice, form adapts to fast.com, unknown upload shown as a dash, failed save reverted, works without the preferences API');
   } finally {
     await browser.close();
   }

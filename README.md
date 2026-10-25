@@ -35,9 +35,11 @@ bind-mounted read-only over it. Removing the mounts brings the stock NetProbe ba
 - **Scheduled Speedtest with a notification.** In the *Speedtest* tab: off, every N hours, or every day at set times
   (for example 03:00); optionally one Unraid message with the result (or the reason it failed) after every automatic
   test. Without changes the container variables `SPEEDTEST_ENABLED` / `SPEEDTEST_INTERVAL` keep deciding.
-- **Your external IP, on request.** Tick *Show my external (public) IP* in the settings and the header (and the
-  UniFi *Internet* card) shows the address the internet sees. Off by default: nothing is requested until you tick it;
-  then the container asks `api.ipify.org` (fallbacks `icanhazip.com`, `ifconfig.me`) at most once every 5 minutes.
+- **A *WAN / ISP* card with your external IP, on request.** Tick *Show my external IP and provider* in the settings
+  and a card under the status banner shows the address the internet sees and your provider's name. Off by default:
+  nothing is requested until you tick it; then the container asks `ipwho.is` (fallbacks `api.ipify.org`,
+  `icanhazip.com`, which know the address only) at most once every 5 minutes. The service sees the address the
+  request comes from.
 - **Packet-loss report for any period** — summary, per-target table and a list of loss episodes; click an
   episode to zoom the chart onto it. Periods from 1 minute to a month, or a custom *from–to* window.
 - **Compare mode** — several metrics and several targets (for example all DNS servers) on one chart, with a
@@ -51,7 +53,7 @@ bind-mounted read-only over it. Removing the mounts brings the stock NetProbe ba
   file: no CDN, no external fonts, works offline on your LAN.
 - **Safe by construction:** NetProbe Enhanced sends nothing anywhere except through Unraid's own `notify`. The only
   outbound requests are the ones you ask for: the Speedtest you run or schedule (speedtest.net, Ookla or fast.com
-  / Netflix servers, depending on the chosen service) and, only with the checkbox ticked, the public-IP lookup. The
+  / Netflix servers, depending on the chosen service) and, only with the checkbox ticked, the public-IP / ISP lookup. The
   container gets no extra privileges, no Docker socket and no host mounts besides the three read-only files.
 
 ![Compare several DNS servers](docs/screenshots/compare-dns.png)

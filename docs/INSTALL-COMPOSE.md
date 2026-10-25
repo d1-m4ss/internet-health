@@ -139,8 +139,9 @@ All of this is set in the web UI and needs no restart (stored in `$D/netprobe-pr
   with the result after every automatic test (a failed test sends a warning with the reason). Leaving *As set in the
   container* keeps the old behaviour: `SPEEDTEST_ENABLED` / `SPEEDTEST_INTERVAL` decide, and with
   `SPEEDTEST_ENABLED: "false"` nothing runs by itself.
-- Settings → **Show my external (public) IP**: off by default; when ticked, the container asks `api.ipify.org` for
-  your address (at most every 5 minutes) and shows it in the header.
+- Settings → **Show my external IP and provider**: off by default; when ticked, the container asks `ipwho.is` for
+  your address and provider name (at most every 5 minutes) and shows them in the *WAN / ISP* card under the status
+  banner.
 
 ## 7. Tuning later (all in the data folder)
 

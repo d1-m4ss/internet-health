@@ -147,8 +147,14 @@
     .form-line { display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:12px }
     .form-line label { display:grid;gap:5px;font-size:11px;color:#92a6b3 }
     .form-line label[hidden] { display:none }
-    .tag[hidden] { display:none!important }
-    .ip-tag,html[data-style="unifi"] .ip-tag { background:var(--btn-bg);border-color:var(--btn-line);color:var(--text);font-variant-numeric:tabular-nums;white-space:normal;overflow-wrap:anywhere } html[data-style="unifi"] .ip-tag::before { display:none }
+    .top-stack { display:contents }
+    .wan-card[hidden] { display:none }
+    .wan-card { margin-bottom:17px }
+    .wan-grid { display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px 24px;margin-top:10px }
+    .wan-label { font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute) }
+    .wan-val { font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;line-height:1.25 }
+    .wan-meta { margin-top:10px;font-size:12px;color:var(--mute);overflow-wrap:anywhere }
+    @media(max-width:560px) { .wan-grid { grid-template-columns:minmax(0,1fr) } .wan-val { font-size:19px } }
     .form-line input,.form-line select { min-width:0;width:100%;padding:9px;border-radius:8px;border:1px solid var(--input-line);color:var(--text);background:var(--input-bg) }
     .check { display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);margin-top:10px }
     .check input { accent-color:#3bb59f }
@@ -303,7 +309,8 @@
     html[data-style="unifi"] .wordmark { display:block;position:absolute;left:50%;transform:translateX(-50%);font-weight:750;letter-spacing:.5px;color:var(--mute);opacity:.55;pointer-events:none }
     @media(max-width:1599px) { html[data-style="unifi"] .wordmark { display:none } }
     html[data-style="unifi"] .unifi-left { grid-area:left;display:grid;gap:12px;align-content:start;align-self:start;position:sticky;top:12px }
-    html[data-style="unifi"] .main-status { grid-area:status;margin:0 }
+    html[data-style="unifi"] .top-stack { grid-area:status;display:grid;gap:12px }
+    html[data-style="unifi"] .main-status,html[data-style="unifi"] .wan-card { margin:0 }
     html[data-style="unifi"] #pathCard { grid-area:path;margin:0 }
     html[data-style="unifi"] .metrics { display:none }
     html[data-style="unifi"] #diagnostics { grid-area:chart }
@@ -443,7 +450,7 @@
       <div class="head-actions">
         <label class="pick"><span data-i18n="ctl.language">Язык</span><select id="langSelect"><option value="ru">Русский</option><option value="en">English</option></select></label>
         <label class="pick"><span data-i18n="ctl.style">Стиль</span><select id="styleSelect"><option value="netprobe">NetProbe</option><option value="unifi">UniFi</option></select></label>
-        <span class="tag ip-tag" id="ipTag" hidden></span><span class="tag" id="sourceTag">…</span><button class="btn" id="refreshBtn" data-i18n="head.refresh">Обновить данные</button>
+        <span class="tag" id="sourceTag">…</span><button class="btn" id="refreshBtn" data-i18n="head.refresh">Обновить данные</button>
       </div>
     </header>
     <div class="unifi-left unifi-only" id="unifiLeft">
@@ -462,10 +469,17 @@
         <div class="thr-chips" id="thrChips"></div>
       </section>
     </div>
+    <div class="top-stack">
     <section class="main-status">
       <div class="status-left"><span id="statusDot" class="status-dot offline"></span><div><div id="statusName" class="status-text">…</div><div class="status-sub" id="statusDescription"></div></div></div>
       <div class="status-right"><span data-i18n="status.last">Последний замер</span><strong id="updatedAt">—</strong><span class="turbo-chip" id="turboChip" hidden data-i18n-attr="title:turbo.chipTitle">⚡ Turbo</span></div>
     </section>
+    <section class="card wan-card" id="wanCard" hidden data-i18n-attr="aria-label:wan.title">
+      <div class="card-row"><strong data-i18n="wan.title">WAN / провайдер</strong></div>
+      <div class="wan-grid"><div><div class="wan-label" data-i18n="wan.ip">Внешний IP</div><div class="wan-val" id="wanIp">—</div></div><div><div class="wan-label" data-i18n="wan.isp">Провайдер</div><div class="wan-val" id="wanIsp">—</div></div></div>
+      <div class="sub wan-meta" id="wanMeta"></div>
+    </section>
+    </div>
     <section class="card path" id="pathCard" data-i18n-attr="aria-label:path.title">
       <div class="path-head"><h2 data-i18n="path.title">Путь до интернета</h2><span class="card-sub" id="pathNote"></span></div>
       <div class="path-row">
@@ -610,7 +624,7 @@
       'sched.container':'Как задано в контейнере: {state}','sched.cEvery':'каждые {h} ч','sched.cOff':'выключено','sched.noteContainer':'Расписание задают переменные контейнера SPEEDTEST_ENABLED и SPEEDTEST_INTERVAL ({state}). Выберите другой вариант, чтобы управлять им здесь.','sched.noteOff':'Автоматические тесты выключены; ручной запуск работает.','sched.noteNext':'Следующий тест: {when} · часовой пояс {tz}','sched.noteApply':'Сохраните, чтобы применить расписание.',
       'sched.invalidInterval':'Интервал — целое число часов от 1 до 168.','sched.invalidTimes':'Время — от 1 до 4 разных значений ЧЧ:ММ, например 03:00, 15:30.','sched.saving':'Сохранение…','sched.saved':'Расписание сохранено.','sched.notSaved':'Не сохранено: {e}','sched.unavailable':'Настройки расписания сейчас недоступны.',
       'set.title':'Пороги уведомлений','set.note':'Изменение подтверждается последовательными замерами. Короткий сбой между пробами может остаться незамеченным.','set.enabled':'Уведомления включены','set.loss':'Потеря пакетов, %','set.jitter':'Джиттер, ms','set.confirm':'Замеров для тревоги','set.recovery':'Замеров для восстановления','set.save':'Сохранить',
-      'ip.label':'Показывать мой внешний (публичный) IP','ip.note':'Включает запрос к api.ipify.org (запасные: icanhazip.com, ifconfig.me) из контейнера не чаще раза в 5 минут. Пока галка снята, наружу ничего не отправляется.','ip.tag':'Внешний IP: {ip}','ip.tagWait':'Внешний IP: определяется…','ip.tagFail':'Внешний IP: не определён','ip.title':'Источник: {source} · проверено {when}','ip.failTitle':'Не удалось получить адрес: {e}','ip.saveFail':'Не удалось сохранить: {e}','kv.publicIp':'Внешний IP',
+      'ip.label':'Показывать мой внешний IP и провайдера (карточка WAN / провайдер)','ip.note':'Включает запрос к ipwho.is (запасные: api.ipify.org, icanhazip.com) из контейнера не чаще раза в 5 минут; сервис видит адрес, с которого идёт запрос. Пока галка снята, наружу ничего не отправляется.','wan.title':'WAN / провайдер','wan.ip':'Внешний IP','wan.isp':'Провайдер','wan.pending':'Определяется…','wan.unknown':'не указан','wan.meta':'Проверено {when} · источник {source} · обновляется раз в 5 минут','wan.fail':'Не удалось определить адрес: {e}','ip.saveFail':'Не удалось сохранить: {e}',
       'set.turbo':'⚡ Turbo-режим: ловить короткие обрывы','turbo.about':'Что такое Turbo-режим','turbo.chipTitle':'Turbo-режим включён: обрывы от ~10 с',
       'turbo.title':'⚡ Turbo-режим','turbo.unavailable':'Turbo недоступен: среди SITES и DNS-серверов нет публичного IP-адреса. Добавьте, например, 1.1.1.1 в SITES.','turbo.close':'Закрыть',
       'turbo.what':'Что делает: каждые 5 секунд отправляет один ping роутеру и двум IP-адресам в интернете (IP-цели из SITES или публичные DNS-серверы) — независимо от обычного цикла проверок.',
@@ -670,7 +684,7 @@
       'sched.title':'Schedule and notifications','sched.mode':'Automatic tests','sched.off':'Off','sched.interval':'Every N hours','sched.daily':'Every day at set times','sched.every':'Every, hours (1–168)','sched.times':'Times, up to 4 (comma separated)','sched.notify':'Send an Unraid notification after every automatic test (and when one fails)',
       'sched.container':'As set in the container: {state}','sched.cEvery':'every {h} h','sched.cOff':'off','sched.noteContainer':'The schedule comes from the container variables SPEEDTEST_ENABLED and SPEEDTEST_INTERVAL ({state}). Pick another option to manage it here.','sched.noteOff':'Automatic tests are off; manual runs still work.','sched.noteNext':'Next test: {when} · time zone {tz}','sched.noteApply':'Save to apply the schedule.',
       'sched.invalidInterval':'The interval is a whole number of hours from 1 to 168.','sched.invalidTimes':'Times are 1 to 4 different HH:MM values, for example 03:00, 15:30.','sched.saving':'Saving…','sched.saved':'Schedule saved.','sched.notSaved':'Not saved: {e}','sched.unavailable':'Schedule settings are unavailable right now.',
-      'ip.label':'Show my external (public) IP','ip.note':'Makes the container ask api.ipify.org (fallbacks: icanhazip.com, ifconfig.me) at most once every 5 minutes. While the box is unticked nothing is sent anywhere.','ip.tag':'External IP: {ip}','ip.tagWait':'External IP: looking up…','ip.tagFail':'External IP: unknown','ip.title':'Source: {source} · checked {when}','ip.failTitle':'The address could not be determined: {e}','ip.saveFail':'Could not save: {e}','kv.publicIp':'External IP',
+      'ip.label':'Show my external IP and provider (WAN / ISP card)','ip.note':'Makes the container ask ipwho.is (fallbacks: api.ipify.org, icanhazip.com) at most once every 5 minutes; the service sees the address the request comes from. While the box is unticked nothing is sent anywhere.','wan.title':'WAN / ISP','wan.ip':'Public IP','wan.isp':'ISP','wan.pending':'Looking up…','wan.unknown':'not reported','wan.meta':'Checked {when} · source {source} · refreshed every 5 minutes','wan.fail':'The address could not be determined: {e}','ip.saveFail':'Could not save: {e}',
       'set.title':'Notification thresholds','set.note':'A change is confirmed by consecutive samples. A short glitch between probes may go unnoticed.','set.enabled':'Notifications enabled','set.loss':'Packet loss, %','set.jitter':'Jitter, ms','set.confirm':'Samples to raise an alert','set.recovery':'Samples to recover','set.save':'Save',
       'set.turbo':'⚡ Turbo mode: catch short outages','turbo.about':'What is Turbo mode','turbo.chipTitle':'Turbo mode is on: outages from ~10 s',
       'turbo.title':'⚡ Turbo mode','turbo.unavailable':'Turbo is unavailable: SITES and the DNS servers contain no public IP address. Add, for example, 1.1.1.1 to SITES.','turbo.close':'Close',
@@ -1018,7 +1032,7 @@
     // internet card
     const okHosts = net.filter(x => fresh(x) && x.state === 'OK').length, rtts = net.map(rtt).filter(numeric), avg = rtts.length ? rtts.reduce((a, b) => a + b, 0) / rtts.length : null;
     const sp = state.speed;
-    $('netKv').innerHTML = kvHtml([[t('kv.score'), numeric(state.latest?.score) ? state.latest.score.toFixed(1) + ' / 100' : '—'], [t('kv.hosts'), net.length ? `${okHosts} / ${net.length}` : '—'], [t('kv.avgRtt'), ms(avg)], [t('kv.loss'), numeric(state.latest?.avg_loss_pct) ? state.latest.avg_loss_pct.toFixed(1) + ' %' : '—'], [t('kv.speed'), sp ? `↓ ${fmt(sp.download_mbps, 0)}  ↑ ${fmt(sp.upload_mbps, 0)} Mbps` : '—'], ...(state.publicIp?.enabled ? [[t('kv.publicIp'), state.publicIp.ip || '—']] : [])]);
+    $('netKv').innerHTML = kvHtml([[t('kv.score'), numeric(state.latest?.score) ? state.latest.score.toFixed(1) + ' / 100' : '—'], [t('kv.hosts'), net.length ? `${okHosts} / ${net.length}` : '—'], [t('kv.avgRtt'), ms(avg)], [t('kv.loss'), numeric(state.latest?.avg_loss_pct) ? state.latest.avg_loss_pct.toFixed(1) + ' %' : '—'], [t('kv.speed'), sp ? `↓ ${fmt(sp.download_mbps, 0)}  ↑ ${fmt(sp.upload_mbps, 0)} Mbps` : '—']]);
     const sites = net.filter(x => !/^[\d.:]+$/.test(x.target)).concat(net.filter(x => /^[\d.:]+$/.test(x.target))).slice(0, 3);
     $('miniRow').innerHTML = sites.map(x => `<div class="mini" data-s="${sevOf(fresh(x) ? x.state : 'UNKNOWN')}"><span class="mini-ms">${escape(numeric(rtt(x)) ? rtt(x).toFixed(0) + ' ms' : '—')}</span><span class="mini-label">${escape(x.target)}</span></div>`).join('');
     // thresholds summary
@@ -1157,16 +1171,17 @@
   }
   async function loadPublicIp() {
     try { state.publicIp = await api('/api/public-ip'); } catch (e) { state.publicIp = null; }
-    renderPublicIp(); renderUnifi();
+    renderPublicIp();
   }
   function renderPublicIp() {
-    const r = state.publicIp, tag = $('ipTag');
+    const r = state.publicIp, card = $('wanCard');
     $('show_public_ip').disabled = !state.prefs;
     if (state.prefs) $('show_public_ip').checked = state.prefs.show_public_ip === true;
-    tag.hidden = !r || r.enabled !== true;
-    if (tag.hidden) return;
-    tag.textContent = r.pending ? t('ip.tagWait') : r.ip ? t('ip.tag', {ip: r.ip}) : t('ip.tagFail');
-    tag.title = r.ip ? t('ip.title', {source: r.source, when: () => when(r.checked_at)}) : r.pending ? '' : t('ip.failTitle', {e: r.error || '—'});
+    card.hidden = !r || r.enabled !== true;
+    if (card.hidden) return;
+    $('wanIp').textContent = r.pending ? t('wan.pending') : r.ip || '—';
+    $('wanIsp').textContent = r.pending ? '' : r.ip ? r.isp || t('wan.unknown') : '—';
+    $('wanMeta').textContent = r.pending ? '' : r.ip ? t('wan.meta', {when: () => when(r.checked_at), source: r.source}) : t('wan.fail', {e: r.error || '—'});
   }
   async function savePublicIp() {
     const on = $('show_public_ip').checked;
@@ -1175,7 +1190,7 @@
       const result = await api('/api/prefs', {method:'POST', headers:{'Content-Type':'application/json', 'X-NetProbe-Request':'settings'}, body:JSON.stringify({show_public_ip:on})});
       state.prefs = result.prefs; say('ipMessage', null);
       state.publicIp = on ? {enabled: true, pending: true} : {enabled: false};
-      renderPublicIp(); renderUnifi(); loadPublicIp();
+      renderPublicIp(); loadPublicIp();
     } catch (e) { $('show_public_ip').checked = !on; say('ipMessage', 'ip.saveFail', {e: errorText(e)}); }
     finally { renderPublicIp(); }
   }
