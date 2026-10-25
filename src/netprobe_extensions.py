@@ -4,6 +4,7 @@ import csv
 from contextlib import contextmanager
 from datetime import datetime, timezone
 import hmac
+import http.client
 import io
 import ipaddress
 import json
@@ -14,11 +15,14 @@ import re
 from pathlib import Path
 import secrets
 import sqlite3
+import ssl
+import statistics
 import subprocess
 import tempfile
 import threading
 import time
-from urllib.parse import urlsplit
+import urllib.request
+from urllib.parse import urljoin, urlsplit
 
 
 DEFAULTS = dict(enabled=True, loss_pct=10.0, latency_ms=150.0,
@@ -50,6 +54,22 @@ TURBO_LOOKBACK = 120  # a regular alert stamped up to this long before the outag
 TURBO_EXPIRE = 3600   # a recovered outage not decided within an hour (turbo off, no watcher) is never sent
 TURBO_OUTAGES = 100   # outages returned by /api/loss
 TURBO_ICON = "⚡"
+# Speedtest service: "" keeps what the container variable SPEEDTEST_BACKEND says. python = speedtest.net servers
+# through speedtest-cli, ookla = the official Ookla CLI (a binary the user installs), fast = fast.com (Netflix).
+SPEEDTEST_SERVICES = ("", "python", "ookla", "fast")
+PREFS_DEFAULTS = dict(speedtest_service="")
+# fast.com client: the same public endpoints the fast.com page uses, no account or key.
+FAST_PAGE = "https://fast.com/"
+FAST_API = "https://api.fast.com/netflix/speedtest/v2"
+FAST_SERVERS = 5         # closest Netflix servers used for the test
+FAST_DOWN_CONNECTIONS = 8  # one connection is limited by latency and slow start; fast.com itself opens many
+FAST_UP_CONNECTIONS = 4
+FAST_DOWN_SECONDS = 8    # measured window per direction (the first FAST_WARMUP seconds are ramp-up and not counted)
+FAST_UP_SECONDS = 8
+FAST_WARMUP = 2
+FAST_CHUNK = 25_000_000  # bytes asked per download request (fast.com uses up to 26 MB)
+FAST_UPLOAD_BODY = 1_000_000
+FAST_TIMEOUT = 12
 logger = logging.getLogger(__name__)
 CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f\\]+")  # also drops backslashes: Unraid agents expand \\n escapes
 NEWLINE = "\\n"  # Unraid email/Telegram agents split the message on the two characters backslash + n
@@ -88,6 +108,170 @@ def ping_address(host, output):
     return candidate
 
 
+class FastTestError(RuntimeError):
+    """A fast.com measurement could not be completed; the message is shown in the UI."""
+
+
+def _fast_get(url, timeout=FAST_TIMEOUT, limit=4_000_000):
+    request = urllib.request.Request(url, headers={"User-Agent": "NetProbe-Enhanced"})
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return response.read(limit).decode("utf-8", "replace")
+
+
+def fast_targets(page=FAST_PAGE, api=FAST_API, count=FAST_SERVERS):
+    """(client info, [target urls with their locations]) from fast.com's own API."""
+    try:
+        html = _fast_get(page)
+        script = re.search(r'src="(/?app-[\w.-]+\.js)"', html)
+        if not script:
+            raise FastTestError("fast.com page layout changed: no application script found")
+        token = re.search(r'token:"([A-Za-z0-9=_-]{8,})"', _fast_get(urljoin(page, script.group(1))))
+        if not token:
+            raise FastTestError("fast.com page layout changed: no API token found")
+        data = json.loads(_fast_get("%s?https=true&token=%s&urlCount=%d" % (api, token.group(1), count)))
+    except FastTestError:
+        raise
+    except (OSError, ValueError, http.client.HTTPException) as exc:
+        raise FastTestError("fast.com is not reachable: %s" % (str(exc) or type(exc).__name__)) from exc
+    targets = [t for t in (data.get("targets") or []) if isinstance(t, dict) and isinstance(t.get("url"), str)
+               and urlsplit(t["url"]).scheme in ("http", "https") and urlsplit(t["url"]).hostname]
+    if not targets:
+        raise FastTestError("fast.com returned no test servers")
+    return (data.get("client") if isinstance(data.get("client"), dict) else {}), targets[:count]
+
+
+def _fast_connect(url):
+    parts = urlsplit(url)
+    if parts.scheme == "https":
+        return http.client.HTTPSConnection(parts.hostname, parts.port, timeout=FAST_TIMEOUT, context=ssl.create_default_context())
+    return http.client.HTTPConnection(parts.hostname, parts.port, timeout=FAST_TIMEOUT)
+
+
+def _fast_path(url, size=None):
+    """Request path of a target; size adds fast.com's "/range/0-<size>" so the server sends that many bytes."""
+    parts = urlsplit(url)
+    path = parts.path
+    if size is not None:
+        path = path.replace("/speedtest", "/speedtest/range/0-%d" % size, 1) if "/range/" not in path else path.replace("/range/", "/range/0-%d" % size, 1)
+    return path + ("?" + parts.query if parts.query else "")
+
+
+def fast_latency(url, rounds=6):
+    """Median time in ms of a one-byte request on an open connection (the first, with TLS setup, is dropped)."""
+    conn = _fast_connect(url)
+    times = []
+    try:
+        for _ in range(rounds):
+            start = time.perf_counter()
+            conn.request("GET", _fast_path(url, 0), headers={"User-Agent": "NetProbe-Enhanced"})
+            response = conn.getresponse()
+            response.read()
+            if response.status >= 400:
+                raise FastTestError("fast.com server answered HTTP %d" % response.status)
+            times.append((time.perf_counter() - start) * 1000.0)
+    finally:
+        conn.close()
+    return statistics.median(times[1:] or times), (statistics.pstdev(times[1:]) if len(times) > 2 else None)
+
+
+class _Counter:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.total = 0
+
+    def add(self, n):
+        with self.lock:
+            self.total += n
+
+
+def _fast_run(workers, seconds, warmup, clock=time.monotonic):
+    """Run workers(deadline, counter) in threads; -> Mbit/s counted after the warm-up (decimal, like fast.com)."""
+    counter, errors, start = _Counter(), [], clock()
+    deadline = start + seconds
+
+    def guard(fn):
+        try:
+            fn(deadline, counter)
+        except Exception as exc:  # reported only when nothing was transferred at all
+            errors.append(exc)
+
+    threads = [threading.Thread(target=guard, args=(w,), daemon=True) for w in workers]
+    for thread in threads:
+        thread.start()
+    time.sleep(max(0.0, warmup - (clock() - start)))
+    mark_bytes, mark_time = counter.total, clock()
+    for thread in threads:
+        thread.join(max(0.1, deadline + FAST_TIMEOUT - clock()))
+    end_bytes, end_time = counter.total, min(clock(), deadline)
+    if end_time <= mark_time or end_bytes <= mark_bytes:  # too short for a warm-up: use the whole run
+        mark_bytes, mark_time = 0, start
+    if end_bytes <= mark_bytes:
+        raise FastTestError(("fast.com transfer failed: %s" % errors[0]) if errors else "fast.com transfer failed: no data")
+    return (end_bytes - mark_bytes) * 8 / (end_time - mark_time) / 1e6
+
+
+def fast_download(urls, seconds=FAST_DOWN_SECONDS, warmup=FAST_WARMUP, connections=FAST_DOWN_CONNECTIONS):
+    def worker(url):
+        def run(deadline, counter):
+            while time.monotonic() < deadline:
+                conn = _fast_connect(url)
+                try:
+                    conn.request("GET", _fast_path(url, FAST_CHUNK), headers={"User-Agent": "NetProbe-Enhanced"})
+                    response = conn.getresponse()
+                    if response.status >= 400:
+                        raise FastTestError("fast.com server answered HTTP %d" % response.status)
+                    while time.monotonic() < deadline:
+                        chunk = response.read(65536)
+                        if not chunk:
+                            break
+                        counter.add(len(chunk))
+                finally:
+                    conn.close()
+        return run
+    return _fast_run([worker(urls[i % len(urls)]) for i in range(connections)], seconds, warmup)
+
+
+def fast_upload(urls, seconds=FAST_UP_SECONDS, warmup=FAST_WARMUP, connections=FAST_UP_CONNECTIONS):
+    body = os.urandom(FAST_UPLOAD_BODY)
+
+    def worker(url):
+        def run(deadline, counter):
+            conn = _fast_connect(url)
+            try:
+                while time.monotonic() < deadline:
+                    conn.request("POST", _fast_path(url), body=body, headers={
+                        "User-Agent": "NetProbe-Enhanced", "Content-Type": "application/octet-stream"})
+                    response = conn.getresponse()
+                    response.read()
+                    if response.status >= 400:
+                        raise FastTestError("fast.com server answered HTTP %d" % response.status)
+                    counter.add(len(body))
+            finally:
+                conn.close()
+        return run
+    return _fast_run([worker(urls[i % len(urls)]) for i in range(connections)], seconds, warmup)
+
+
+def run_fast_test(page=FAST_PAGE, api=FAST_API, down_seconds=FAST_DOWN_SECONDS, up_seconds=FAST_UP_SECONDS, warmup=FAST_WARMUP):
+    """One fast.com measurement shaped like the app's other backends (ping, download, upload, server)."""
+    client, targets = fast_targets(page, api)
+    urls = [t["url"] for t in targets]
+    ping, jitter = fast_latency(urls[0])
+    download = fast_download(urls, down_seconds, min(warmup, down_seconds / 2))
+    try:
+        upload = fast_upload(urls, up_seconds, min(warmup, up_seconds / 2))
+    except FastTestError as exc:  # download is still a real result; upload stays unknown
+        logger.warning("fast.com upload failed: %s", exc)
+        upload = None
+    where = targets[0].get("location") if isinstance(targets[0].get("location"), dict) else {}
+    host = urlsplit(urls[0]).hostname
+    return {"ping_ms": ping, "download_mbps": download, "upload_mbps": upload,
+            "server": {"id": None, "name": "Netflix, " + where["city"] if where.get("city") else "Netflix", "host": host,
+                       "country": where.get("country")},
+            "jitter_ms": jitter, "packet_loss_pct": None, "isp": client.get("isp"), "result_url": None,
+            "protocol": "https", "secure": True}
+
+
 class Extension:
     def __init__(self, db_path, data_dir, clock=time.time, roles=None):
         self.db_path = str(db_path)
@@ -98,6 +282,7 @@ class Extension:
         self.lock = threading.RLock()
         self.roles = dict(roles or {})  # target -> (role, display name); roles: gateway|router|site|dns
         self.settings_path = self.data_dir / "alert-settings.json"
+        self.prefs_path = self.data_dir / "netprobe-prefs.json"
         if not self.settings_path.exists():
             self._write_settings(DEFAULTS)
         self.token = self._load_token(self.data_dir / "notify-token")
@@ -191,7 +376,7 @@ class Extension:
         finally:
             conn.close()
 
-    def _write_settings(self, values):
+    def _write_settings(self, values, path=None):
         fd, name = tempfile.mkstemp(prefix=".alert-settings-", dir=self.data_dir)
         try:
             with os.fdopen(fd, "w") as handle:
@@ -199,7 +384,7 @@ class Extension:
                 handle.write("\n")
                 handle.flush()
                 os.fsync(handle.fileno())
-            os.replace(name, self.settings_path)
+            os.replace(name, path or self.settings_path)
         finally:
             if os.path.exists(name):
                 os.unlink(name)
@@ -245,6 +430,43 @@ class Extension:
                 with self.db() as conn:
                     conn.execute("UPDATE np_state SET candidate=active, streak=0")
         return values
+
+    # ---- display and speedtest preferences (separate from the alert thresholds) ----------
+    @staticmethod
+    def validate_prefs(values):
+        if not isinstance(values, dict) or set(values) - set(PREFS_DEFAULTS):
+            raise ValueError("Unknown or invalid preferences")
+        if "speedtest_service" in values and values["speedtest_service"] not in SPEEDTEST_SERVICES:
+            raise ValueError("speedtest_service must be one of: " + ", ".join(repr(x) for x in SPEEDTEST_SERVICES))
+
+    def prefs(self):
+        try:
+            values = json.loads(self.prefs_path.read_text())
+        except FileNotFoundError:
+            return dict(PREFS_DEFAULTS)
+        self.validate_prefs(values)
+        return dict(PREFS_DEFAULTS, **values)
+
+    def effective_prefs(self):
+        """Preferences for background work: a damaged file falls back to the defaults instead of stopping it."""
+        try:
+            return self.prefs()
+        except (OSError, ValueError) as exc:
+            logger.error("netprobe-prefs.json unusable (%s); defaults apply until it is fixed", exc)
+            return dict(PREFS_DEFAULTS)
+
+    def update_prefs(self, patch):
+        self.validate_prefs(patch)
+        with self.lock:
+            values = dict(self.effective_prefs(), **patch)
+            self._write_settings(values, self.prefs_path)
+        return values
+
+    def speedtest_service(self):
+        return self.effective_prefs()["speedtest_service"]
+
+    def run_fast_speedtest(self):
+        return run_fast_test()
 
     @staticmethod
     def classify(row, cfg):
@@ -886,11 +1108,14 @@ def install_routes(app, ext):
         report, truncated = ext.loss_report(seconds, end, request.args.get("target") or None)
         return jsonify(data=report, truncated=truncated)
 
+    def same_origin_request():
+        return (request.headers.get("X-NetProbe-Request") == "settings" and
+                not (request.headers.get("Origin") and urlsplit(request.headers["Origin"]).netloc != request.host))
+
     @app.route("/api/settings", methods=["GET", "POST"])
     def np_settings():
         if request.method == "POST":
-            if (request.headers.get("X-NetProbe-Request") != "settings" or
-                (request.headers.get("Origin") and urlsplit(request.headers["Origin"]).netloc != request.host)):
+            if not same_origin_request():
                 return jsonify(error="Same-origin settings request required"), 403
             try:
                 ext.update_settings(request.get_json())
@@ -903,6 +1128,20 @@ def install_routes(app, ext):
         size = sum(p.stat().st_size for p in [Path(ext.db_path), Path(ext.db_path + "-wal")] if p.exists())
         return jsonify(settings=values, storage=dict(bytes=size, retention_days=None), started_at=ext.started_at(),
                        turbo_available=ext.turbo_available)
+
+    @app.route("/api/prefs", methods=["GET", "POST"])
+    def np_prefs():
+        if request.method == "POST":
+            if not same_origin_request():
+                return jsonify(error="Same-origin settings request required"), 403
+            try:
+                ext.update_prefs(request.get_json())
+            except (ValueError, TypeError):
+                return jsonify(error="Invalid preferences"), 400
+        try:
+            return jsonify(prefs=ext.prefs())
+        except (ValueError, OSError):
+            return jsonify(error="Persistent preferences cannot be read"), 503
 
     @app.get("/api/export/targets.csv")
     def np_csv():

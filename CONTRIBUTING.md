@@ -8,6 +8,7 @@
    python tests/simulate_network.py
    CHROME_PATH=/path/to/chrome node tests/test_ui.cjs     # or: npx playwright install chromium
    CHROME_PATH=/path/to/chrome node tests/test_mobile_nav.cjs
+   CHROME_PATH=/path/to/chrome node tests/test_speedtest_ui.cjs
    ```
 4. Keep `src/app.py.patch` in sync when you touch `src/app.py`
    (`diff -u upstream/app.py src/app.py > src/app.py.patch`; CI checks that the patch reproduces the file).

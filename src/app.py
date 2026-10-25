@@ -1,7 +1,8 @@
 # Derived from NetProbe_Python (https://github.com/bmartino1/NetProbe_Python), MIT License,
 # Copyright (c) 2025-2026 Brandon Martino -- see THIRD_PARTY_NOTICES.md.
 # Modified: optional netprobe_extensions integration (per-target history, alerts, loss report), ROUTER_NAME,
-# DNS reply tracking for alerting, Turbo mode watcher. Every change is listed in app.py.patch.
+# DNS reply tracking for alerting, Turbo mode watcher, Fast.com backend and the speedtest service choice.
+# Every change is listed in app.py.patch.
 import json
 import logging
 import os
@@ -137,7 +138,7 @@ def parse_optional_bool(value, variable_name):
 
 
 def normalize_speedtest_backend(value, variable_name="SPEEDTEST_BACKEND"):
-    """Normalize a Speedtest backend name to ``python`` or ``ookla``."""
+    """Normalize a Speedtest backend name to ``python``, ``ookla`` or ``fast`` (fast.com)."""
     normalized = str(value or "python").strip().lower()
     aliases = {
         "python": "python",
@@ -146,10 +147,12 @@ def normalize_speedtest_backend(value, variable_name="SPEEDTEST_BACKEND"):
         "ookla": "ookla",
         "official": "ookla",
         "speedtest": "ookla",
+        "fast": "fast",
+        "fast.com": "fast",
     }
     if normalized not in aliases:
         raise ValueError(
-            f"{variable_name} must be either 'python' or 'ookla'"
+            f"{variable_name} must be 'python', 'ookla' or 'fast'"
         )
     return aliases[normalized]
 
@@ -1089,6 +1092,9 @@ def format_python_speedtest_error(exc, selection, secure):
 
 def resolve_speedtest_backend(requested_backend=None):
     if requested_backend is None or str(requested_backend).strip() == "":
+        chosen = custom_extension.speedtest_service() if custom_extension is not None else ""
+        if chosen:  # service picked in the UI (Speedtest tab); empty = the container variable decides
+            return normalize_speedtest_backend(chosen, "speedtest_service")
         return SPEEDTEST_BACKEND
     return normalize_speedtest_backend(requested_backend, "backend")
 
@@ -1468,6 +1474,11 @@ def run_speedtest_internal(
 
         if selected_backend == "python":
             normalized = run_python_speedtest(selection, secure_mode)
+        elif selected_backend == "fast":
+            try:
+                normalized = custom_extension.run_fast_speedtest()
+            except Exception as exc:
+                raise SpeedtestRunError(str(exc).strip() or type(exc).__name__) from exc
         else:
             normalized = run_ookla_speedtest(selection)
 
@@ -1488,11 +1499,11 @@ def run_speedtest_internal(
         )
 
         logger.info(
-            "Speedtest: backend=%s ping=%sms down=%.2fMbps up=%.2fMbps server=%s protocol=%s selection_mode=%s requested_server_ids=%s excluded_server_ids=%s forced_auto=%s",
+            "Speedtest: backend=%s ping=%sms down=%sMbps up=%sMbps server=%s protocol=%s selection_mode=%s requested_server_ids=%s excluded_server_ids=%s forced_auto=%s",
             selected_backend,
             ping_ms,
-            download_mbps,
-            upload_mbps,
+            None if download_mbps is None else round(download_mbps, 2),
+            None if upload_mbps is None else round(upload_mbps, 2),
             server.get("name"),
             normalized["protocol"],
             selection_mode,
@@ -1708,6 +1719,7 @@ def api_config():
         speedtest_backends_available={
             "python": True,
             "ookla": ookla_binary_available(),
+            "fast": custom_extension is not None,
         },
         speedtest_secure=SPEEDTEST_SECURE,
         speedtest_ookla_path=SPEEDTEST_OOKLA_PATH,

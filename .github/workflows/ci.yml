@@ -39,3 +39,4 @@ jobs:
           npx playwright install --with-deps chromium
           node tests/test_ui.cjs
           node tests/test_mobile_nav.cjs
+          node tests/test_speedtest_ui.cjs

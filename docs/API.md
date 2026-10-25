@@ -24,7 +24,10 @@ Every history endpoint accepts either
 | `GET /api/export/targets.csv` | raw target samples as CSV (formula-injection safe, capped at 50 000 rows, `X-Export-Truncated` header) |
 | `GET /api/settings` | `{settings, storage, started_at}` |
 | `POST /api/settings` | partial update of `enabled`, `turbo` (booleans; the response also carries `turbo_available` — whether the watcher runs), `loss_pct`, `latency_ms`, `jitter_ms`, `dns_ms`, `confirm_samples`, `recovery_samples`; strict validation (unknown / null / blank / non-finite → `400`); same-origin browser requests with header `X-NetProbe-Request: settings` only |
-| `GET /api/config` | upstream config plus `router_name` |
+| `GET /api/prefs` | `{prefs:{speedtest_service}}`; `speedtest_service` is `""` (follow the container variable `SPEEDTEST_BACKEND`), `python` (Speedtest.net via speedtest-cli), `ookla` (official Ookla CLI) or `fast` (Fast.com). `503` when the file is damaged |
+| `POST /api/prefs` | partial update of the preferences; strict validation (unknown key / value → `400`); same-origin browser requests with header `X-NetProbe-Request: settings` only |
+| `GET /api/config` | upstream config plus `router_name`; `speedtest_backends_available` also has `fast` |
+| `POST /api/speedtest/run` | upstream endpoint; `backend` may now be `fast`. Without `backend` the service from `/api/prefs` is used. A Fast.com result has `server.name` `Netflix, <city>`; `upload_mbps` is `null` when only the download could be measured |
 
 An *episode* is a run of samples with loss > 0 that is not interrupted by a clean sample or by a gap longer than
 180 s. DNS targets have no loss measurement and are not part of the report.

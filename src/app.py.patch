@@ -1,14 +1,15 @@
 --- upstream/app.py	2026-10-23 20:43:28
-+++ src/app.py	2026-10-23 20:43:28
-@@ -1,3 +1,7 @@
++++ src/app.py	2026-10-25 18:44:38
+@@ -1,3 +1,8 @@
 +# Derived from NetProbe_Python (https://github.com/bmartino1/NetProbe_Python), MIT License,
 +# Copyright (c) 2025-2026 Brandon Martino -- see THIRD_PARTY_NOTICES.md.
 +# Modified: optional netprobe_extensions integration (per-target history, alerts, loss report), ROUTER_NAME,
-+# DNS reply tracking for alerting, Turbo mode watcher. Every change is listed in app.py.patch.
++# DNS reply tracking for alerting, Turbo mode watcher, Fast.com backend and the speedtest service choice.
++# Every change is listed in app.py.patch.
  import json
  import logging
  import os
-@@ -14,7 +18,14 @@
+@@ -14,6 +19,13 @@
  from flask import Flask, jsonify, render_template, request
  import dns.resolver
  import speedtest
@@ -16,14 +17,36 @@
 +    from netprobe_extensions import Extension, install_routes, ping_address
 +except Exception:  # extension files not mounted: native monitoring must still start
 +    Extension = install_routes = None
- 
++
 +    def ping_address(host, output):
 +        return None
-+
+ 
  try:
      import psycopg2
- except ImportError:
-@@ -229,6 +240,7 @@
+@@ -126,7 +138,7 @@
+ 
+ 
+ def normalize_speedtest_backend(value, variable_name="SPEEDTEST_BACKEND"):
+-    """Normalize a Speedtest backend name to ``python`` or ``ookla``."""
++    """Normalize a Speedtest backend name to ``python``, ``ookla`` or ``fast`` (fast.com)."""
+     normalized = str(value or "python").strip().lower()
+     aliases = {
+         "python": "python",
+@@ -135,10 +147,12 @@
+         "ookla": "ookla",
+         "official": "ookla",
+         "speedtest": "ookla",
++        "fast": "fast",
++        "fast.com": "fast",
+     }
+     if normalized not in aliases:
+         raise ValueError(
+-            f"{variable_name} must be either 'python' or 'ookla'"
++            f"{variable_name} must be 'python', 'ookla' or 'fast'"
+         )
+     return aliases[normalized]
+ 
+@@ -229,6 +243,7 @@
  
  # Optional router IP on the LAN.
  ROUTER_IP = os.getenv("ROUTER_IP", "").strip()
@@ -31,7 +54,7 @@
  
  # DNS lookup targets.
  #
-@@ -854,9 +866,14 @@
+@@ -854,9 +869,14 @@
              rtt_avg,
              jitter,
          )
@@ -47,7 +70,7 @@
          logger.error(
              "ping to %s failed: %s; stdout=%r stderr=%r",
              host,
-@@ -869,9 +886,42 @@
+@@ -869,9 +889,42 @@
              "latency": THRESHOLD_LATENCY * 2,
              "jitter": THRESHOLD_JITTER * 2,
              "loss": 100.0,
@@ -90,7 +113,7 @@
  def measure_dns_latency(domain, server, count):
      resolver = dns.resolver.Resolver(configure=False)
      resolver.nameservers = [server]
-@@ -881,6 +931,9 @@
+@@ -881,6 +934,9 @@
          start = time.perf_counter()
          try:
              resolver.resolve(domain, "A", lifetime=3)
@@ -100,7 +123,44 @@
          except Exception:
              pass
          elapsed = (time.perf_counter() - start) * 1000.0
-@@ -1490,6 +1543,8 @@
+@@ -1036,6 +1092,9 @@
+ 
+ def resolve_speedtest_backend(requested_backend=None):
+     if requested_backend is None or str(requested_backend).strip() == "":
++        chosen = custom_extension.speedtest_service() if custom_extension is not None else ""
++        if chosen:  # service picked in the UI (Speedtest tab); empty = the container variable decides
++            return normalize_speedtest_backend(chosen, "speedtest_service")
+         return SPEEDTEST_BACKEND
+     return normalize_speedtest_backend(requested_backend, "backend")
+ 
+@@ -1415,6 +1474,11 @@
+ 
+         if selected_backend == "python":
+             normalized = run_python_speedtest(selection, secure_mode)
++        elif selected_backend == "fast":
++            try:
++                normalized = custom_extension.run_fast_speedtest()
++            except Exception as exc:
++                raise SpeedtestRunError(str(exc).strip() or type(exc).__name__) from exc
+         else:
+             normalized = run_ookla_speedtest(selection)
+ 
+@@ -1435,11 +1499,11 @@
+         )
+ 
+         logger.info(
+-            "Speedtest: backend=%s ping=%sms down=%.2fMbps up=%.2fMbps server=%s protocol=%s selection_mode=%s requested_server_ids=%s excluded_server_ids=%s forced_auto=%s",
++            "Speedtest: backend=%s ping=%sms down=%sMbps up=%sMbps server=%s protocol=%s selection_mode=%s requested_server_ids=%s excluded_server_ids=%s forced_auto=%s",
+             selected_backend,
+             ping_ms,
+-            download_mbps,
+-            upload_mbps,
++            None if download_mbps is None else round(download_mbps, 2),
++            None if upload_mbps is None else round(upload_mbps, 2),
+             server.get("name"),
+             normalized["protocol"],
+             selection_mode,
+@@ -1490,6 +1554,8 @@
  
  def probe_loop():
      gw = get_default_gateway()
@@ -109,7 +169,7 @@
  
      while True:
          ts = int(time.time())
-@@ -1515,6 +1570,7 @@
+@@ -1515,6 +1581,7 @@
          # ---------- DNS probes ----------
          dns_times = []
          dns_per_server = {}
@@ -117,7 +177,7 @@
          for server_ip in DNS_SERVERS:
              measured = measure_dns_latency_multi(
                  DNS_TEST_SITES,
-@@ -1531,6 +1587,12 @@
+@@ -1531,6 +1598,12 @@
          score = compute_score(avg_loss, avg_latency, avg_jitter, avg_dns)
          insert_measurement(ts, avg_latency, avg_jitter, avg_loss, avg_dns, score)
          insert_dns_measurements(ts, dns_per_server)
@@ -130,7 +190,7 @@
  
          logger.info(
              "Probe ts=%s score=%.2f loss=%.2f%% latency=%.1fms jitter=%.1fms dns=%.1fms",
-@@ -1626,6 +1688,7 @@
+@@ -1626,6 +1699,7 @@
          app_timezone=APP_TIMEZONE,
          gateway_ip=gw,
          router_ip=ROUTER_IP or None,
@@ -138,7 +198,15 @@
          sites=SITES,
          dns_test_site=DNS_TEST_SITE,
          dns_test_sites=DNS_TEST_SITES,
-@@ -1766,6 +1829,16 @@
+@@ -1645,6 +1719,7 @@
+         speedtest_backends_available={
+             "python": True,
+             "ookla": ookla_binary_available(),
++            "fast": custom_extension is not None,
+         },
+         speedtest_secure=SPEEDTEST_SECURE,
+         speedtest_ookla_path=SPEEDTEST_OOKLA_PATH,
+@@ -1766,6 +1841,16 @@
  # Start probe loop when imported (for gunicorn worker start).
  ensure_db()
  ensure_speedtests_schema()

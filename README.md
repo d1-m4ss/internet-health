@@ -37,6 +37,10 @@ bind-mounted read-only over it. Removing the mounts brings the stock NetProbe ba
 - **Compare mode** — several metrics and several targets (for example all DNS servers) on one chart, with a
   shared scale when the units match and a per-series scale otherwise.
 - **Path to the internet:** Unraid → router → Internet, drawn from the real targets, with measured RTT on the links.
+- **Speedtest service of your choice.** The *Speedtest* tab says which service measures: Speedtest.net (Ookla servers,
+  through speedtest-cli — the default), the official Ookla CLI (when you install its binary in the container) or
+  **Fast.com (Netflix)**, measured by NetProbe itself — no account, key or extra software. The choice applies to
+  manual and scheduled tests and is stored in `/data/netprobe-prefs.json`.
 - **Two UI styles, two languages** chosen from drop-downs (remembered in the browser). One self-contained HTML
   file: no CDN, no external fonts, works offline on your LAN.
 - **Safe by construction:** nothing is sent anywhere except through Unraid's own `notify`; the container gets no

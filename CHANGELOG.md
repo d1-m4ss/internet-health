@@ -5,6 +5,12 @@ The project is called **NetProbe Enhanced** (container, image, file and table na
 
 ## Unreleased
 
+- **Speedtest service selection** (*Speedtest* tab): Speedtest.net (speedtest-cli, as before), the official Ookla CLI
+  and the new **Fast.com (Netflix)** backend, implemented with the standard library only (latency, download, upload;
+  8 / 4 parallel connections, 8 s per direction). The choice is stored in `/data/netprobe-prefs.json`
+  (`GET`/`POST /api/prefs`), used for manual runs and, from now on, for scheduled ones, and `SPEEDTEST_BACKEND=fast`
+  works in the container too. History and the last result name the service in plain words. An unmeasured upload is
+  stored and shown as unknown, not zero.
 - Phones and tablets: the menu bar now stays pinned to the top while the page scrolls (both styles); in the UniFi style the *Speedtest* and *Targets* menu links open the matching tab instead of doing nothing.
 - **Turbo mode** (opt-in, off by default): a 5-second ICMP watcher for the router and up to two public IPs that
   reports outages from about 10 s which the regular checks miss — one message after recovery, at most 3 per hour,

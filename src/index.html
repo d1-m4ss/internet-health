@@ -522,7 +522,8 @@
           <div class="card-head"><div><h2>Speedtest</h2><div class="card-sub" id="speedTime"></div></div><button class="btn primary" id="speedBtn" disabled>…</button></div>
           <div class="speedbox"><div class="speed-row"><div><div class="muted" style="font-size:11px">DOWNLOAD</div><div class="speed-number" id="download">—<small> Mbps</small></div></div><div><div class="muted" style="font-size:11px">UPLOAD</div><div class="speed-number" id="upload">—<small> Mbps</small></div></div><div><div class="muted" style="font-size:11px">PING</div><div class="speed-number" id="speedPing">—<small> ms</small></div></div></div></div>
           <p class="card-sub" id="speedServer" style="margin:13px 0 2px">—</p>
-          <details><summary data-i18n="speed.params">Параметры ручного теста</summary><div class="form-line"><label><span>Backend</span><select id="speedBackend"><option value="python">Python speedtest-cli</option><option value="ookla">Ookla official</option></select></label><label><span data-i18n="speed.serverId">ID сервера (необязательно)</span><input type="text" id="serverId" inputmode="numeric" placeholder="Auto"></label></div><label class="check"><input id="secure" type="checkbox" checked> <span data-i18n="speed.secure">HTTPS для Python backend</span></label><label class="check"><input id="forceAuto" type="checkbox"> <span data-i18n="speed.forceAuto">Игнорировать указанный сервер / выбрать автоматически</span></label><p class="notice" id="backendNotice"></p><p class="card-sub" data-i18n="speed.scheduledNote">Scheduled Speedtest использует переменные окружения контейнера, а не настройки этой формы.</p></details>
+          <div class="form-line"><label><span data-i18n="speed.service">Сервис измерения</span><select id="speedBackend"><option value=""></option><option value="python" data-i18n="speed.svc.python"></option><option value="ookla" data-i18n="speed.svc.ookla"></option><option value="fast" data-i18n="speed.svc.fast"></option></select></label></div><p class="card-sub" id="serviceNote" style="margin:6px 0 0"></p>
+          <details><summary data-i18n="speed.params">Параметры ручного теста</summary><div class="form-line"><label><span data-i18n="speed.serverId">ID сервера (необязательно)</span><input type="text" id="serverId" inputmode="numeric" placeholder="Auto"></label></div><label class="check"><input id="secure" type="checkbox" checked> <span data-i18n="speed.secure">HTTPS для Python backend</span></label><label class="check"><input id="forceAuto" type="checkbox"> <span data-i18n="speed.forceAuto">Игнорировать указанный сервер / выбрать автоматически</span></label><p class="notice" id="backendNotice"></p><p class="card-sub" data-i18n="speed.scheduledNote">Scheduled Speedtest использует переменные окружения контейнера, а не настройки этой формы.</p></details>
           <div class="card-sub" id="speedMessage" role="status" style="margin-top:11px"></div><div id="speedStatus" class="section-status"></div>
           <details><summary data-i18n="speed.history">История Speedtest</summary><div class="table-wrap"><table class="table"><thead><tr><th data-i18n="sh.time">Время</th><th>↓ / ↑ Mbps</th><th>Ping</th><th data-i18n="sh.server">Backend / сервер</th></tr></thead><tbody id="speedHistory"><tr><td colspan="4">…</td></tr></tbody></table></div></details>
         </section>
@@ -590,7 +591,11 @@
       'speed.last':'Последний тест · {when}','speed.none':'Измерений Speedtest пока нет','speed.unavailable':'Результат Speedtest недоступен','speed.lastErr':'Последний результат: {e}','speed.histErr':'История: {e}','speed.noMeasurements':'Нет измерений','speed.historyUnavailable':'История недоступна',
       'speed.needApi':'Для запуска нужны настройки API.','speed.backendUnavailable':'Выбранный backend недоступен.','speed.ooklaTerms':'Условия Ookla ещё не приняты на сервере.','speed.run':'Запустить тест','speed.running':'Выполняется…',
       'speed.idDigits':'ID сервера должен содержать только цифры.','speed.started':'Тест запущен. Измерение потребляет трафик и может занять несколько минут.','speed.got':'Реальный результат получен · {when}','speed.error':'Ошибка Speedtest: {e}. При тайм-ауте проверьте логи перед повторным запуском.',
-      'sh.time':'Время','sh.server':'Backend / сервер',
+      'sh.time':'Время','sh.server':'Сервис / сервер',
+      'speed.service':'Сервис измерения','speed.svc.python':'Speedtest.net (серверы Ookla) — speedtest-cli','speed.svc.ookla':'Speedtest by Ookla — официальный CLI','speed.svc.fast':'Fast.com (Netflix)','speed.svc.default':'Как задано в контейнере: {name}',
+      'svcShort.python':'Speedtest.net','svcShort.ookla':'Ookla CLI','svcShort.fast':'Fast.com',
+      'speed.svcHelp.python':'Измеряет через серверы Speedtest.net (сеть Ookla) библиотекой speedtest-cli. Работает без доп. настроек.','speed.svcHelp.ookla':'Официальный клиент Ookla. Нужен бинарник speedtest в контейнере и принятые условия Ookla.','speed.svcHelp.fast':'Измеряет до серверов Netflix, как сайт fast.com: скачивание, отдача и задержка. Аккаунт и ключ не нужны; сервер выбирается автоматически.',
+      'speed.svcSaved':'Сервис сохранён: он используется для ручных и плановых тестов.','speed.svcNotSaved':'Не удалось сохранить сервис: {e}',
       'set.title':'Пороги уведомлений','set.note':'Изменение подтверждается последовательными замерами. Короткий сбой между пробами может остаться незамеченным.','set.enabled':'Уведомления включены','set.loss':'Потеря пакетов, %','set.jitter':'Джиттер, ms','set.confirm':'Замеров для тревоги','set.recovery':'Замеров для восстановления','set.save':'Сохранить',
       'set.turbo':'⚡ Turbo-режим: ловить короткие обрывы','turbo.about':'Что такое Turbo-режим','turbo.chipTitle':'Turbo-режим включён: обрывы от ~10 с',
       'turbo.title':'⚡ Turbo-режим','turbo.unavailable':'Turbo недоступен: среди SITES и DNS-серверов нет публичного IP-адреса. Добавьте, например, 1.1.1.1 в SITES.','turbo.close':'Закрыть',
@@ -644,6 +649,10 @@
       'speed.needApi':'API settings are required to run a test.','speed.backendUnavailable':'The selected backend is unavailable.','speed.ooklaTerms':'The Ookla terms have not been accepted on the server yet.','speed.run':'Run test','speed.running':'Running…',
       'speed.idDigits':'The server ID must contain digits only.','speed.started':'Test started. It uses bandwidth and may take a few minutes.','speed.got':'Real result received · {when}','speed.error':'Speedtest error: {e}. After a timeout check the logs before running it again.',
       'sh.time':'Time','sh.server':'Backend / server',
+      'speed.service':'Measurement service','speed.svc.python':'Speedtest.net (Ookla servers) via speedtest-cli','speed.svc.ookla':'Speedtest by Ookla — official CLI','speed.svc.fast':'Fast.com (Netflix)','speed.svc.default':'As set in the container: {name}',
+      'svcShort.python':'Speedtest.net','svcShort.ookla':'Ookla CLI','svcShort.fast':'Fast.com',
+      'speed.svcHelp.python':'Measures through Speedtest.net servers (the Ookla network) with the speedtest-cli library. Works without extra setup.','speed.svcHelp.ookla':'The official Ookla client. Needs the speedtest binary in the container and the Ookla terms accepted.','speed.svcHelp.fast':'Measures against Netflix servers like the fast.com site: download, upload and latency. No account or key; the server is chosen automatically.',
+      'speed.svcSaved':'Service saved: it is used for manual and scheduled tests.','speed.svcNotSaved':'Could not save the service: {e}',
       'set.title':'Notification thresholds','set.note':'A change is confirmed by consecutive samples. A short glitch between probes may go unnoticed.','set.enabled':'Notifications enabled','set.loss':'Packet loss, %','set.jitter':'Jitter, ms','set.confirm':'Samples to raise an alert','set.recovery':'Samples to recover','set.save':'Save',
       'set.turbo':'⚡ Turbo mode: catch short outages','turbo.about':'What is Turbo mode','turbo.chipTitle':'Turbo mode is on: outages from ~10 s',
       'turbo.title':'⚡ Turbo mode','turbo.unavailable':'Turbo is unavailable: SITES and the DNS servers contain no public IP address. Add, for example, 1.1.1.1 to SITES.','turbo.close':'Close',
@@ -914,17 +923,20 @@
     const s = state.speed;
     for (const [id, key, unit, d] of [['download','download_mbps','Mbps',2],['upload','upload_mbps','Mbps',2],['speedPing','ping_ms','ms',1]]) $(id).innerHTML = `${fmt(s?.[key], d)}<small> ${unit}</small>`;
     $('speedTime').textContent = s ? t('speed.last', {when: when(s.ts ?? s.timestamp)}) : state.loaded.has('speed') ? t('speed.none') : t('speed.unavailable');
-    $('speedServer').textContent = s ? [s.backend, s.server?.name, s.server?.country, s.server?.id ? 'ID ' + s.server.id : null].filter(Boolean).join(' · ') : '—';
-    $('speedHistory').innerHTML = state.speedHistory.length ? state.speedHistory.map(r => `<tr><td>${escape(when(r.ts))}</td><td>${fmt(r.download_mbps)} / ${fmt(r.upload_mbps)}</td><td>${fmt(r.ping_ms)} ms</td><td>${escape(r.backend)}<div class="sub">${escape(r.server_name || r.server_id || '—')}</div></td></tr>`).join('') : `<tr><td colspan="4" class="muted">${state.loaded.has('speedHistory') ? t('speed.noMeasurements') : t('speed.historyUnavailable')}</td></tr>`;
+    $('speedServer').textContent = s ? [svcShort(s.backend), s.server?.name, s.server?.country, s.server?.id ? 'ID ' + s.server.id : null].filter(Boolean).join(' · ') : '—';
+    $('speedHistory').innerHTML = state.speedHistory.length ? state.speedHistory.map(r => `<tr><td>${escape(when(r.ts))}</td><td>${fmt(r.download_mbps)} / ${fmt(r.upload_mbps)}</td><td>${fmt(r.ping_ms)} ms</td><td>${escape(svcShort(r.backend))}<div class="sub">${escape(r.server_name || r.server_id || '—')}</div></td></tr>`).join('') : `<tr><td colspan="4" class="muted">${state.loaded.has('speedHistory') ? t('speed.noMeasurements') : t('speed.historyUnavailable')}</td></tr>`;
     $('speedStatus').textContent = [state.errors.speed ? t('speed.lastErr', {e: state.errors.speed}) : null, state.errors.speedHistory ? t('speed.histErr', {e: state.errors.speedHistory}) : null].filter(Boolean).join(' · ');
     updateSpeedControls();
   }
+  const svcShort = b => I18N[lang]['svcShort.' + b] ?? b ?? '—';
   function updateSpeedControls() {
-    const backend = $('speedBackend').value, cfg = state.config;
+    const cfg = state.config, backend = $('speedBackend').value || cfg?.speedtest_backend || 'python';
     const available = cfg?.speedtest_backends_available?.[backend] === true;
     const accepted = backend !== 'ookla' || cfg?.speedtest_ookla_accept_license === true;
-    $('secure').disabled = backend !== 'python'; $('serverId').disabled = $('forceAuto').checked;
-    for (const option of $('speedBackend').options) option.disabled = cfg?.speedtest_backends_available?.[option.value] !== true;
+    $('secure').disabled = backend !== 'python'; $('forceAuto').disabled = backend === 'fast'; $('serverId').disabled = $('forceAuto').checked || backend === 'fast';
+    for (const option of $('speedBackend').options) if (option.value) option.disabled = cfg?.speedtest_backends_available?.[option.value] !== true;
+    $('speedBackend').options[0].textContent = t('speed.svc.default', {name: svcShort(cfg?.speedtest_backend || 'python')});
+    $('serviceNote').textContent = t('speed.svcHelp.' + backend);
     $('backendNotice').textContent = !cfg ? t('speed.needApi') : !available ? t('speed.backendUnavailable') : !accepted ? t('speed.ooklaTerms') : '';
     $('speedBtn').disabled = state.speedRunning || !available || !accepted || Boolean(state.errors.config || state.errors.latest) || !state.loaded.has('latest');
     $('speedBtn').textContent = state.speedRunning ? t('speed.running') : t('speed.run');
@@ -1078,7 +1090,7 @@
     state.refreshing = true; $('refreshBtn').disabled = true;
     const rk = rangeKey(), query = rq(), bad = () => new Error(t('err.badResponse'));
     const tasks = [
-      ['config', '/api/config', r => { state.config = r; if (!state.speedInitialized) { $('speedBackend').value = r.speedtest_backend || 'python'; $('secure').checked = r.speedtest_secure !== false; $('serverId').value = r.speedtest_csv ? '' : r.speedtest_server || ''; state.speedInitialized = true; } }],
+      ['config', '/api/config', r => { state.config = r; if (!state.speedInitialized) { $('secure').checked = r.speedtest_secure !== false; $('serverId').value = r.speedtest_csv ? '' : r.speedtest_server || ''; state.speedInitialized = true; } }],
       ['latest', '/api/score/latest', r => { if (!Object.prototype.hasOwnProperty.call(r, 'data')) throw bad(); state.latest = r.data; }],
       ['targets', '/api/targets/recent?' + query, r => { if (!Array.isArray(r.data)) throw bad(); state.targets = r.data; state.startedAt = r.started_at ?? state.startedAt; }],
       ['summary', '/api/history?' + query, r => { if (!Array.isArray(r.data)) throw bad(); state.summary = r.data; }],
@@ -1089,7 +1101,7 @@
       ['speed', '/api/speedtest/latest', r => { if (!Object.prototype.hasOwnProperty.call(r, 'result')) throw bad(); state.speed = r.result; }],
       ['speedHistory', '/api/speedtest/history?limit=10', r => { if (!Array.isArray(r.tests)) throw bad(); state.speedHistory = r.tests; }]
     ];
-    await Promise.allSettled([state.cmp.on ? loadCompare() : loadChart(), ...tasks.map(async ([name, url, apply]) => { try { const result = await api(url); if ((name === 'targets' || name === 'events' || name === 'summary' || name === 'loss' || name === 'live') && rk !== rangeKey()) return; apply(result); delete state.errors[name]; state.loaded.add(name); } catch (e) { state.errors[name] = errorText(e); } })]);
+    await Promise.allSettled([state.cmp.on ? loadCompare() : loadChart(), loadPrefs(), ...tasks.map(async ([name, url, apply]) => { try { const result = await api(url); if ((name === 'targets' || name === 'events' || name === 'summary' || name === 'loss' || name === 'live') && rk !== rangeKey()) return; apply(result); delete state.errors[name]; state.loaded.add(name); } catch (e) { state.errors[name] = errorText(e); } })]);
     state.refreshing = false; $('refreshBtn').disabled = false; draw();
     if (state.refreshQueued) { state.refreshQueued = false; refresh(); }
   }
@@ -1114,13 +1126,32 @@
     } catch (e) { say('settingsMessage', 'set.notSaved', {e: errorText(e)}); }
     finally { $('settingsFields').disabled = false; }
   }
+  /* preferences are optional extras: a failure here must not turn the whole dashboard OFFLINE */
+  async function loadPrefs() {
+    try {
+      const r = await api('/api/prefs');
+      if (!r.prefs) throw new Error(t('err.badResponse'));
+      state.prefs = r.prefs;
+      if (!state.prefsInitialized) { $('speedBackend').value = r.prefs.speedtest_service || ''; state.prefsInitialized = true; updateSpeedControls(); }
+    } catch (e) { state.prefsError = errorText(e); }
+  }
+  async function saveService() {
+    updateSpeedControls();
+    try {
+      const result = await api('/api/prefs', {method:'POST', headers:{'Content-Type':'application/json', 'X-NetProbe-Request':'settings'}, body:JSON.stringify({speedtest_service:$('speedBackend').value})});
+      state.prefs = result.prefs; say('speedMessage', 'speed.svcSaved');
+    } catch (e) {
+      if (state.prefs) { $('speedBackend').value = state.prefs.speedtest_service || ''; updateSpeedControls(); }
+      say('speedMessage', 'speed.svcNotSaved', {e: errorText(e)});
+    }
+  }
   async function runSpeed() {
     if ($('speedBtn').disabled) return;
     const id = $('serverId').value.trim(), force = $('forceAuto').checked;
     if (!force && id && !/^\d+$/.test(id)) { say('speedMessage', 'speed.idDigits'); return; }
     state.speedRunning = true; updateSpeedControls(); say('speedMessage', 'speed.started');
     try {
-      const result = await api('/api/speedtest/run', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({backend:$('speedBackend').value, server_id:force ? null : id || null, secure:$('secure').checked, force_auto:force})}, 180000);
+      const result = await api('/api/speedtest/run', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({backend:$('speedBackend').value, server_id:force || $('speedBackend').value === 'fast' ? null : id || null, secure:$('secure').checked, force_auto:force})}, 180000);
       if (!result.success) throw new Error(result.error || 'Speedtest failed');
       state.speed = result.result; renderSpeed(); { const at = result.result?.ts ?? result.result?.timestamp; say('speedMessage', 'speed.got', {when: () => when(at)}); } refresh();
     } catch (e) { say('speedMessage', 'speed.error', {e: errorText(e)}); }
@@ -1179,7 +1210,7 @@
   $('goSettings').addEventListener('click', () => { openTab('settings'); $('unifiTabs').scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block:'start'}); });
   $('tilesRow').addEventListener('click', event => { const b = event.target.closest('[data-target]'); if (b) { selectTarget(b.dataset.target); $('diagnostics').scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block:'start'}); } });
   $('chartTarget').addEventListener('change', () => selectTarget($('chartTarget').value));
-  $('refreshBtn').addEventListener('click', refresh); $('speedBtn').addEventListener('click', runSpeed); $('speedBackend').addEventListener('change', updateSpeedControls); $('forceAuto').addEventListener('change', updateSpeedControls);
+  $('refreshBtn').addEventListener('click', refresh); $('speedBtn').addEventListener('click', runSpeed); $('speedBackend').addEventListener('change', saveService); $('forceAuto').addEventListener('change', updateSpeedControls);
   $('settingsForm').addEventListener('submit', saveSettings); $('settingsForm').addEventListener('input', () => { state.settingsDirty = true; say('settingsMessage', 'set.dirty'); });
   $('detailsLog').addEventListener('toggle', loadLogs);
   $('turboInfo').addEventListener('click', () => $('turboDialog').showModal());
