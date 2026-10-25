@@ -5,6 +5,7 @@ The project is called **NetProbe Enhanced** (container, image, file and table na
 
 ## Unreleased
 
+- Times in Speedtest messages use the schedule's time zone (`APP_TIMEZONE`) even when the process runs in another one.
 - The external-IP lookup runs beside the dashboard refresh instead of inside it: a slow or unreachable lookup service
   can no longer delay the data on screen.
 - **External (public) IP on request** (setting *Show my external IP*, off by default): the header tag and, in the

@@ -592,7 +592,8 @@ class Extension:
             return None
         ts = int(self.clock())
         service = SPEED_NAMES.get((result or {}).get("backend") or backend, "Speedtest")
-        clock = time.strftime("%H:%M, %d.%m.%Y %Z", time.localtime(ts))
+        stamp = lambda t, fmt: datetime.fromtimestamp(t, self.tz).strftime(fmt)  # the schedule's zone, whatever TZ the process has
+        clock = stamp(ts, "%H:%M, %d.%m.%Y %Z")
         if error is not None:
             reason = " ".join(CONTROL_CHARS.sub(" ", str(error)).split())[:300] or "unknown error"
             lines = ["⚠️ Scheduled Speedtest failed (%s)" % service, "", "• Reason: " + reason, "", "Time: " + clock]
@@ -614,7 +615,7 @@ class Extension:
             if before and before["download_mbps"] is not None:
                 lines.append("• Previous: ↓ %.0f / ↑ %s Mbps (%s)" % (
                     before["download_mbps"], "%.0f" % before["upload_mbps"] if before["upload_mbps"] is not None else "—",
-                    time.strftime("%H:%M, %d.%m", time.localtime(before["ts"]))))
+                    stamp(before["ts"], "%H:%M, %d.%m")))
             lines += ["", "Time: " + clock]
             subject = "%s NetProbe: Speedtest ↓ %s / ↑ %s" % (
                 SPEED_ICON, "%.0f" % down if isinstance(down, (int, float)) else "—",
