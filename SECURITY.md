@@ -5,6 +5,9 @@
 - The notification queue endpoints require the secret in `/data/notify-token` and are meant to be called only by the
   host bridge. Keep that file out of version control and backups you share.
 - The extension adds no privileges to the container: no Docker socket, no host root, no extra capabilities.
+- Outbound requests happen only on request: Speedtest runs (manual or scheduled) and, when *Show my external IP* is
+  ticked, a public-IP lookup (cached for 5 minutes). Preference changes (`POST /api/prefs`) are accepted only from
+  same-origin browser requests, like `/api/settings`.
 
 To report a vulnerability, please use GitHub's private "Report a vulnerability" feature on this repository
 (Security → Advisories) instead of opening a public issue.

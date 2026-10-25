@@ -35,6 +35,9 @@ bind-mounted read-only over it. Removing the mounts brings the stock NetProbe ba
 - **Scheduled Speedtest with a notification.** In the *Speedtest* tab: off, every N hours, or every day at set times
   (for example 03:00); optionally one Unraid message with the result (or the reason it failed) after every automatic
   test. Without changes the container variables `SPEEDTEST_ENABLED` / `SPEEDTEST_INTERVAL` keep deciding.
+- **Your external IP, on request.** Tick *Show my external (public) IP* in the settings and the header (and the
+  UniFi *Internet* card) shows the address the internet sees. Off by default: nothing is requested until you tick it;
+  then the container asks `api.ipify.org` (fallbacks `icanhazip.com`, `ifconfig.me`) at most once every 5 minutes.
 - **Packet-loss report for any period** — summary, per-target table and a list of loss episodes; click an
   episode to zoom the chart onto it. Periods from 1 minute to a month, or a custom *from–to* window.
 - **Compare mode** — several metrics and several targets (for example all DNS servers) on one chart, with a
@@ -46,8 +49,10 @@ bind-mounted read-only over it. Removing the mounts brings the stock NetProbe ba
   manual and scheduled tests and is stored in `/data/netprobe-prefs.json`.
 - **Two UI styles, two languages** chosen from drop-downs (remembered in the browser). One self-contained HTML
   file: no CDN, no external fonts, works offline on your LAN.
-- **Safe by construction:** nothing is sent anywhere except through Unraid's own `notify`; the container gets no
-  extra privileges, no Docker socket and no host mounts besides the three read-only files.
+- **Safe by construction:** NetProbe Enhanced sends nothing anywhere except through Unraid's own `notify`. The only
+  outbound requests are the ones you ask for: the Speedtest you run or schedule (speedtest.net, Ookla or fast.com
+  / Netflix servers, depending on the chosen service) and, only with the checkbox ticked, the public-IP lookup. The
+  container gets no extra privileges, no Docker socket and no host mounts besides the three read-only files.
 
 ![Compare several DNS servers](docs/screenshots/compare-dns.png)
 
@@ -95,6 +100,14 @@ Tested with image `bmmbmm01/netprobe@sha256:386bdc2c177b11aef4a1223dfd91ae47fe2f
    (for example `fast.com,google.com,youtube.com,1.1.1.1,8.8.8.8`). Pinging names depends on DNS; the IP targets let
    NetProbe tell "DNS is down" from "the internet is down".
 
+## Upgrading from an earlier version
+
+A new release changes only the three container files. The database, `alert-settings.json`, `notify-token`, the
+bridge script and the cron line stay as they are, and no migration is needed (new tables and files are created on
+first use). Back up the old files, copy the new ones into `…/custom/` and restart the container — the exact
+commands, the check and the rollback are in **[docs/INSTALL-UNRAID.md → Updating NetProbe Enhanced](docs/INSTALL-UNRAID.md#updating-netprobe-enhanced)**.
+What changed in each version: [CHANGELOG.md](CHANGELOG.md).
+
 ## Configuration
 
 | Variable (container) | Meaning |
@@ -117,6 +130,7 @@ python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
 python -m unittest discover -s tests          # unit + integration tests (real Flask app, real bridge script)
 python tests/simulate_network.py -v           # real probe loop + queue + bridge on a virtual clock, fake ping/DNS
 npm install && npx playwright install chromium && node tests/test_ui.cjs   # browser tests, both styles/languages
+node tests/test_mobile_nav.cjs && node tests/test_speedtest_ui.cjs          # pinned menu on phones; Speedtest service, schedule, public IP
 ```
 
 The simulator runs 20 failure scenarios (outage, DNS-only outage, router down, flapping, restarts, a dead
@@ -134,7 +148,7 @@ To look at the dashboard without Unraid or a real network, run `python tests/dem
 ## Security notes
 
 - NetProbe's web UI and API have **no authentication** (as upstream). Keep port 8788 on your LAN; do not expose it.
-- The settings endpoint accepts only same-origin browser requests with an `X-NetProbe-Request` header.
+- The settings and preferences endpoints (`/api/settings`, `/api/prefs`) accept only same-origin browser requests with an `X-NetProbe-Request` header.
 - The notification queue is private to the host: `X-NetProbe-Notify-Key` (a random 256-bit token generated on
   first start in `/data/notify-token`, mode 600) is required to read or acknowledge it.
 - Do not commit `/data` contents (database, token, settings) anywhere; see `.gitignore`.
@@ -150,6 +164,13 @@ To look at the dashboard without Unraid or a real network, run `python tests/dem
   ICMP to *all* internet targets at once can cause a false report (one lost echo or one silent host is never enough).
   Its message waits for the regular cycle that was running at recovery (up to about 1.5 min) so the same outage is
   never reported twice.
+- **Fast.com** numbers come from NetProbe's own client (latency, 8 connections for 8 s down, 4 for 8 s up against the
+  closest Netflix servers); they can differ from the fast.com page, so compare a service with itself over time.
+  The Speedtest.net backend keeps its upstream unit conversion (Mbit/s ÷ 1.048576). A scheduled test uses real
+  bandwidth for about 20 s.
+- Fast.com has no documented public API: the client uses the same endpoints as the fast.com page. If Netflix changes
+  them, a Fast.com test fails with a readable message (and, when notifications are on, a warning) and the other
+  services keep working.
 - If the internet and the LAN are both completely down, Unraid cannot deliver email/Telegram. An external watcher
   is needed for a full-site outage.
 - Real delivery through the Unraid agents is exercised only by your first real event; automated tests use a fake `notify`.

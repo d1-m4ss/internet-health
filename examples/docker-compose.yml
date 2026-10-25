@@ -7,7 +7,7 @@
 services:
   netprobe:
     # Pinned by digest on purpose: the three mounted files replace files of exactly this image version.
-    # Do not use :latest here (see "Updating the image" in docs/INSTALL-UNRAID.md).
+    # Do not use :latest here (see "Updating the NetProbe image later" in docs/INSTALL-UNRAID.md).
     image: bmmbmm01/netprobe@sha256:386bdc2c177b11aef4a1223dfd91ae47fe2f9804c5449c5f4c2caae1d048c155
     container_name: NetProbe
     restart: unless-stopped
@@ -31,7 +31,8 @@ services:
       DNS_NAMESERVER_3: CloudFlare_DNS
       DNS_NAMESERVER_3_IP: 1.1.1.1
       DNS_TEST_SITE: google.com
-      SPEEDTEST_ENABLED: "false"             # "true" runs a real Speedtest every SPEEDTEST_INTERVAL seconds
+      SPEEDTEST_ENABLED: "false"             # "true" runs a real Speedtest every SPEEDTEST_INTERVAL seconds. You can also pick the
+                                             # service (Speedtest.net / Fast.com) and a nightly schedule in the UI (Speedtest tab)
     volumes:
       - /mnt/user/appdata/netprobe_database:/data
       # The extension: three files, read-only, over the stock ones.

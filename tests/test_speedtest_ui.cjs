@@ -11,7 +11,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
   try {
     const now = Math.floor(Date.now() / 1000);
     const api = {
-      prefs: {speedtest_service: '', speedtest_schedule: 'container', speedtest_interval_h: 6, speedtest_times: ['03:00'], speedtest_notify: false}, prefsFail: false, prefsReadFail: false, speedRun: null, calls: [],
+      prefs: {speedtest_service: '', speedtest_schedule: 'container', speedtest_interval_h: 6, speedtest_times: ['03:00'], speedtest_notify: false, show_public_ip: false}, publicIp: {enabled: false}, prefsFail: false, prefsReadFail: false, speedRun: null, calls: [],
       latest: {ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server: {id: '1', name: 'Example City', country: 'EX'}, backend: 'python'},
       history: [{ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server_id: '1', server_name: 'Example City', backend: 'python'}],
     };
@@ -33,8 +33,10 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
             if (request.method() === 'POST') {
               if (api.prefsFail) return route.fulfill({status: 500, json: {error: 'disk full'}});
               Object.assign(api.prefs, body);
+              if ('show_public_ip' in body) api.publicIp = body.show_public_ip ? {enabled: true, ip: '198.51.100.7', source: 'api.ipify.org', checked_at: now, error: null} : {enabled: false};
             }
             return route.fulfill({json: {prefs: api.prefs, schedule: {next_ts: api.prefs.speedtest_schedule === 'daily' ? now + 7200 : null, timezone: 'Europe/Bucharest'}}});
+          case '/api/public-ip': return route.fulfill({json: api.publicIp});
           case '/api/speedtest/latest': return route.fulfill({json: {result: api.latest}});
           case '/api/speedtest/history': return route.fulfill({json: {tests: api.history}});
           case '/api/speedtest/run': return route.fulfill(api.speedRun);
@@ -197,6 +199,59 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       await page.close();
     }
 
+    // --- public IP: opt-in checkbox, tag in the header, row in the UniFi internet card ---
+    {
+      const {page, errors} = await open('unifi', 'en');
+      const tag = page.locator('#ipTag'), box = page.locator('#show_public_ip');
+      await page.locator('#unifiTabs [data-tab="settings"]').click();
+      assert.equal(await tag.isVisible(), false, 'nothing shown while the option is off');
+      assert.equal(await box.isChecked(), false);
+      assert.equal(await box.isEnabled(), true);
+      assert.match(await page.locator('.pref-row').textContent(), /api\.ipify\.org.*nothing is sent anywhere/);
+      assert.doesNotMatch(await page.locator('#netKv').textContent(), /External IP/);
+      await box.check();
+      await page.waitForFunction(() => document.getElementById('ipTag').textContent === 'External IP: 198.51.100.7');
+      assert.deepEqual(api.calls.filter(c => c.path === '/api/prefs' && c.method === 'POST').pop().body, {show_public_ip: true});
+      assert.match(await tag.getAttribute('title'), /Source: api\.ipify\.org/);
+      assert.match(await page.locator('#netKv').textContent(), /External IP198\.51\.100\.7/);
+      assert.equal(await tag.isVisible(), true);
+      // the address is data, not markup
+      api.publicIp = {enabled: true, ip: '<img src=x onerror=window.__xss=1>', source: 'api.ipify.org', checked_at: now, error: null};
+      await page.locator('#refreshBtn').click();
+      await page.waitForFunction(() => document.getElementById('ipTag').textContent.includes('<img'));
+      assert.equal(await page.locator('#ipTag img, #netKv img').count(), 0);
+      assert.equal(await page.evaluate(() => window.__xss), undefined);
+      // lookup failure is stated plainly
+      api.publicIp = {enabled: true, ip: null, source: null, checked_at: now, error: 'api.ipify.org: timed out'};
+      await page.locator('#refreshBtn').click();
+      await page.waitForFunction(() => document.getElementById('ipTag').textContent === 'External IP: unknown');
+      assert.match(await tag.getAttribute('title'), /timed out/);
+      // failed save: the box returns to what is stored
+      api.prefsFail = true;
+      await box.uncheck();
+      await page.waitForFunction(() => /Could not save: .*disk full/.test(document.getElementById('ipMessage').textContent));
+      assert.equal(await box.isChecked(), true);
+      api.prefsFail = false;
+      await box.uncheck();
+      await page.waitForFunction(() => document.getElementById('ipTag').hidden);
+      assert.deepEqual(api.calls.filter(c => c.path === '/api/prefs' && c.method === 'POST').pop().body, {show_public_ip: false});
+      assert.doesNotMatch(await page.locator('#netKv').textContent(), /External IP/);
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+    {
+      api.prefs.show_public_ip = true; api.publicIp = {enabled: true, ip: '198.51.100.7', source: 'api.ipify.org', checked_at: now, error: null};
+      const {page, errors} = await open('netprobe', 'ru');
+      await page.waitForFunction(() => document.getElementById('ipTag').textContent === 'Внешний IP: 198.51.100.7');
+      assert.equal(await page.locator('#show_public_ip').isChecked(), true, 'the saved choice survives a reload');
+      assert.match(await page.locator('.pref-row').textContent(), /Пока галка снята, наружу ничего не отправляется/);
+      const box = await page.locator('#ipTag').boundingBox();
+      assert(box && box.x >= 0 && box.x + box.width <= 1280, 'the tag fits the header');
+      assert.deepEqual(errors, []);
+      api.prefs.show_public_ip = false; api.publicIp = {enabled: false};
+      await page.close();
+    }
+
     // --- unreadable preferences never turn the whole dashboard OFFLINE ---
     {
       api.prefsReadFail = true;
@@ -208,7 +263,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       assert.deepEqual(errors, []);
       await page.close();
     }
-    console.log('PASS: schedule form (container/off/N hours/daily times, validation, notify switch, next test, saved state after reload, RU texts), speedtest service list (Speedtest.net / Ookla CLI / Fast.com) with explanations, saved choice, form adapts to fast.com, unknown upload shown as a dash, failed save reverted, works without the preferences API');
+    console.log('PASS: public IP checkbox, tag and UniFi row (escaped, failure, failed save, RU), schedule form (container/off/N hours/daily times, validation, notify switch, next test, saved state after reload, RU texts), speedtest service list (Speedtest.net / Ookla CLI / Fast.com) with explanations, saved choice, form adapts to fast.com, unknown upload shown as a dash, failed save reverted, works without the preferences API');
   } finally {
     await browser.close();
   }

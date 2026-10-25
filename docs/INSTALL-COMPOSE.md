@@ -16,6 +16,7 @@ What ends up where:
 │   └── index.html
 ├── netprobe.sqlite                          ← created by the container
 ├── alert-settings.json                      ← created by the container on first start (alert thresholds)
+├── netprobe-prefs.json                      ← created the first time you change a Speedtest / external-IP setting in the UI
 └── notify-token                             ← created by the container on first start (secret, mode 600)
 
 /boot/config/custom/netprobe-unraid-notify.sh                 ← the bridge, on the Unraid host
@@ -58,7 +59,7 @@ docker pull bmmbmm01/netprobe@sha256:386bdc2c177b11aef4a1223dfd91ae47fe2f9804c54
 bash scripts/verify-image.sh          # expected: "app.py: OK" and "templates/index.html: OK"
 ```
 
-On `MISMATCH` do not continue with this digest; see *Updating the image* in [INSTALL-UNRAID.md](INSTALL-UNRAID.md).
+On `MISMATCH` do not continue with this digest; see *Updating the NetProbe image later* in [INSTALL-UNRAID.md](INSTALL-UNRAID.md).
 
 ## 4. Create the container
 
@@ -127,13 +128,28 @@ To test **Turbo mode**, enable *⚡ Turbo mode* in the thresholds, save, and unp
 cron bridge) you get one "⚡ Short internet outage" message with the duration; the outage also appears under
 *Short outages (Turbo)* in the loss report.
 
+## 6b. Optional: nightly Speedtest, Speedtest service, external IP
+
+All of this is set in the web UI and needs no restart (stored in `$D/netprobe-prefs.json`):
+
+- *Speedtest* tab → **Measurement service**: Speedtest.net (default), the official Ookla CLI (only selectable when
+  its binary is installed in the container) or **Fast.com**.
+- *Speedtest* tab → **Schedule and notifications**: *Every day at set times* (for example `03:00`; the time zone is
+  `APP_TIMEZONE` from your compose file) or *Every N hours*, and tick the notification box to get one Unraid message
+  with the result after every automatic test (a failed test sends a warning with the reason). Leaving *As set in the
+  container* keeps the old behaviour: `SPEEDTEST_ENABLED` / `SPEEDTEST_INTERVAL` decide, and with
+  `SPEEDTEST_ENABLED: "false"` nothing runs by itself.
+- Settings → **Show my external (public) IP**: off by default; when ticked, the container asks `api.ipify.org` for
+  your address (at most every 5 minutes) and shows it in the header.
+
 ## 7. Tuning later (all in the data folder)
 
 | Want to… | Do this |
 |---|---|
 | change alert thresholds (loss %, RTT, jitter, DNS, number of samples to alert/recover, alerts on/off, Turbo mode) | UI → *Notification thresholds → Configure*, or edit `$D/alert-settings.json` (the bridge reads the same file); no restart needed |
 | change targets, router name, DNS servers, probe interval | edit the `environment:` block and run `docker compose up -d` again |
-| update the extension files | copy new files into `$D/custom/` and `docker restart NetProbe` (templates are cached, so a restart is required) |
+| update the extension files | back up the old ones, copy the new files into `$D/custom/` and `docker restart NetProbe` (templates are cached, so a restart is required) — see [Updating NetProbe Enhanced](INSTALL-UNRAID.md#updating-netprobe-enhanced) |
+| Speedtest service, schedule, Speedtest notifications, external IP | UI → *Speedtest* tab and the settings (section 6b); or edit `$D/netprobe-prefs.json` (keys in [API.md](API.md)) |
 | see/clear history | everything is in `$D/netprobe.sqlite` (extension tables are prefixed `np_`) |
 | stop the notifications only | switch alerts off in the UI, or remove the cron file: `rm /boot/config/plugins/dynamix/netprobe-notify.cron && update_cron` |
 | go back to stock NetProbe | remove the three `custom/` mounts from the compose file and `docker compose up -d`; the stock app ignores the `np_*` tables |

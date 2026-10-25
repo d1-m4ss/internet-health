@@ -5,6 +5,10 @@ The project is called **NetProbe Enhanced** (container, image, file and table na
 
 ## Unreleased
 
+- **External (public) IP on request** (setting *Show my external IP*, off by default): the header tag and, in the
+  UniFi style, a row in the *Internet* card. Nothing is requested while the setting is off; with it on the
+  container asks `api.ipify.org` (fallbacks `icanhazip.com`, `ifconfig.me`) at most every 5 minutes, accepts only
+  public IP addresses and shows lookup failures plainly (`GET /api/public-ip`).
 - **Speedtest schedule and notifications** (*Speedtest* tab → *Schedule and notifications*): automatic tests off, every
   N hours, or every day at up to four times in `APP_TIMEZONE` (a missed daily test still runs within two hours),
   with an optional Unraid message after every automatic test (`normal`) or failure (`warning`, with the reason).

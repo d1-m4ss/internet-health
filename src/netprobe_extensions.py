@@ -67,7 +67,12 @@ SPEED_ICON = "📶"
 SPEED_NAMES = {"python": "Speedtest.net", "ookla": "Ookla CLI", "fast": "Fast.com"}
 TIME_OF_DAY = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 PREFS_DEFAULTS = dict(speedtest_service="", speedtest_schedule="container", speedtest_interval_h=6,
-                      speedtest_times=["03:00"], speedtest_notify=False)
+                      speedtest_times=["03:00"], speedtest_notify=False, show_public_ip=False)
+# Public IP (opt-in: nothing is requested while show_public_ip is off). Plain-text services, tried in order.
+PUBLIC_IP_SOURCES = ("https://api.ipify.org", "https://icanhazip.com", "https://ifconfig.me/ip")
+PUBLIC_IP_TTL = 300    # seconds a successful answer is reused
+PUBLIC_IP_RETRY = 60   # seconds before another attempt after every source failed
+PUBLIC_IP_TIMEOUT = 5
 # fast.com client: the same public endpoints the fast.com page uses, no account or key.
 FAST_PAGE = "https://fast.com/"
 FAST_API = "https://api.fast.com/netflix/speedtest/v2"
@@ -126,6 +131,20 @@ def _fast_get(url, timeout=FAST_TIMEOUT, limit=4_000_000):
     request = urllib.request.Request(url, headers={"User-Agent": "NetProbe-Enhanced"})
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return response.read(limit).decode("utf-8", "replace")
+
+
+def fetch_public_ip(url, timeout=PUBLIC_IP_TIMEOUT):
+    """The address the internet sees, from one plain-text service; ValueError when the answer is not a public IP."""
+    request = urllib.request.Request(url, headers={"User-Agent": "NetProbe-Enhanced"})
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        text = response.read(256).decode("ascii", "replace").strip()
+    try:
+        address = ipaddress.ip_address(text)
+    except ValueError:
+        raise ValueError("%s did not answer with an IP address" % urlsplit(url).hostname) from None
+    if not address.is_global:
+        raise ValueError("%s answered with a non-public address" % urlsplit(url).hostname)
+    return str(address)
 
 
 def fast_targets(page=FAST_PAGE, api=FAST_API, count=FAST_SERVERS):
@@ -296,6 +315,9 @@ class Extension:
         if not self.settings_path.exists():
             self._write_settings(DEFAULTS)
         self.token = self._load_token(self.data_dir / "notify-token")
+        self.ip_fetch = fetch_public_ip  # replaced in tests
+        self.ip_lock = threading.Lock()
+        self.ip_cache = None
         self.turbo_router, self.turbo_hosts = None, []
         self.turbo = dict(fails=0, oks=0, first_fail=None, first_ok=None, kind=None, open_id=None)
         self.last_record_at = None  # wall time the regular loop last recorded a cycle
@@ -458,8 +480,9 @@ class Extension:
             if (not isinstance(times, list) or not 1 <= len(times) <= SPEEDTEST_TIMES_MAX or len(set(times)) != len(times)
                     or not all(isinstance(x, str) and TIME_OF_DAY.match(x) for x in times)):
                 raise ValueError("speedtest_times must be 1 to %d different times of day as HH:MM" % SPEEDTEST_TIMES_MAX)
-        if "speedtest_notify" in values and type(values["speedtest_notify"]) is not bool:
-            raise ValueError("speedtest_notify must be a boolean")
+        for key in ("speedtest_notify", "show_public_ip"):
+            if key in values and type(values[key]) is not bool:
+                raise ValueError(key + " must be a boolean")
 
     def prefs(self):
         try:
@@ -486,6 +509,29 @@ class Extension:
 
     def speedtest_service(self):
         return self.effective_prefs()["speedtest_service"]
+
+    def public_ip(self):
+        """The internet-facing address, or {enabled: False} without any network access while the option is off."""
+        if not self.effective_prefs()["show_public_ip"]:
+            self.ip_cache = None
+            return dict(enabled=False)
+        with self.ip_lock:
+            now = self.clock()
+            cached = self.ip_cache
+            if cached and now - cached["checked_at"] < (PUBLIC_IP_TTL if cached["ip"] else PUBLIC_IP_RETRY):
+                return dict(cached, enabled=True)
+            failures = []
+            for url in PUBLIC_IP_SOURCES:
+                try:
+                    result = dict(ip=self.ip_fetch(url), source=urlsplit(url).hostname, checked_at=int(now), error=None)
+                    break
+                except Exception as exc:
+                    failures.append("%s: %s" % (urlsplit(url).hostname, str(exc) or type(exc).__name__))
+            else:
+                logger.warning("Public IP lookup failed: %s", "; ".join(failures))
+                result = dict(ip=None, source=None, checked_at=int(now), error="; ".join(failures)[:300])
+            self.ip_cache = result
+            return dict(result, enabled=True)
 
     # ---- scheduled speedtests ---------------------------------------------------------
     @property
@@ -1256,6 +1302,10 @@ def install_routes(app, ext):
             return jsonify(prefs=ext.prefs(), schedule=dict(next_ts=ext.next_speedtest(int(ext.clock())), timezone=str(ext.tz)))
         except (ValueError, OSError):
             return jsonify(error="Persistent preferences cannot be read"), 503
+
+    @app.get("/api/public-ip")
+    def np_public_ip():
+        return jsonify(ext.public_ip())
 
     @app.get("/api/export/targets.csv")
     def np_csv():

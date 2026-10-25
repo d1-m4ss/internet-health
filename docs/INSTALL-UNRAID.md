@@ -112,6 +112,7 @@ notification agent in *Settings → Notification Settings*.
 
 ```sh
 curl -s http://<unraid>:8788/api/settings | jq .settings            # 200 with the thresholds
+curl -s http://<unraid>:8788/api/prefs | jq .                       # 200: speedtest service/schedule, show_public_ip false
 curl -s http://<unraid>:8788/api/targets/recent | jq '.data|length' # one entry per target
 curl -s -o /dev/null -w '%{http_code}\n' http://<unraid>:8788/api/notifications/pending      # 403 without the key
 ls -l $D/notify-token                                               # -rw------- (600)
@@ -135,7 +136,47 @@ rm /boot/config/plugins/dynamix/netprobe-notify.cron && update_cron
 The extension keeps its data in separate `np_*` tables; the upstream tables are untouched, so nothing needs to be
 cleaned up for the stock app to work.
 
-## Updating the image later
+## Updating NetProbe Enhanced
+
+For an installation made with an earlier version of this repository (with or without Turbo mode). A release changes
+only the **three container files**; the notification bridge (`netprobe-unraid-notify.sh`), the cron line, the
+container settings, the image digest, the database, `alert-settings.json` and `notify-token` stay as they are. New
+tables or files are created on first use, so there is no migration. After the update every new feature is **off or
+unchanged** until you switch it on: the Speedtest still follows `SPEEDTEST_ENABLED` / `SPEEDTEST_INTERVAL`, the
+service follows `SPEEDTEST_BACKEND`, no Speedtest message is sent and no external IP is looked up.
+
+```sh
+D=/mnt/user/appdata/netprobe_database ; C=$D/custom
+# 1. back up what is installed now (files + settings + a consistent copy of the database)
+B=$D/backups/ext-$(date +%Y%m%d-%H%M) && mkdir -p $B
+cp -p $C/app.py $C/netprobe_extensions.py $C/index.html $D/alert-settings.json $B/
+[ -f $D/netprobe-prefs.json ] && cp -p $D/netprobe-prefs.json $B/
+docker stop NetProbe && cp -p $D/netprobe.sqlite $B/ && docker start NetProbe
+# 2. from your computer, in the updated repository (git pull): replace the three files
+scp src/app.py src/netprobe_extensions.py src/index.html root@<unraid>:$C/
+# 3. restart: templates and Python modules are read once at start
+docker restart NetProbe
+```
+
+If your container was created with the GUI or option B above, nothing else is needed: the three bind mounts
+already point at `$C`. (If the bridge script or cron line changed in a release, the CHANGELOG says so; none of the
+releases so far changed them.)
+
+Check:
+
+```sh
+docker logs NetProbe 2>&1 | grep -i -E 'traceback|extension failed'     # nothing
+curl -s http://<unraid>:8788/api/prefs | jq .prefs.speedtest_schedule   # "container"  (new version is running)
+curl -s http://<unraid>:8788/api/settings | jq .settings                # your thresholds, unchanged
+```
+
+Then reload the page (Ctrl+F5 — the browser may keep the old page). A browser-side check: the Speedtest tab now has a
+*Measurement service* selector and *Schedule and notifications*.
+
+Rollback: copy the three files back from `$B` and `docker restart NetProbe`. The extra file `netprobe-prefs.json`
+is simply ignored by the older version; database rows written meanwhile stay valid.
+
+## Updating the NetProbe image later
 
 1. `docker pull bmmbmm01/netprobe:latest` (does not touch the running container).
 2. `bash verify-image.sh bmmbmm01/netprobe:latest` — if both files match, the overrides are compatible.
