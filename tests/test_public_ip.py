@@ -46,6 +46,10 @@ class PublicIpTests(unittest.TestCase):
         response = self.client.post("/api/prefs", json={"show_public_ip": on}, headers=HEADERS)
         self.assertEqual(response.status_code, 200)
 
+    def interval(self, minutes):
+        response = self.client.post("/api/prefs", json={"wan_check_min": minutes}, headers=HEADERS)
+        self.assertEqual(response.status_code, 200)
+
     def get(self):
         """The answer after any background lookup has finished (the first answer after enabling is `pending`, an
         expired one is served while the refresh runs; both are covered by their own tests)."""
@@ -73,7 +77,7 @@ class PublicIpTests(unittest.TestCase):
         started = time.monotonic()
         first = self.client.get("/api/public-ip").get_json()
         self.assertLess(time.monotonic() - started, 1, "the request returns while the lookup is still running")
-        self.assertEqual(first, {"enabled": True, "pending": True, "ip": None, "isp": None, "source": None, "checked_at": None, "error": None})
+        self.assertEqual(first, {"enabled": True, "pending": True, "refreshing": True, "every_min": 15, "ip": None, "isp": None, "source": None, "checked_at": None, "error": None})
         self.assertEqual(self.client.get("/api/public-ip").get_json()["pending"], True)
         gate.set()
         self.ext.ip_thread.join(5)
@@ -82,9 +86,10 @@ class PublicIpTests(unittest.TestCase):
 
     def test_an_expired_answer_is_served_while_a_fresh_one_is_fetched(self):
         self.turn(True)
+        self.interval(1)
         self.assertEqual(self.get()["ip"], "8.8.8.8")
         self.answers[S1] = ("9.9.9.9", "Other Net")
-        self.now += npx.PUBLIC_IP_TTL + 1
+        self.now += 60 + npx.WAN_GRACE + 1
         stale = self.client.get("/api/public-ip").get_json()
         self.assertEqual(stale["ip"], "8.8.8.8", "no empty card while refreshing")
         self.ext.ip_thread.join(5)
@@ -104,16 +109,18 @@ class PublicIpTests(unittest.TestCase):
 
     def test_enabled_returns_the_address_and_where_it_came_from(self):
         self.turn(True)
-        self.assertEqual(self.get(), {"enabled": True, "ip": "8.8.8.8", "isp": "Example Net", "source": S1, "checked_at": self.now, "error": None})
+        self.assertEqual(self.get(), {"enabled": True, "refreshing": False, "every_min": 15, "ip": "8.8.8.8", "isp": "Example Net", "source": S1,
+                                      "checked_at": self.now, "error": None})
         self.assertEqual(self.calls, [S1])
 
     def test_answers_are_cached_and_refreshed_after_the_ttl(self):
         self.turn(True)
+        self.interval(1)
         for _ in range(5):
             self.assertEqual(self.get()["ip"], "8.8.8.8")
         self.assertEqual(self.calls, [S1], "five page refreshes, one lookup")
         self.answers[S1] = ("9.9.9.9", "Other Net")
-        self.now += npx.PUBLIC_IP_TTL - 1
+        self.now += 60 + npx.WAN_GRACE - 1
         self.assertEqual(self.get()["ip"], "8.8.8.8")
         self.now += 2
         changed = self.get()
@@ -177,6 +184,68 @@ class PublicIpTests(unittest.TestCase):
         self.ext.prefs_path.write_text("{broken")
         self.assertEqual(self.get(), {"enabled": False})
         self.assertEqual(self.calls, [])
+
+
+    def test_a_page_view_does_not_look_up_within_the_chosen_interval(self):
+        self.turn(True)
+        self.assertEqual(self.get()["every_min"], 15)
+        self.now += 15 * 60 - 1
+        self.get()
+        self.assertEqual(self.calls, [S1], "the watcher keeps the 15-minute card fresh; opening the page costs no request")
+        self.now += 15 * 60 + npx.WAN_GRACE
+        self.get()
+        self.assertEqual(self.calls, [S1, S1], "a watcher that is long late is replaced by the page view")
+
+    def test_manual_mode_never_looks_up_by_itself(self):
+        self.turn(True)
+        self.interval(0)
+        empty = self.get()
+        self.assertEqual((empty["enabled"], empty["every_min"], empty["ip"], empty["checked_at"], empty["pending"], empty["refreshing"]),
+                         (True, 0, None, None, False, False))
+        self.now += 7 * 86400
+        self.get()
+        self.assertEqual(self.calls, [], "page views, however many, send nothing in manual mode")
+
+    def test_the_refresh_button_looks_up_once_and_the_answer_stays_for_good(self):
+        self.turn(True)
+        self.interval(0)
+        started = self.client.post("/api/public-ip/refresh", headers=HEADERS)
+        self.assertEqual((started.status_code, started.get_json()["enabled"]), (202, True))
+        self.ext.ip_thread.join(5)
+        answer = self.client.get("/api/public-ip").get_json()
+        self.assertEqual((answer["ip"], answer["isp"], answer["every_min"], answer["refreshing"]), ("8.8.8.8", "Example Net", 0, False))
+        self.now += 30 * 86400
+        self.assertEqual(self.client.get("/api/public-ip").get_json()["checked_at"], answer["checked_at"], "an old answer is shown, not replaced")
+        self.assertEqual(self.calls, [S1])
+
+    def test_repeated_presses_while_a_lookup_runs_start_no_second_one(self):
+        self.turn(True)
+        self.interval(0)
+        gate = threading.Event()
+        original = self.ext.ip_fetch
+        self.ext.ip_fetch = lambda url, timeout=None: (gate.wait(5), original(url))[1]
+        for _ in range(3):
+            body = self.client.post("/api/public-ip/refresh", headers=HEADERS).get_json()
+        self.assertTrue(body["refreshing"])
+        gate.set()
+        self.ext.ip_thread.join(5)
+        self.assertEqual(self.calls, [S1])
+
+    def test_refresh_needs_the_option_and_the_same_origin_header(self):
+        self.assertEqual(self.client.post("/api/public-ip/refresh", headers=HEADERS).get_json(), {"enabled": False})
+        self.assertEqual(self.calls, [])
+        self.turn(True)
+        self.assertEqual(self.client.post("/api/public-ip/refresh").status_code, 403)
+        self.assertEqual(self.calls, [])
+
+    def test_the_interval_is_one_of_the_three_choices(self):
+        for value in (0, 1, 15):
+            self.interval(value)
+            self.assertEqual(self.ext.prefs()["wan_check_min"], value)
+        for bad in (5, -1, 60, "15", True, None, 1.0):
+            response = self.client.post("/api/prefs", json={"wan_check_min": bad}, headers=HEADERS)
+            self.assertEqual(response.status_code, 400, repr(bad))
+        self.assertEqual(self.ext.prefs()["wan_check_min"], 15)
 
 
 class FetchTests(unittest.TestCase):
@@ -251,6 +320,7 @@ class FetchTests(unittest.TestCase):
         self.body = b"8" * 5_000_000
         with self.assertRaises(ValueError):
             npx.fetch_public_ip(self.url)
+
 
 
 if __name__ == "__main__":

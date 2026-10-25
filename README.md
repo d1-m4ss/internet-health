@@ -37,9 +37,11 @@ bind-mounted read-only over it. Removing the mounts brings the stock NetProbe ba
   test. Without changes the container variables `SPEEDTEST_ENABLED` / `SPEEDTEST_INTERVAL` keep deciding.
 - **A *WAN / ISP* card with your external IP, on request.** Tick *Show my external IP and provider* in the settings
   and a card under the status banner shows the address the internet sees and your provider's name. Off by default:
-  nothing is requested and nothing recorded until you tick it; then the container asks `api.ipify.org` once a minute
+  nothing is requested and nothing recorded until you tick it; then the container asks `api.ipify.org`
   for the address (one tiny request) and `ipwho.is` for the provider name only when the address changes and once a
-  day. The services see the address the request comes from.
+  day. How often is your choice: every 15 minutes (default), every minute, or **manually** — then nothing is requested
+  until you press *Refresh* in the card (manual mode records no WAN history and sends no change notifications). The
+  services see the address the request comes from.
 - **WAN history and a WAN selector.** With that option on, every measurement is stored together with the address and
   provider that carried it, so a failover to a backup link or a provider change can be told apart in the data: a
   *WAN source* selector above the chart and in the *Targets* table (kept in sync) shows the history, statistics and

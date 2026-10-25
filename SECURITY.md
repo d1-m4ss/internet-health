@@ -6,7 +6,7 @@
   host bridge. Keep that file out of version control and backups you share.
 - The extension adds no privileges to the container: no Docker socket, no host root, no extra capabilities.
 - Outbound requests happen only on request: Speedtest runs (manual or scheduled) and, when *Show my external IP and
-  provider* is ticked, a public-IP check (`api.ipify.org` once a minute, `ipwho.is` for the provider name only when the address changes and once a day). With it on, the address and provider are stored with every measurement; *Forget WAN addresses…* erases them. Preference changes (`POST /api/prefs`) and history
+  provider* is ticked, a public-IP check (`api.ipify.org` every 15 minutes by default, every minute or only when you press *Refresh* in the card; `ipwho.is` for the provider name only when the address changes and once a day). With it on, the address and provider are stored with every measurement; *Forget WAN addresses…* erases them. Preference changes (`POST /api/prefs`) and history
   cleanup (`POST /api/history/cleanup`) are accepted only from same-origin browser requests, like `/api/settings`; a real
   deletion additionally needs an explicit `confirm`, and the nightly cleanup runs only after a retention period was chosen.
 

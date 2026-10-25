@@ -77,6 +77,7 @@ class RecordingTests(WanBase):
 
     def test_a_stale_or_missing_address_is_never_attached(self):
         self.option(True)
+        self.ext.update_prefs({"wan_check_min": 1})
         self.cycle()  # no lookup yet
         self.know(A)
         self.now += npx.WAN_MAX_AGE + 1
@@ -84,6 +85,18 @@ class RecordingTests(WanBase):
         self.ext.ip_cache = dict(ip=None, isp=None, source=None, checked_at=int(self.now), error="offline")
         self.cycle()  # the lookup failed
         self.assertEqual(self.wan_of(), [(None, None)] * 3)
+
+    def test_a_slower_interval_tolerates_one_missed_check_and_manual_mode_records_nothing(self):
+        self.option(True)                      # default: every 15 minutes
+        self.know(A)
+        self.now += 2 * 15 * 60                # one check missed: still tagged
+        self.cycle()
+        self.now += 1
+        self.cycle()                           # more than two intervals: no longer trusted
+        self.ext.update_prefs({"wan_check_min": 0})
+        self.know(B)
+        self.cycle()                           # manual mode: the address is shown, never recorded
+        self.assertEqual(self.wan_of(), [A, (None, None), (None, None)])
 
     def test_an_unknown_provider_is_recorded_as_unknown_not_invented(self):
         self.option(True)
@@ -171,6 +184,48 @@ class WatcherTests(WanBase):
         self.ext.ip_fetch = lambda url, timeout=None: self.fetches.append(url) or A
         self.ext.start_wan_watcher(sleep=lambda s: None, rounds=2).join(5)
         self.assertEqual(self.fetches, [])
+
+
+class IntervalTests(WanBase):
+    """The watcher thread wakes every minute; the chosen interval decides whether a check is due."""
+    def setUp(self):
+        super().setUp()
+        self.option(True)
+
+    def test_a_check_is_due_at_the_chosen_interval_only(self):
+        for minutes in (1, 15):
+            self.ext.update_prefs({"wan_check_min": minutes})
+            self.ext.wan_checked_at = None
+            self.assertTrue(self.ext.wan_due(), "the first check is made at once")
+            self.ext.wan_tick()
+            self.now += minutes * 60 - 31
+            self.assertFalse(self.ext.wan_due(), "%d min: not yet" % minutes)
+            self.now += 31
+            self.assertTrue(self.ext.wan_due(), "%d min: due" % minutes)
+
+    def test_manual_mode_and_the_switched_off_option_are_never_due(self):
+        self.ext.update_prefs({"wan_check_min": 0})
+        self.assertFalse(self.ext.wan_due())
+        self.ext.update_prefs({"wan_check_min": 1, "show_public_ip": False})
+        self.assertFalse(self.ext.wan_due())
+
+    def test_a_new_address_is_confirmed_a_minute_later_not_a_whole_interval_later(self):
+        self.ext.wan_tick()                              # 15-minute mode, first check
+        self.assertFalse(self.ext.wan_due())
+        self.now += 15 * 60
+        self.answers["https://api.ipify.org"] = (B[0], None)
+        self.answers["https://ipwho.is/"] = B
+        self.ext.wan_tick()                              # first sighting of the new address
+        self.assertIsNotNone(self.ext.wan_pending)
+        self.now += 60
+        self.assertTrue(self.ext.wan_due(), "the second look is not postponed by 15 minutes")
+        self.ext.wan_tick()
+        self.assertIsNone(self.ext.wan_pending)
+        self.assertEqual(self.ext.wan_state()["ip"], B[0])
+
+    def test_the_thread_checks_only_when_due(self):
+        self.ext.start_wan_watcher(sleep=lambda s: None, rounds=5).join(5)
+        self.assertEqual(self.fetches, ["https://ipwho.is/"], "five wake-ups at the same instant, one check")
 
 
 class QueryTests(WanBase):
@@ -405,6 +460,15 @@ class ChangeNotificationTests(WanBase):
         key = (self.root / "notify-token").read_text().strip()
         pending = self.client.get("/api/notifications/pending", headers={"X-NetProbe-Notify-Key": key}).get_json()["notifications"]
         self.assertEqual(len(pending), 1)
+
+    def test_manual_mode_makes_no_announcement_and_no_check(self):
+        self.ext.update_prefs({"wan_check_min": 0})
+        self.see(A)
+        self.see(B)
+        self.assertEqual(self.queued(), [], "without a watcher a change cannot be announced")
+        self.fetches.clear()
+        self.ext.wan_tick()
+        self.assertEqual(self.fetches, [])
 
     def test_the_preference_is_a_real_boolean(self):
         for bad in ("yes", 1, None):

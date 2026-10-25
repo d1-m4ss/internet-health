@@ -85,17 +85,20 @@ CLEANUP_TABLES = (("measurements", "ts < ?"), ("dns_measurements", "ts < ?"), ("
                   ("np_targets", "ts < ?"), ("np_events", "ts < ?"), ("np_notifications", "acked=1 AND ts < ?"),
                   ("np_outages", "status NOT IN ('open','pending') AND COALESCE(end_ts,last_ts) < ?"))
 PREFS_DEFAULTS = dict(speedtest_service="", speedtest_schedule="container", speedtest_interval_h=6,
-                      speedtest_times=["03:00"], speedtest_notify=False, show_public_ip=False, wan_notify=False, history_retention_days=0)
+                      speedtest_times=["03:00"], speedtest_notify=False, show_public_ip=False, wan_check_min=15, wan_notify=False,
+                      history_retention_days=0)
 # Public IP and provider (opt-in: nothing is requested while show_public_ip is off). ipwho.is answers with JSON
 # (address and ISP name); the plain-text services after it only know the address.
 PUBLIC_IP_SOURCES = ("https://ipwho.is/", "https://api.ipify.org", "https://icanhazip.com")
 PUBLIC_IP_ONLY = ("https://api.ipify.org", "https://icanhazip.com")  # cheap address-only checks between full lookups
-PUBLIC_IP_TTL = 300    # seconds a successful answer is reused
-WAN_CHECK_EVERY = 60   # with the option on: how often the address is checked (one tiny plain-text request)
+WAN_CHECK_CHOICES = (0, 1, 15)  # minutes between address checks; 0 = only when the Refresh button is pressed
+WAN_GRACE = 120        # seconds a page view tolerates a late check before it starts a lookup itself
+WAN_CHECK_EVERY = 60   # granularity of the watcher thread (the chosen interval is a multiple of it)
 WAN_FULL_EVERY = 86400  # the provider name is refreshed at least this often, or at once when the address changes
 WAN_ICON = "🌐"
 WAN_NOTIFY_MAX_PER_HOUR = 6  # a link that keeps flapping must not flood the phone
 WAN_MAX_AGE = 900      # a probe sample is tagged with the last known address only while it was confirmed this recently
+                       # (at least; with a longer check interval one missed check is tolerated)
 PUBLIC_IP_RETRY = 60   # seconds before another attempt after every source failed
 PUBLIC_IP_TIMEOUT = 5
 GZIP_TYPES = ("text/html", "application/json", "text/csv")  # compressed when the browser accepts gzip
@@ -360,6 +363,7 @@ class Extension:
         self.cleanup_path = self.data_dir / "history-cleanup.json"
         self.wan_state_path = self.data_dir / "wan-state.json"
         self.wan_pending = None   # (address, provider) seen once; a change is reported when the next check sees it again
+        self.wan_checked_at = None  # when the watcher last checked (its interval is counted from here)
         self.cleanup_lock = threading.Lock()
         if not self.settings_path.exists():
             self._write_settings(DEFAULTS)
@@ -537,6 +541,8 @@ class Extension:
         if "history_retention_days" in values and (type(values["history_retention_days"]) is not int
                                                    or values["history_retention_days"] not in RETENTION_CHOICES):
             raise ValueError("history_retention_days must be one of: " + ", ".join(str(x) for x in RETENTION_CHOICES))
+        if "wan_check_min" in values and (type(values["wan_check_min"]) is not int or values["wan_check_min"] not in WAN_CHECK_CHOICES):
+            raise ValueError("wan_check_min must be one of: " + ", ".join(str(x) for x in WAN_CHECK_CHOICES))
         for key in ("speedtest_notify", "show_public_ip", "wan_notify"):
             if key in values and type(values[key]) is not bool:
                 raise ValueError(key + " must be a boolean")
@@ -704,23 +710,50 @@ class Extension:
     def speedtest_service(self):
         return self.effective_prefs()["speedtest_service"]
 
+    def wan_every(self):
+        """Seconds between address checks; 0 when the address is only looked up on request."""
+        return self.effective_prefs()["wan_check_min"] * 60
+
     def public_ip(self):
         """The cached internet-facing address and ISP; {enabled: False} without any network access while the option is
         off. The lookup itself runs in a background thread, so a slow service never holds up a web request: a missing
-        answer is reported as pending, an expired one is served while a fresh one is fetched."""
-        if not self.effective_prefs()["show_public_ip"]:
+        answer is reported as pending, an expired one is served while a fresh one is fetched. In manual mode nothing is
+        ever looked up here: the card shows the last answer (or asks to press Refresh) until the user asks."""
+        prefs = self.effective_prefs()
+        if not prefs["show_public_ip"]:
             self.ip_cache = None
             return dict(enabled=False)
+        every = prefs["wan_check_min"] * 60
         with self.ip_lock:
             now = self.clock()
             cached = self.ip_cache
-            fresh = cached and now - cached["checked_at"] < (PUBLIC_IP_TTL if cached["ip"] else PUBLIC_IP_RETRY)
-            if not fresh and not (self.ip_thread and self.ip_thread.is_alive()):
-                self.ip_thread = threading.Thread(target=self.refresh_public_ip, name="netprobe-public-ip", daemon=True)
-                self.ip_thread.start()
             if cached:
-                return dict(cached, enabled=True)
-            return dict(enabled=True, pending=True, ip=None, isp=None, source=None, checked_at=None, error=None)
+                fresh = not every or now - cached["checked_at"] < (every + WAN_GRACE if cached["ip"] else PUBLIC_IP_RETRY)
+            else:
+                fresh = not every
+            if not fresh:
+                self._start_lookup()
+            info = dict(enabled=True, every_min=prefs["wan_check_min"], refreshing=self._lookup_running())
+            if cached:
+                return dict(cached, **info)
+            return dict(info, pending=bool(every), ip=None, isp=None, source=None, checked_at=None, error=None)
+
+    def _lookup_running(self):
+        return bool(self.ip_thread and self.ip_thread.is_alive())
+
+    def _start_lookup(self):
+        """Caller holds ip_lock. One background lookup at a time."""
+        if not self._lookup_running():
+            self.ip_thread = threading.Thread(target=self.refresh_public_ip, name="netprobe-public-ip", daemon=True)
+            self.ip_thread.start()
+
+    def request_public_ip(self):
+        """The Refresh button: start a lookup now (whatever the interval); the answer is polled from public_ip()."""
+        if not self.effective_prefs()["show_public_ip"]:
+            return dict(enabled=False)
+        with self.ip_lock:
+            self._start_lookup()
+        return self.public_ip()
 
     def refresh_public_ip(self):
         failures = []
@@ -744,17 +777,21 @@ class Extension:
         """(address, provider) to record with a probe sample: the last confirmed ones, only while the external-IP option is on.
         Never touches the network."""
         cached = self.ip_cache
-        if (not cached or not cached.get("ip") or self.clock() - cached["checked_at"] > WAN_MAX_AGE
-                or not self.effective_prefs()["show_public_ip"]):
+        prefs = self.effective_prefs()
+        if (not cached or not cached.get("ip") or not prefs["show_public_ip"] or not prefs["wan_check_min"]
+                or self.clock() - cached["checked_at"] > max(WAN_MAX_AGE, 2 * prefs["wan_check_min"] * 60)):
             return None, None
         return cached["ip"], cached.get("isp")
 
     def wan_tick(self):
-        """One check of the WAN address (called every WAN_CHECK_EVERY s while the option is on). A cheap address-only request
-        confirms it; the provider lookup (ipwho.is) only runs when the address changed or the name is a day old."""
-        if not self.effective_prefs()["show_public_ip"]:
+        """One check of the WAN address (made by the watcher at the chosen interval, never in manual mode). A cheap
+        address-only request confirms it; the provider lookup (ipwho.is) only runs when the address changed or the name
+        is a day old."""
+        prefs = self.effective_prefs()
+        if not prefs["show_public_ip"] or not prefs["wan_check_min"]:
             return
         now = self.clock()
+        self.wan_checked_at = now
         cached = self.ip_cache
         if cached and cached.get("ip") and now - cached["checked_at"] < WAN_FULL_EVERY:
             for url in PUBLIC_IP_ONLY:
@@ -772,6 +809,15 @@ class Extension:
             else:
                 return  # no answer from any service (offline): keep what is known
         self.refresh_public_ip()
+
+    def wan_due(self):
+        """Is the watcher's next check due? At the chosen interval; a first sighting of a new address is confirmed a
+        minute later instead of waiting for a whole interval."""
+        every = self.wan_every()
+        if not every or not self.effective_prefs()["show_public_ip"]:
+            return False
+        return (self.wan_pending is not None or self.wan_checked_at is None
+                or self.clock() - self.wan_checked_at >= every - WAN_CHECK_EVERY / 2)
 
     def wan_state(self):
         try:
@@ -807,8 +853,9 @@ class Extension:
 
     def notify_wan_change(self, before, after, now):
         """Queue the message about a changed WAN, when asked for, alerts are on and the hourly limit is not used up."""
-        if not self.effective_prefs()["wan_notify"] or not self.effective_settings()["enabled"]:
-            return None
+        prefs = self.effective_prefs()
+        if not prefs["wan_notify"] or not prefs["wan_check_min"] or not self.effective_settings()["enabled"]:
+            return None  # (manual mode does not watch the link, so it cannot announce a change)
         name = lambda isp: " ".join(CONTROL_CHARS.sub(" ", isp or "").split())[:120] or "provider not reported"
         changed = bool(before.get("isp") and after.get("isp") and before["isp"] != after["isp"])
         clock = lambda t: time.strftime("%H:%M, %d.%m", time.localtime(t))
@@ -833,7 +880,8 @@ class Extension:
             done = 0
             while rounds is None or done < rounds:
                 try:
-                    self.wan_tick()
+                    if self.wan_due():
+                        self.wan_tick()
                 except Exception:
                     logger.exception("WAN address check failed")
                 done += 1
@@ -1742,6 +1790,12 @@ def install_routes(app, ext):
     @app.get("/api/public-ip")
     def np_public_ip():
         return jsonify(ext.public_ip())
+
+    @app.post("/api/public-ip/refresh")
+    def np_public_ip_refresh():
+        if not same_origin_request():
+            return jsonify(error="Same-origin settings request required"), 403
+        return jsonify(ext.request_public_ip()), 202
 
     @app.get("/api/export/targets.csv")
     def np_csv():

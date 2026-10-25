@@ -137,7 +137,7 @@ Time: 03:02, 10.03.2026 EET
 
 With *Show my external IP and provider* on, NetProbe remembers the last WAN (`/data/wan-state.json`). *Send a notification
 when the external IP or provider changes* sends one message when the address changes — useful when the router fails over to
-a backup link. The new address must be seen by two checks in a row (a minute apart), so one odd answer is not a change; a
+a backup link. The new address must be seen by two checks in a row (the second one a minute after the first, whatever the check interval), so one odd answer is not a change; there is no message in manual mode, where nothing watches the link; a
 provider name that only changed its spelling with the same address is ignored; at most 6 messages per hour. The level is
 `warning` when the provider changed and `normal` when only the address did.
 

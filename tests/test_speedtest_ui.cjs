@@ -11,7 +11,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
   try {
     const now = Math.floor(Date.now() / 1000);
     const api = {
-      prefs: {speedtest_service: '', speedtest_schedule: 'container', speedtest_interval_h: 6, speedtest_times: ['03:00'], speedtest_notify: false, show_public_ip: false, wan_notify: false, history_retention_days: 0}, history: {last: null, next_ts: null, db_bytes: 5320000, oldest_ts: now - 86400 * 40}, cleanupTotal: 1234, cleanupError: null, publicIp: {enabled: false}, targets: [], wanData: {sources: [], current: null}, publicIpDelay: 0, delays: {}, statusSeq: [], status: {running: false, success: null, error: null, result: null}, runStatus: 202, prefsFail: false, prefsReadFail: false, speedRun: null, calls: [],
+      prefs: {speedtest_service: '', speedtest_schedule: 'container', speedtest_interval_h: 6, speedtest_times: ['03:00'], speedtest_notify: false, show_public_ip: false, wan_check_min: 15, wan_notify: false, history_retention_days: 0}, history: {last: null, next_ts: null, db_bytes: 5320000, oldest_ts: now - 86400 * 40}, cleanupTotal: 1234, cleanupError: null, publicIp: {enabled: false}, targets: [], wanData: {sources: [], current: null}, publicIpDelay: 0, delays: {}, statusSeq: [], status: {running: false, success: null, error: null, result: null}, runStatus: 202, prefsFail: false, prefsReadFail: false, speedRun: null, calls: [],
       latest: {ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server: {id: '1', name: 'Example City', country: 'EX'}, backend: 'python'},
       history: [{ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server_id: '1', server_name: 'Example City', backend: 'python'}],
     };
@@ -34,7 +34,8 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
             if (request.method() === 'POST') {
               if (api.prefsFail) return route.fulfill({status: 500, json: {error: 'disk full'}});
               Object.assign(api.prefs, body);
-              if ('show_public_ip' in body) api.publicIp = body.show_public_ip ? {enabled: true, ip: '198.51.100.7', isp: 'Example Net', source: 'ipwho.is', checked_at: now, error: null} : {enabled: false};
+              if ('show_public_ip' in body) api.publicIp = body.show_public_ip ? {enabled: true, ip: '198.51.100.7', isp: 'Example Net', source: 'ipwho.is', checked_at: now, error: null, every_min: api.prefs.wan_check_min, refreshing: false} : {enabled: false};
+              if ('wan_check_min' in body && api.publicIp.enabled) api.publicIp = {...api.publicIp, every_min: body.wan_check_min};
             }
             return route.fulfill({json: {prefs: api.prefs, schedule: {next_ts: api.prefs.speedtest_schedule === 'daily' ? now + 7200 : null, timezone: 'Europe/Berlin'}, history: {...api.history, next_ts: api.prefs.history_retention_days ? now + 36000 : null}}});
           case '/api/history/cleanup':
@@ -45,6 +46,12 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
           case '/api/targets/recent': return route.fulfill({json: {data: api.targets, started_at: now - 3600}});
           case '/api/wan/sources': return route.fulfill({json: api.wanData});
           case '/api/wan/forget': api.forgotten = body; return route.fulfill({json: {forgotten: 42}});
+          case '/api/public-ip/refresh': {
+            const finished = {...api.publicIp, ip: '198.51.100.99', isp: 'Refreshed Net', checked_at: now + 60, error: null, refreshing: false};
+            api.publicIp = {...api.publicIp, refreshing: true};
+            setTimeout(() => { api.publicIp = finished; }, 1800);
+            return route.fulfill({status: 202, json: api.publicIp});
+          }
           case '/api/public-ip': if (api.publicIpDelay) await new Promise(r => setTimeout(r, api.publicIpDelay)); return route.fulfill({json: api.publicIp});
           case '/api/speedtest/latest': return route.fulfill({json: {result: api.latest}});
           case '/api/speedtest/history': return route.fulfill({json: {tests: api.history}});
@@ -243,7 +250,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       await page.waitForFunction(() => document.getElementById('wanIp').textContent === '198.51.100.7');
       assert.deepEqual(api.calls.filter(c => c.path === '/api/prefs' && c.method === 'POST').pop().body, {show_public_ip: true});
       assert.equal(await page.locator('#wanIsp').textContent(), 'Example Net');
-      assert.match(await page.locator('#wanMeta').textContent(), /Checked .+ · source ipwho\.is · refreshed every 5 minutes/);
+      assert.match(await page.locator('#wanMeta').textContent(), /Checked .+ · source ipwho\.is · checked every 15 minutes/);
       assert.equal(await page.locator('#wanCard strong').textContent(), 'WAN / ISP');
       assert.equal(await card.isVisible(), true);
       // the card sits between the status banner and the path card, full width of the content column
@@ -425,6 +432,58 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       assert.equal(await notify.isChecked(), true, 'reverted to what is stored');
       api.prefsFail = false;
       assert.match(await page.locator('label:has(#wan_notify)').textContent(), /when the external IP or provider changes/);
+
+      // how often the address is checked: 15 minutes by default, a minute, or only by the button in the card
+      const every = page.locator('#wan_check'), refresh = page.locator('#wanRefresh');
+      const prefPosts = () => api.calls.filter(c => c.path === '/api/prefs' && c.method === 'POST');
+      assert.deepEqual(await every.locator('option').allTextContents(), ['Manually (button in the card)', 'Every 15 minutes', 'Every minute']);
+      assert.equal(await every.inputValue(), '15');
+      assert.equal(await every.isEnabled(), true);
+      await every.selectOption('1');
+      await page.waitForFunction(() => /checked every minute/.test(document.getElementById('wanMeta').textContent));
+      assert.deepEqual(prefPosts().pop().body, {wan_check_min: 1});
+      assert.equal(await notify.isEnabled(), true);
+      api.prefsFail = true;
+      await every.selectOption('0');
+      await page.waitForFunction(() => /Could not save/.test(document.getElementById('ipMessage').textContent));
+      assert.equal(await every.inputValue(), '1', 'a failed save shows what is stored');
+      api.prefsFail = false;
+      await every.selectOption('0');
+      await page.waitForFunction(() => /refreshed on demand/.test(document.getElementById('wanMeta').textContent));
+      assert.deepEqual(prefPosts().pop().body, {wan_check_min: 0});
+      assert.equal(await notify.isDisabled(), true, 'a manual card cannot watch the link');
+      assert.match(await page.locator('#wanNotifyNote').textContent(), /not available in manual mode/);
+
+      // the button inside the card asks the server once, shows progress and then the new answer
+      const refreshCalls = () => api.calls.filter(c => c.path === '/api/public-ip/refresh');
+      assert.equal(await refresh.isVisible(), true);
+      assert.equal(await refresh.textContent(), 'Refresh');
+      await refresh.click();
+      await page.waitForFunction(() => document.getElementById('wanRefresh').disabled && /Refreshing/.test(document.getElementById('wanRefresh').textContent));
+      await page.waitForFunction(() => document.getElementById('wanIp').textContent === '198.51.100.99', null, {timeout: 8000});
+      assert.equal(await page.locator('#wanIsp').textContent(), 'Refreshed Net');
+      assert.equal(await refresh.isEnabled(), true);
+      assert.equal(await refresh.textContent(), 'Refresh');
+      assert.equal(refreshCalls().length, 1, 'one press, one request');
+      assert.equal(refreshCalls()[0].method, 'POST');
+      assert.equal(refreshCalls()[0].headers['x-netprobe-request'], 'settings');
+      await every.selectOption('15');
+      await page.waitForFunction(() => /checked every 15 minutes/.test(document.getElementById('wanMeta').textContent));
+      assert.equal(await notify.isEnabled(), true);
+      assert.equal(await page.locator('#wanNotifyNote').isHidden(), true);
+
+      // manual mode without any answer yet: the card asks to press the button, nothing is requested by itself
+      api.prefs.wan_check_min = 0;
+      api.publicIp = {enabled: true, every_min: 0, pending: false, refreshing: false, ip: null, isp: null, source: null, checked_at: null, error: null};
+      const manualPage = (await open('unifi', 'en')).page;
+      await manualPage.locator('#unifiTabs [data-tab="settings"]').click();
+      await manualPage.waitForFunction(() => /Press Refresh/.test(document.getElementById('wanMeta').textContent));
+      assert.equal(await manualPage.locator('#wanIp').textContent(), '—');
+      assert.equal(await manualPage.locator('#wan_check').inputValue(), '0');
+      assert.equal(refreshCalls().length, 1, 'opening the page in manual mode sends no refresh');
+      await manualPage.close();
+      api.prefs.wan_check_min = 15;
+      api.publicIp = {enabled: true, ip: '198.51.100.7', isp: 'Example Net', source: 'ipwho.is', checked_at: now, error: null, every_min: 15, refreshing: false};
 
       // switching the option off removes the selectors again
       api.prefs.show_public_ip = false; api.publicIp = {enabled: false};

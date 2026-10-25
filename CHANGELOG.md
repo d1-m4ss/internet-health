@@ -5,6 +5,11 @@ The project is called **NetProbe Enhanced** (container, image, file and table na
 
 ## Unreleased
 
+- **How often the external IP is checked** (settings, next to *Show my external IP and provider*): every 15 minutes (default),
+  every minute, or **manually**. In manual mode nothing is requested until *Refresh* is pressed in the *WAN / ISP* card
+  (`POST /api/public-ip/refresh`; ticking the option counts as one request); no WAN history is recorded and no change message
+  is sent, because nothing watches the link. Opening the page never starts a lookup while the chosen interval is kept, and a
+  newly seen address is confirmed after one minute whatever the interval. New preference `wan_check_min` (0, 1 or 15).
 - **History retention** (settings → *History*, off by default): keep 7 / 30 / 90 / 180 days or 1 year; records older than that
   are deleted once a night in the quiet hours (batches, no long locks, file compacted afterwards), with a preview and a
   confirmed *Delete…* for on-demand cleaning and `python netprobe_extensions.py cleanup --days N [--dry-run]` inside the
@@ -28,7 +33,7 @@ The project is called **NetProbe Enhanced** (container, image, file and table na
 - **WAN / ISP card with the external IP on request** (setting *Show my external IP and provider*, off by default): a
   card under the status banner with the address the internet sees and the provider's name (the layout follows the
   proposal in PR 1). Nothing is requested while the setting is off; with it on the container checks the address with
-  `api.ipify.org` once a minute and asks `ipwho.is` for the provider only when the address changes and once a day,
+  `api.ipify.org` at the chosen interval (see above) and asks `ipwho.is` for the provider only when the address changes and once a day,
   accepts only public IP addresses and shows lookup failures plainly (`GET /api/public-ip`). An unknown provider reads
   *not reported*.
 - **WAN history** (needs that option): every sample is stored with the address and provider (`np_targets.wan_ip` /
