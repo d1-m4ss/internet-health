@@ -5,6 +5,15 @@ The project is called **NetProbe Enhanced** (container, image, file and table na
 
 ## Unreleased
 
+- **Faster, no more frozen page.** A manual Speedtest used to run inside the request, and the stock image has a single
+  synchronous web worker, so the page and every other request waited for the whole test (30–45 s). It now runs in the
+  background (`POST /api/speedtest/run` with `"async": true` answers `202`; `GET /api/speedtest/status`); the page
+  follows it, also when a scheduled test is running. The external-IP lookup is a background refresh too (the first
+  answer is *pending*, an expired one is served while it is renewed). The page and the JSON answers are gzip-compressed
+  (172 kB → 44 kB) and the page is revalidated with an ETag (a reload is a `304`). The browser asks for
+  `/api/history` once instead of twice and draws every answer as it arrives instead of waiting for the slowest one.
+  Optional container variable `GUNICORN_CMD_ARGS=--threads 4` lets the server handle requests in parallel
+  (in `examples/docker-compose.yml`; see *Web server threads* in `docs/INSTALL-UNRAID.md`).
 - Times in Speedtest messages use the schedule's time zone (`APP_TIMEZONE`) even when the process runs in another one.
 - The external-IP lookup runs beside the dashboard refresh instead of inside it: a slow or unreachable lookup service
   can no longer delay the data on screen.

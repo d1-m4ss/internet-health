@@ -47,6 +47,11 @@ class PublicIpTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
 
     def get(self):
+        """The answer after any background lookup has finished (the first answer after enabling is `pending`, an
+        expired one is served while the refresh runs; both are covered by their own tests)."""
+        self.client.get("/api/public-ip")
+        if self.ext.ip_thread:
+            self.ext.ip_thread.join(5)
         return self.client.get("/api/public-ip").get_json()
 
     def test_off_by_default_and_nothing_is_requested(self):
@@ -59,6 +64,43 @@ class PublicIpTests(unittest.TestCase):
             self.assertEqual(self.client.post("/api/prefs", json={"show_public_ip": bad}, headers=HEADERS).status_code, 400)
         self.assertEqual(self.client.post("/api/prefs", json={"show_public_ip": True}).status_code, 403, "needs the same-origin header")
         self.assertEqual(self.calls, [])
+
+    def test_the_first_answer_is_pending_and_never_waits_for_the_lookup(self):
+        self.turn(True)
+        gate = threading.Event()
+        original = self.ext.ip_fetch
+        self.ext.ip_fetch = lambda url, timeout=None: (gate.wait(5), original(url))[1]
+        started = time.monotonic()
+        first = self.client.get("/api/public-ip").get_json()
+        self.assertLess(time.monotonic() - started, 1, "the request returns while the lookup is still running")
+        self.assertEqual(first, {"enabled": True, "pending": True, "ip": None, "isp": None, "source": None, "checked_at": None, "error": None})
+        self.assertEqual(self.client.get("/api/public-ip").get_json()["pending"], True)
+        gate.set()
+        self.ext.ip_thread.join(5)
+        self.assertEqual(self.client.get("/api/public-ip").get_json()["ip"], "8.8.8.8")
+        self.assertEqual(self.calls, [S1], "polling while pending did not start a second lookup")
+
+    def test_an_expired_answer_is_served_while_a_fresh_one_is_fetched(self):
+        self.turn(True)
+        self.assertEqual(self.get()["ip"], "8.8.8.8")
+        self.answers[S1] = ("9.9.9.9", "Other Net")
+        self.now += npx.PUBLIC_IP_TTL + 1
+        stale = self.client.get("/api/public-ip").get_json()
+        self.assertEqual(stale["ip"], "8.8.8.8", "no empty card while refreshing")
+        self.ext.ip_thread.join(5)
+        self.assertEqual(self.client.get("/api/public-ip").get_json()["ip"], "9.9.9.9")
+
+    def test_switching_off_while_a_lookup_runs_keeps_nothing(self):
+        self.turn(True)
+        gate = threading.Event()
+        original = self.ext.ip_fetch
+        self.ext.ip_fetch = lambda url, timeout=None: (gate.wait(5), original(url))[1]
+        self.client.get("/api/public-ip")
+        self.turn(False)
+        gate.set()
+        self.ext.ip_thread.join(5)
+        self.assertIsNone(self.ext.ip_cache)
+        self.assertEqual(self.get(), {"enabled": False})
 
     def test_enabled_returns_the_address_and_where_it_came_from(self):
         self.turn(True)
@@ -114,21 +156,21 @@ class PublicIpTests(unittest.TestCase):
 
     def test_simultaneous_requests_cause_one_lookup(self):
         self.turn(True)
-        started = threading.Event()
         original = self.ext.ip_fetch
 
         def slow(url, timeout=None):
-            started.set()
             time.sleep(0.2)
             return original(url)
         self.ext.ip_fetch = slow
-        results = []
-        threads = [threading.Thread(target=lambda: results.append(self.ext.public_ip()["ip"])) for _ in range(4)]
+        answers = []
+        threads = [threading.Thread(target=lambda: answers.append(self.ext.public_ip())) for _ in range(4)]
         for t in threads:
             t.start()
         for t in threads:
             t.join()
-        self.assertEqual(results, ["8.8.8.8"] * 4)
+        self.ext.ip_thread.join(5)
+        self.assertEqual([a.get("pending") for a in answers], [True] * 4)
+        self.assertEqual(self.ext.public_ip()["ip"], "8.8.8.8")
         self.assertEqual(self.calls, [S1])
 
     def test_damaged_preferences_file_means_off(self):

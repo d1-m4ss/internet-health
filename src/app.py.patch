@@ -1,16 +1,16 @@
 --- upstream/app.py	2026-10-23 20:43:28
-+++ src/app.py	2026-10-25 18:49:23
++++ src/app.py	2026-10-25 19:59:15
 @@ -1,3 +1,9 @@
 +# Derived from NetProbe_Python (https://github.com/bmartino1/NetProbe_Python), MIT License,
 +# Copyright (c) 2025-2026 Brandon Martino -- see THIRD_PARTY_NOTICES.md.
 +# Modified: optional netprobe_extensions integration (per-target history, alerts, loss report), ROUTER_NAME,
 +# DNS reply tracking for alerting, Turbo mode watcher, Fast.com backend, the speedtest service choice,
-+# the speedtest schedule and its notifications.
++# the speedtest schedule and its notifications, manual tests in the background.
 +# Every change is listed in app.py.patch.
  import json
  import logging
  import os
-@@ -14,7 +20,14 @@
+@@ -14,6 +20,13 @@
  from flask import Flask, jsonify, render_template, request
  import dns.resolver
  import speedtest
@@ -18,13 +18,12 @@
 +    from netprobe_extensions import Extension, install_routes, ping_address
 +except Exception:  # extension files not mounted: native monitoring must still start
 +    Extension = install_routes = None
- 
++
 +    def ping_address(host, output):
 +        return None
-+
+ 
  try:
      import psycopg2
- except ImportError:
 @@ -126,7 +139,7 @@
  
  
@@ -80,8 +79,8 @@
 +            "measured": False,
 +            "sample_ts": int(time.time()),
          }
- 
- 
++
++
 +KNOWN_SITE_NAMES = {"google.com": "Google", "cloudflare.com": "Cloudflare", "fast.com": "Netflix Fast.com",
 +                    "youtube.com": "YouTube", "netflix.com": "Netflix", "github.com": "GitHub",
 +                    "1.1.1.1": "Cloudflare IP", "1.0.0.1": "Cloudflare IP", "8.8.8.8": "Google IP",
@@ -104,8 +103,8 @@
 +            name = "DNS " + (detail["name"] or detail["ip"]).replace("_DNS", "").replace("_", " ").strip()
 +        roles["dns:" + detail["ip"]] = ("dns", name)
 +    return roles
-+
-+
+ 
+ 
 +# Servers that produced at least one DNS reply (any rcode that proves the server is alive) in the
 +# current probe cycle. The native latency/score values are unchanged; this only feeds alerting,
 +# because a refused/timed-out query still yields an "elapsed time".
@@ -162,8 +161,37 @@
              server.get("name"),
              normalized["protocol"],
              selection_mode,
-@@ -1473,23 +1538,40 @@
+@@ -1471,25 +1536,69 @@
+         speedtest_run_lock.release()
  
+ 
++# A test started from the web UI runs in this background thread: the web worker is single-threaded, so a test
++# run inside the request (20-45 s) would keep the page and every other request waiting until it finished.
++speedtest_job = {"running": False, "started_at": None, "finished_at": None, "success": None, "error": None, "result": None}
++speedtest_job_lock = threading.Lock()
++
++
++def _speedtest_job_main(kwargs):
++    try:
++        outcome = {"success": True, "error": None, "result": run_speedtest_internal(**kwargs)}
++    except Exception as exc:
++        message = str(exc).strip() or type(exc).__name__
++        logger.exception("Manual speedtest failed: %s", message)
++        outcome = {"success": False, "error": message, "result": None}
++    with speedtest_job_lock:
++        speedtest_job.update(running=False, finished_at=int(time.time()), **outcome)
++
++
++def start_speedtest_job(kwargs):
++    """Start a background test; False when one is already running (manual or scheduled)."""
++    with speedtest_job_lock:
++        if speedtest_job["running"] or speedtest_run_lock.locked():
++            return False
++        speedtest_job.update(running=True, started_at=int(time.time()), finished_at=None, success=None, error=None, result=None)
++    threading.Thread(target=_speedtest_job_main, args=(kwargs,), daemon=True).start()
++    return True
++
++
  def run_speedtest_if_due():
      global last_speedtest_ts
 -    if not SPEEDTEST_ENABLED:
@@ -207,7 +235,7 @@
  
      while True:
          ts = int(time.time())
-@@ -1515,6 +1597,7 @@
+@@ -1515,6 +1624,7 @@
          # ---------- DNS probes ----------
          dns_times = []
          dns_per_server = {}
@@ -215,7 +243,7 @@
          for server_ip in DNS_SERVERS:
              measured = measure_dns_latency_multi(
                  DNS_TEST_SITES,
-@@ -1531,6 +1614,12 @@
+@@ -1531,6 +1641,12 @@
          score = compute_score(avg_loss, avg_latency, avg_jitter, avg_dns)
          insert_measurement(ts, avg_latency, avg_jitter, avg_loss, avg_dns, score)
          insert_dns_measurements(ts, dns_per_server)
@@ -228,7 +256,7 @@
  
          logger.info(
              "Probe ts=%s score=%.2f loss=%.2f%% latency=%.1fms jitter=%.1fms dns=%.1fms",
-@@ -1542,7 +1631,7 @@
+@@ -1542,7 +1658,7 @@
              avg_dns,
          )
  
@@ -237,7 +265,7 @@
              threading.Thread(target=run_speedtest_if_due, daemon=True).start()
  
          time.sleep(PROBE_INTERVAL)
-@@ -1626,6 +1715,7 @@
+@@ -1626,6 +1742,7 @@
          app_timezone=APP_TIMEZONE,
          gateway_ip=gw,
          router_ip=ROUTER_IP or None,
@@ -245,7 +273,7 @@
          sites=SITES,
          dns_test_site=DNS_TEST_SITE,
          dns_test_sites=DNS_TEST_SITES,
-@@ -1645,6 +1735,7 @@
+@@ -1645,6 +1762,7 @@
          speedtest_backends_available={
              "python": True,
              "ookla": ookla_binary_available(),
@@ -253,7 +281,36 @@
          },
          speedtest_secure=SPEEDTEST_SECURE,
          speedtest_ookla_path=SPEEDTEST_OOKLA_PATH,
-@@ -1766,6 +1857,16 @@
+@@ -1731,6 +1849,12 @@
+         secure = payload.get("secure")
+         force_auto = payload.get("force_auto", False)
+         backend = payload.get("backend")
++        if payload.get("async") is True:  # the UI: answer at once, poll /api/speedtest/status for the outcome
++            started = start_speedtest_job(dict(
++                requested_server_id=requested_server_id, secure=secure, force_auto=force_auto, backend=backend))
++            if not started:
++                return jsonify(success=False, error="A Speedtest is already running. Wait for it to finish and try again."), 409
++            return jsonify(success=True, started=True), 202
+         result = run_speedtest_internal(
+             requested_server_id=requested_server_id,
+             secure=secure,
+@@ -1744,6 +1868,15 @@
+         return jsonify(success=False, error=error_message), 500
+ 
+ 
++@app.route("/api/speedtest/status")
++def api_speedtest_status():
++    """State of the test started with {"async": true}; running is also true while a scheduled test runs."""
++    with speedtest_job_lock:
++        state = dict(speedtest_job)
++    state["running"] = state["running"] or speedtest_run_lock.locked()
++    return jsonify(state)
++
++
+ @app.route("/api/logs/live")
+ def api_logs_live():
+     """
+@@ -1766,6 +1899,16 @@
  # Start probe loop when imported (for gunicorn worker start).
  ensure_db()
  ensure_speedtests_schema()

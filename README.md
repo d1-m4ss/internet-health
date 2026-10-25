@@ -121,6 +121,7 @@ What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 | `PROBE_INTERVAL`, `PING_COUNT` | unchanged upstream behaviour (default 30 s, 4 pings) |
 | `SPEEDTEST_ENABLED`, `SPEEDTEST_INTERVAL`, `SPEEDTEST_BACKEND` | upstream behaviour (`python`, `ookla`, and now `fast`); the *Speedtest* tab can override service and schedule, see [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md) |
 | `APP_TIMEZONE` | zone of the daily Speedtest times (default `UTC`) |
+| `GUNICORN_CMD_ARGS` | `--threads 4` recommended: the stock image runs one single-threaded worker (see [docs/INSTALL-UNRAID.md](docs/INSTALL-UNRAID.md#web-server-threads-optional-recommended)) |
 
 Alert thresholds (loss ≥ 10 %, RTT ≥ 150 ms, jitter ≥ 80 ms, DNS ≥ 250 ms, 2 samples to alert, 2 to recover) are
 edited in the UI (*Notifications* tab / *Notification thresholds*) or in `/data/alert-settings.json`.

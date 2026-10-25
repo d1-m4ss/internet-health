@@ -735,7 +735,15 @@
   const targetKeys = {avg_loss_pct:'loss', avg_latency_ms:'latency', avg_jitter_ms:'jitter'};
   const state = {win:null,liveTargets:[],loss:null,lossTruncated:false,lossRowsCapped:false,lossTarget:'',cmp:{on:false,metrics:new Set(),sources:new Set()},cmpView:null,summary:[],range:3600,metric:'avg_loss_pct',target:'',address:'',config:null,latest:null,targets:[],speed:null,speedHistory:[],events:[],settings:null,storage:null,startedAt:null,charts:new Map(),errors:{},loaded:new Set(),settingsDirty:false,settingsInitialized:false,speedInitialized:false,speedRunning:false,logSeq:0,logs:[],refreshing:false,chartRequest:0};
   const stale = ts => !numeric(ts) || Date.now()/1000-ts > Math.max(180,(state.config?.probe_interval || 30)*4);
-  async function api(url, options = {}, timeout = 12000) {
+  const pendingGets = new Map();
+  function api(url, options = {}, timeout = 12000) {
+    const isGet = !options.method || options.method === 'GET';
+    if (isGet && pendingGets.has(url)) return pendingGets.get(url);
+    const request = apiFetch(url, options, timeout);
+    if (isGet) { pendingGets.set(url, request); const done = () => pendingGets.delete(url); request.then(done, done); }
+    return request;
+  }
+  async function apiFetch(url, options = {}, timeout = 12000) {
     const control = new AbortController(), timer = setTimeout(() => control.abort(), timeout);
     try {
       const r = await fetch(url, {cache:'no-store', credentials:'same-origin', ...options, signal:control.signal});
@@ -1106,6 +1114,8 @@
     useWindow(from, to);
     $('diagnostics').scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start'});
   }
+  let drawQueued = false;
+  const scheduleDraw = () => { if (drawQueued) return; drawQueued = true; requestAnimationFrame(() => { drawQueued = false; draw(); }); };  // show each answer as it arrives
   const draw = () => { renderLoss(); renderUnifi(); renderStatus(); renderPath(); renderTargets(); renderChart(); renderEvents(); renderSpeed(); renderSchedule(); renderPublicIp(); renderSettings(); renderConfig(); renderMsgs(); if (!state.logs.length) $('logOutput').textContent = state.logRead && $('detailsLog').open ? t('diag.noLines') : t('diag.logHint'); };
   async function loadChart() {
     const request = ++state.chartRequest, key = chartKey(), target = state.target, query = rq(), address = state.address;
@@ -1133,8 +1143,9 @@
       ['speed', '/api/speedtest/latest', r => { if (!Object.prototype.hasOwnProperty.call(r, 'result')) throw bad(); state.speed = r.result; }],
       ['speedHistory', '/api/speedtest/history?limit=10', r => { if (!Array.isArray(r.tests)) throw bad(); state.speedHistory = r.tests; }]
     ];
+    resumeSpeedWatch();
     loadPrefs().then(loadPublicIp); // optional extras never hold the dashboard back (a slow lookup service must not delay the data)
-    await Promise.allSettled([state.cmp.on ? loadCompare() : loadChart(), ...tasks.map(async ([name, url, apply]) => { try { const result = await api(url); if ((name === 'targets' || name === 'events' || name === 'summary' || name === 'loss' || name === 'live') && rk !== rangeKey()) return; apply(result); delete state.errors[name]; state.loaded.add(name); } catch (e) { state.errors[name] = errorText(e); } })]);
+    await Promise.allSettled([state.cmp.on ? loadCompare() : loadChart(), ...tasks.map(async ([name, url, apply]) => { try { const result = await api(url); if ((name === 'targets' || name === 'events' || name === 'summary' || name === 'loss' || name === 'live') && rk !== rangeKey()) return; apply(result); delete state.errors[name]; state.loaded.add(name); scheduleDraw(); } catch (e) { state.errors[name] = errorText(e); } })]);
     state.refreshing = false; $('refreshBtn').disabled = false; draw();
     if (state.refreshQueued) { state.refreshQueued = false; refresh(); }
   }
@@ -1170,8 +1181,11 @@
     renderSchedule();
   }
   async function loadPublicIp() {
+    clearTimeout(state.ipTimer);
     try { state.publicIp = await api('/api/public-ip'); } catch (e) { state.publicIp = null; }
     renderPublicIp();
+    if (state.publicIp?.pending && (state.ipPolls = (state.ipPolls || 0) + 1) < 20) state.ipTimer = setTimeout(loadPublicIp, 1500);   // the lookup runs on the server beside the request
+    else state.ipPolls = 0;
   }
   function renderPublicIp() {
     const r = state.publicIp, card = $('wanCard');
@@ -1246,11 +1260,28 @@
     if (!force && id && !/^\d+$/.test(id)) { say('speedMessage', 'speed.idDigits'); return; }
     state.speedRunning = true; updateSpeedControls(); say('speedMessage', 'speed.started');
     try {
-      const result = await api('/api/speedtest/run', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({backend:$('speedBackend').value, server_id:force || $('speedBackend').value === 'fast' ? null : id || null, secure:$('secure').checked, force_auto:force})}, 180000);
-      if (!result.success) throw new Error(result.error || 'Speedtest failed');
-      state.speed = result.result; renderSpeed(); { const at = result.result?.ts ?? result.result?.timestamp; say('speedMessage', 'speed.got', {when: () => when(at)}); } refresh();
-    } catch (e) { say('speedMessage', 'speed.error', {e: errorText(e)}); }
-    finally { state.speedRunning = false; updateSpeedControls(); }
+      await api('/api/speedtest/run', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({async:true, backend:$('speedBackend').value, server_id:force || $('speedBackend').value === 'fast' ? null : id || null, secure:$('secure').checked, force_auto:force})}, 15000);
+    } catch (e) { state.speedRunning = false; updateSpeedControls(); say('speedMessage', 'speed.error', {e: errorText(e)}); return; }
+    state.speedWatching = true; pollSpeed();
+  }
+  /* the test runs on the server in the background (a request would block the single web worker for its whole length) */
+  async function pollSpeed() {
+    clearTimeout(state.speedTimer); state.speedTimer = null;
+    try {
+      const st = await api('/api/speedtest/status');
+      state.speedRunning = st.running === true;
+      if (st.running) { state.speedWatching = true; say('speedMessage', 'speed.started'); state.speedTimer = setTimeout(pollSpeed, 2000); }
+      else if (state.speedWatching) {
+        state.speedWatching = false;
+        if (st.success === true && st.result) { state.speed = st.result; renderSpeed(); const at = st.result.ts ?? st.result.timestamp; say('speedMessage', 'speed.got', {when: () => when(at)}); refresh(); }
+        else if (st.success === false) say('speedMessage', 'speed.error', {e: st.error || 'Speedtest failed'});
+      }
+    } catch (e) { if (state.speedRunning) state.speedTimer = setTimeout(pollSpeed, 4000); }
+    updateSpeedControls();
+  }
+  async function resumeSpeedWatch() {   // a test (also a scheduled one) may already be running when the page opens
+    if (state.speedRunning || state.speedTimer) return;
+    try { const st = await api('/api/speedtest/status'); if (st.running === true) { state.speedRunning = true; state.speedWatching = true; updateSpeedControls(); say('speedMessage', 'speed.started'); state.speedTimer = setTimeout(pollSpeed, 2000); } } catch (e) { /* optional */ }
   }
   async function loadLogs() {
     if (!$('detailsLog').open) return;

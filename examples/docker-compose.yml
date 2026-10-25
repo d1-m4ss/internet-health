@@ -14,6 +14,9 @@ services:
     ports:
       - "8788:8080"            # web UI: http://<unraid>:8788  (no authentication — keep it on your LAN)
     environment:
+      # The image starts one gunicorn worker; with threads it can answer several requests at once and keeps connections
+      # open (the page loads from 13 small requests). Safe: the probe loop is a separate thread of the same process.
+      GUNICORN_CMD_ARGS: "--threads 4"
       TZ: Europe/Berlin
       APP_TIMEZONE: Europe/Berlin
       DB_ENGINE: sqlite

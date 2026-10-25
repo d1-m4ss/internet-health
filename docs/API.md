@@ -28,7 +28,8 @@ Every history endpoint accepts either
 | `POST /api/prefs` | partial update of the preferences; strict validation (unknown key / value → `400`); same-origin browser requests with header `X-NetProbe-Request: settings` only |
 | `GET /api/public-ip` | `{enabled:false}` while `prefs.show_public_ip` is off (no outbound request is made). When on: `{enabled:true, ip, isp, source, checked_at, error}` — the address and ISP name are looked up with `ipwho.is` (fallbacks `api.ipify.org`, `icanhazip.com`; they give `isp: null`), only public addresses are accepted, the answer is cached for 5 minutes (a failure for 1 minute); `ip` is `null` and `error` names the failing services when every lookup failed |
 | `GET /api/config` | upstream config plus `router_name`; `speedtest_backends_available` also has `fast` |
-| `POST /api/speedtest/run` | upstream endpoint; `backend` may now be `fast`. Without `backend` the service from `/api/prefs` is used. A Fast.com result has `server.name` `Netflix, <city>`; `upload_mbps` is `null` when only the download could be measured |
+| `GET /api/speedtest/status` | `{running, started_at, finished_at, success, error, result}` of the last test started with `"async": true`; `running` is also `true` while a scheduled test runs |
+| `POST /api/speedtest/run` | upstream endpoint; with `"async": true` (the UI) it answers `202` at once and runs the test in the background (`409` when one is already running; follow it with `GET /api/speedtest/status`); without it the call blocks until the result as before. `backend` may now be `fast`. Without `backend` the service from `/api/prefs` is used. A Fast.com result has `server.name` `Netflix, <city>`; `upload_mbps` is `null` when only the download could be measured |
 
 An *episode* is a run of samples with loss > 0 that is not interrupted by a clean sample or by a gap longer than
 180 s. DNS targets have no loss measurement and are not part of the report.

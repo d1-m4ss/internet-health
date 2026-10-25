@@ -149,6 +149,7 @@ All of this is set in the web UI and needs no restart (stored in `$D/netprobe-pr
 |---|---|
 | change alert thresholds (loss %, RTT, jitter, DNS, number of samples to alert/recover, alerts on/off, Turbo mode) | UI → *Notification thresholds → Configure*, or edit `$D/alert-settings.json` (the bridge reads the same file); no restart needed |
 | change targets, router name, DNS servers, probe interval | edit the `environment:` block and run `docker compose up -d` again |
+| make the web server answer several requests at once | `GUNICORN_CMD_ARGS: "--threads 4"` in the `environment:` block (already in the example file); do not raise the worker count |
 | update the extension files | back up the old ones, copy the new files into `$D/custom/` and `docker restart NetProbe` (templates are cached, so a restart is required) — see [Updating NetProbe Enhanced](INSTALL-UNRAID.md#updating-netprobe-enhanced) |
 | Speedtest service, schedule, Speedtest notifications, external IP | UI → *Speedtest* tab and the settings (section 6b); or edit `$D/netprobe-prefs.json` (keys in [API.md](API.md)) |
 | see/clear history | everything is in `$D/netprobe.sqlite` (extension tables are prefixed `np_`) |

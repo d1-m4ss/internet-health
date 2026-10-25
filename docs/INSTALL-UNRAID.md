@@ -61,6 +61,7 @@ The container needs three **read-only** bind mounts and a few variables.
 | `ROUTER_IP` | your router, e.g. `192.168.1.1` |
 | `ROUTER_NAME` | label for the UI and notifications, e.g. `Router` |
 | `SITES` | `fast.com,google.com,youtube.com,1.1.1.1,8.8.8.8` — two IP targets next to the names |
+| `GUNICORN_CMD_ARGS` | `--threads 4` (optional, recommended) — see [Web server threads](#web-server-threads-optional-recommended) |
 
 **Option A — Unraid GUI.** *Docker → NetProbe → Edit*: set *Repository* to
 `bmmbmm01/netprobe@sha256:<digest>`, add the three *Path* entries (access mode *Read Only*), set the variables,
@@ -175,6 +176,22 @@ Then reload the page (Ctrl+F5 — the browser may keep the old page). A browser-
 
 Rollback: copy the three files back from `$B` and `docker restart NetProbe`. The extra file `netprobe-prefs.json`
 is simply ignored by the older version; database rows written meanwhile stay valid.
+
+## Web server threads (optional, recommended)
+
+The NetProbe image starts gunicorn with a single synchronous worker, so one slow request makes every other request
+(including the page itself) wait. This version moves the known slow things out of the request (a manual Speedtest
+and the external-IP lookup run in the background), and one more container variable lets the server answer several
+requests at once and keep connections open:
+
+| Variable | Value |
+|---|---|
+| `GUNICORN_CMD_ARGS` | `--threads 4` |
+
+*Docker → NetProbe → Edit → Add another Path, Port, Variable → Variable* (name and key `GUNICORN_CMD_ARGS`,
+value `--threads 4`) → *Apply*; with `docker run` add `-e GUNICORN_CMD_ARGS='--threads 4'`; in compose it is already in
+[`examples/docker-compose.yml`](../examples/docker-compose.yml). Check: `docker logs NetProbe | grep -i 'Using worker'`
+prints `gthread`. Do **not** raise `--workers`: every worker would start its own probe loop. To undo, remove the variable.
 
 ## Updating the NetProbe image later
 

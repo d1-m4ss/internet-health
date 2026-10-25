@@ -2,6 +2,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import csv
 from contextlib import contextmanager
+import gzip
 from datetime import datetime, timedelta, timezone
 import hmac
 import http.client
@@ -74,6 +75,8 @@ PUBLIC_IP_SOURCES = ("https://ipwho.is/", "https://api.ipify.org", "https://ican
 PUBLIC_IP_TTL = 300    # seconds a successful answer is reused
 PUBLIC_IP_RETRY = 60   # seconds before another attempt after every source failed
 PUBLIC_IP_TIMEOUT = 5
+GZIP_TYPES = ("text/html", "application/json", "text/csv")  # compressed when the browser accepts gzip
+GZIP_MIN = 1024
 # fast.com client: the same public endpoints the fast.com page uses, no account or key.
 FAST_PAGE = "https://fast.com/"
 FAST_API = "https://api.fast.com/netflix/speedtest/v2"
@@ -333,6 +336,7 @@ class Extension:
         self.ip_fetch = fetch_public_ip  # replaced in tests
         self.ip_lock = threading.Lock()
         self.ip_cache = None
+        self.ip_thread = None
         self.turbo_router, self.turbo_hosts = None, []
         self.turbo = dict(fails=0, oks=0, first_fail=None, first_ok=None, kind=None, open_id=None)
         self.last_record_at = None  # wall time the regular loop last recorded a cycle
@@ -526,28 +530,38 @@ class Extension:
         return self.effective_prefs()["speedtest_service"]
 
     def public_ip(self):
-        """The internet-facing address and ISP, or {enabled: False} without any network access while the option is off."""
+        """The cached internet-facing address and ISP; {enabled: False} without any network access while the option is
+        off. The lookup itself runs in a background thread, so a slow service never holds up a web request: a missing
+        answer is reported as pending, an expired one is served while a fresh one is fetched."""
         if not self.effective_prefs()["show_public_ip"]:
             self.ip_cache = None
             return dict(enabled=False)
         with self.ip_lock:
             now = self.clock()
             cached = self.ip_cache
-            if cached and now - cached["checked_at"] < (PUBLIC_IP_TTL if cached["ip"] else PUBLIC_IP_RETRY):
+            fresh = cached and now - cached["checked_at"] < (PUBLIC_IP_TTL if cached["ip"] else PUBLIC_IP_RETRY)
+            if not fresh and not (self.ip_thread and self.ip_thread.is_alive()):
+                self.ip_thread = threading.Thread(target=self.refresh_public_ip, name="netprobe-public-ip", daemon=True)
+                self.ip_thread.start()
+            if cached:
                 return dict(cached, enabled=True)
-            failures = []
-            for url in PUBLIC_IP_SOURCES:
-                try:
-                    address, isp = self.ip_fetch(url)
-                    result = dict(ip=address, isp=isp, source=urlsplit(url).hostname, checked_at=int(now), error=None)
-                    break
-                except Exception as exc:
-                    failures.append("%s: %s" % (urlsplit(url).hostname, str(exc) or type(exc).__name__))
-            else:
-                logger.warning("Public IP lookup failed: %s", "; ".join(failures))
-                result = dict(ip=None, isp=None, source=None, checked_at=int(now), error="; ".join(failures)[:300])
-            self.ip_cache = result
-            return dict(result, enabled=True)
+            return dict(enabled=True, pending=True, ip=None, isp=None, source=None, checked_at=None, error=None)
+
+    def refresh_public_ip(self):
+        failures = []
+        for url in PUBLIC_IP_SOURCES:
+            try:
+                address, isp = self.ip_fetch(url)
+                result = dict(ip=address, isp=isp, source=urlsplit(url).hostname, checked_at=int(self.clock()), error=None)
+                break
+            except Exception as exc:
+                failures.append("%s: %s" % (urlsplit(url).hostname, str(exc) or type(exc).__name__))
+        else:
+            logger.warning("Public IP lookup failed: %s", "; ".join(failures))
+            result = dict(ip=None, isp=None, source=None, checked_at=int(self.clock()), error="; ".join(failures)[:300])
+        with self.ip_lock:
+            if self.effective_prefs()["show_public_ip"]:  # switched off meanwhile: keep nothing
+                self.ip_cache = result
 
     # ---- scheduled speedtests ---------------------------------------------------------
     @property
@@ -1258,6 +1272,27 @@ def install_routes(app, ext):
         if not 0 < f < t or t - f > MAX_RANGE:
             raise BadRequest("the window must be positive and at most %s seconds" % MAX_RANGE)
         return t - f, t
+
+    @app.after_request
+    def np_compress(response):
+        """gzip for the page and the JSON/CSV answers (the page is 172 kB, 44 kB compressed); the page also gets an
+        ETag so a reload is answered with 304 and no body."""
+        if request.method != "GET" or response.status_code != 200 or response.direct_passthrough:
+            return response
+        if request.path == "/":
+            response.headers["Cache-Control"] = "no-cache"
+            response.add_etag(weak=True)
+            response.make_conditional(request)
+            if response.status_code != 200:
+                return response
+        if ("Content-Encoding" not in response.headers and response.mimetype in GZIP_TYPES
+                and "gzip" in request.headers.get("Accept-Encoding", "").lower()):
+            body = response.get_data()
+            if len(body) >= GZIP_MIN:
+                response.set_data(gzip.compress(body, compresslevel=5, mtime=0))
+                response.headers["Content-Encoding"] = "gzip"
+                response.headers.add("Vary", "Accept-Encoding")
+        return response
 
     @app.get("/api/targets/recent")
     def np_recent():

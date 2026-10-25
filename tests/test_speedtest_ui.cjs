@@ -11,7 +11,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
   try {
     const now = Math.floor(Date.now() / 1000);
     const api = {
-      prefs: {speedtest_service: '', speedtest_schedule: 'container', speedtest_interval_h: 6, speedtest_times: ['03:00'], speedtest_notify: false, show_public_ip: false}, publicIp: {enabled: false}, publicIpDelay: 0, prefsFail: false, prefsReadFail: false, speedRun: null, calls: [],
+      prefs: {speedtest_service: '', speedtest_schedule: 'container', speedtest_interval_h: 6, speedtest_times: ['03:00'], speedtest_notify: false, show_public_ip: false}, publicIp: {enabled: false}, publicIpDelay: 0, delays: {}, statusSeq: [], status: {running: false, success: null, error: null, result: null}, runStatus: 202, prefsFail: false, prefsReadFail: false, speedRun: null, calls: [],
       latest: {ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server: {id: '1', name: 'Example City', country: 'EX'}, backend: 'python'},
       history: [{ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server_id: '1', server_name: 'Example City', backend: 'python'}],
     };
@@ -24,7 +24,8 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
         const request = route.request(), url = new URL(request.url());
         if (url.pathname === '/') return route.fulfill({contentType: 'text/html', body: fs.readFileSync(ui, 'utf8')});
         const body = request.method() === 'POST' ? request.postDataJSON() : undefined;
-        api.calls.push({path: url.pathname, method: request.method(), headers: request.headers(), body});
+        api.calls.push({path: url.pathname, query: url.search, method: request.method(), headers: request.headers(), body});
+        if (api.delays[url.pathname]) await new Promise(r => setTimeout(r, api.delays[url.pathname]));
         switch (url.pathname) {
           case '/api/config': return route.fulfill({json: {probe_interval: 30, ping_count: 4, sites: ['edge.example'], speedtest_backend: 'python', speedtest_secure: true, speedtest_enabled: true, speedtest_interval: 14400,
             speedtest_backends_available: {python: true, ookla: false, fast: true}, speedtest_ookla_accept_license: false}});
@@ -39,7 +40,8 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
           case '/api/public-ip': if (api.publicIpDelay) await new Promise(r => setTimeout(r, api.publicIpDelay)); return route.fulfill({json: api.publicIp});
           case '/api/speedtest/latest': return route.fulfill({json: {result: api.latest}});
           case '/api/speedtest/history': return route.fulfill({json: {tests: api.history}});
-          case '/api/speedtest/run': return route.fulfill(api.speedRun);
+          case '/api/speedtest/run': return route.fulfill(api.runStatus === 202 ? {status: 202, json: {success: true, started: true}} : {status: api.runStatus, json: {success: false, error: 'A Speedtest is already running. Wait for it to finish and try again.'}});
+          case '/api/speedtest/status': return route.fulfill({json: api.statusSeq.length ? api.statusSeq.shift() : api.status});
           case '/api/settings': return route.fulfill({json: {settings: {enabled: true, loss_pct: 10, latency_ms: 150, jitter_ms: 80, dns_ms: 250, confirm_samples: 2, recovery_samples: 2, turbo: false}, storage: {bytes: 1, retention_days: null}, started_at: now - 60}});
           case '/api/score/latest': return route.fulfill({json: {data: {ts: now, score: 90, avg_loss_pct: 0, avg_latency_ms: 20, avg_jitter_ms: 2, avg_dns_latency_ms: 10}}});
           case '/api/loss': return route.fulfill({json: {truncated: false, data: {targets: [], episodes: [], outages: [], summary: {}, window: {from: now - 3600, to: now}}}});
@@ -78,16 +80,37 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       assert.equal(await page.locator('#forceAuto').isDisabled(), true);
       assert.equal(await page.locator('#speedBtn').isDisabled(), false);
 
-      // a manual run uses fast.com; an unmeasured upload is shown as a dash, never as zero
-      api.speedRun = {status: 200, json: {success: true, result: {timestamp: now, ping_ms: 11.5, download_mbps: 321.5, upload_mbps: null, server: {name: 'Netflix, Brasov', country: 'RO'}, backend: 'fast'}}};
-      api.latest = {ts: now, ping_ms: 11.5, download_mbps: 321.5, upload_mbps: null, server: {name: 'Netflix, Brasov', country: 'RO'}, backend: 'fast'};  // what the server returns after the run
+      // a manual run starts in the background (the page must not wait for it) and uses fast.com;
+      // an unmeasured upload is shown as a dash, never as zero
+      const result = {timestamp: now, ping_ms: 11.5, download_mbps: 321.5, upload_mbps: null, server: {name: 'Netflix, Brasov', country: 'RO'}, backend: 'fast'};
+      api.statusSeq = [{running: true, success: null}, {running: true, success: null}];
+      api.status = {running: false, success: true, error: null, result};
+      api.latest = {ts: now, ...result};  // what the server returns after the run
       await page.locator('#speedBtn').click();
-      await page.waitForFunction(() => document.getElementById('download').textContent.startsWith('321.50'));
+      await page.waitForFunction(() => document.getElementById('speedBtn').textContent.trim() === 'Running…' || document.getElementById('speedBtn').disabled);
+      assert.equal(await page.locator('#speedBtn').isDisabled(), true, 'the button is locked while the test runs');
+      await page.waitForFunction(() => document.getElementById('download').textContent.startsWith('321.50'), null, {timeout: 15000});
       const run = api.calls.filter(c => c.path === '/api/speedtest/run').pop();
+      assert.equal(run.body.async, true, 'asks the server to run it in the background');
       assert.equal(run.body.backend, 'fast');
       assert.equal(run.body.server_id, null);
+      assert(api.calls.filter(c => c.path === '/api/speedtest/status').length >= 3, 'the page polls the status');
       assert.match(await page.locator('#upload').textContent(), /^—/, 'unknown upload is a dash');
       assert.match(await page.locator('#speedServer').textContent(), /Fast\.com · Netflix, Brasov · RO/);
+      await page.waitForFunction(() => !document.getElementById('speedBtn').disabled);
+
+      // a failed test: the reason is shown and the button is usable again
+      api.status = {running: false, success: false, error: 'fast.com is not reachable: timed out', result: null};
+      await page.locator('#speedBtn').click();
+      await page.waitForFunction(() => /fast\.com is not reachable: timed out/.test(document.getElementById('speedMessage').textContent), null, {timeout: 10000});
+      await page.waitForFunction(() => !document.getElementById('speedBtn').disabled);
+
+      // the server refuses a second test: the message says so, nothing keeps polling
+      api.runStatus = 409;
+      await page.locator('#speedBtn').click();
+      await page.waitForFunction(() => /already running/.test(document.getElementById('speedMessage').textContent));
+      await page.waitForFunction(() => !document.getElementById('speedBtn').disabled);
+      api.runStatus = 202;
       assert.deepEqual(errors, []);
       await page.close();
     }
@@ -274,6 +297,37 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       await page.close();
     }
 
+    // --- a test already running when the page opens (for example a scheduled one) is shown and followed ---
+    {
+      api.status = {running: true, success: null, error: null, result: null};
+      const {page, errors} = await open();
+      await page.waitForFunction(() => document.getElementById('speedBtn').disabled && /Running/i.test(document.getElementById('speedBtn').textContent));
+      const result = {timestamp: now, ping_ms: 9, download_mbps: 250, upload_mbps: 40, server: {name: 'Example City'}, backend: 'python'};
+      api.status = {running: false, success: true, error: null, result};
+      await page.waitForFunction(() => document.getElementById('download').textContent.startsWith('250.00'), null, {timeout: 10000});
+      await page.waitForFunction(() => !document.getElementById('speedBtn').disabled);
+      assert.deepEqual(errors, []);
+      api.status = {running: false, success: null, error: null, result: null};
+      await page.close();
+    }
+
+    // --- one request per address, and data appears as it arrives ---
+    {
+      api.delays['/api/loss'] = 2500;
+      api.calls.length = 0;
+      const started = Date.now();
+      const {page, errors} = await open();
+      await page.waitForFunction(() => document.getElementById('scoreValue').textContent === '90.0');
+      assert(Date.now() - started < 2200, 'the score is drawn without waiting for the slowest request (' + (Date.now() - started) + ' ms)');
+      assert.equal(await page.locator('#refreshBtn').isDisabled(), true, 'the refresh is still in progress while the slow one is pending');
+      await page.waitForFunction(() => !document.getElementById('refreshBtn').disabled, null, {timeout: 10000});
+      const first = api.calls.filter(c => c.method === 'GET' && c.path === '/api/history' && c.query.includes('range=3600'));
+      assert.equal(first.length, 1, 'the summary history is requested once per refresh, not twice (' + first.length + ')');
+      api.delays['/api/loss'] = 0;
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+
     // --- a slow lookup service never delays the dashboard ---
     {
       api.prefs.show_public_ip = true; api.publicIp = {enabled: true, ip: '198.51.100.7', isp: 'Example Net', source: 'ipwho.is', checked_at: now, error: null}; api.publicIpDelay = 4000;
@@ -298,7 +352,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       assert.deepEqual(errors, []);
       await page.close();
     }
-    console.log('PASS: external IP checkbox and WAN / ISP card in both styles (provider, unknown provider, escaped, failure, failed save, RU, phone width), schedule form (container/off/N hours/daily times, validation, notify switch, next test, saved state after reload, RU texts), speedtest service list (Speedtest.net / Ookla CLI / Fast.com) with explanations, saved choice, form adapts to fast.com, unknown upload shown as a dash, failed save reverted, works without the preferences API');
+    console.log('PASS: background speedtest (start, poll, failure, busy, resumed), one request per address, progressive drawing, external IP checkbox and WAN / ISP card in both styles (provider, unknown provider, escaped, failure, failed save, RU, phone width), schedule form (container/off/N hours/daily times, validation, notify switch, next test, saved state after reload, RU texts), speedtest service list (Speedtest.net / Ookla CLI / Fast.com) with explanations, saved choice, form adapts to fast.com, unknown upload shown as a dash, failed save reverted, works without the preferences API');
   } finally {
     await browser.close();
   }

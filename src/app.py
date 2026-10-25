@@ -2,7 +2,7 @@
 # Copyright (c) 2025-2026 Brandon Martino -- see THIRD_PARTY_NOTICES.md.
 # Modified: optional netprobe_extensions integration (per-target history, alerts, loss report), ROUTER_NAME,
 # DNS reply tracking for alerting, Turbo mode watcher, Fast.com backend, the speedtest service choice,
-# the speedtest schedule and its notifications.
+# the speedtest schedule and its notifications, manual tests in the background.
 # Every change is listed in app.py.patch.
 import json
 import logging
@@ -1536,6 +1536,33 @@ def run_speedtest_internal(
         speedtest_run_lock.release()
 
 
+# A test started from the web UI runs in this background thread: the web worker is single-threaded, so a test
+# run inside the request (20-45 s) would keep the page and every other request waiting until it finished.
+speedtest_job = {"running": False, "started_at": None, "finished_at": None, "success": None, "error": None, "result": None}
+speedtest_job_lock = threading.Lock()
+
+
+def _speedtest_job_main(kwargs):
+    try:
+        outcome = {"success": True, "error": None, "result": run_speedtest_internal(**kwargs)}
+    except Exception as exc:
+        message = str(exc).strip() or type(exc).__name__
+        logger.exception("Manual speedtest failed: %s", message)
+        outcome = {"success": False, "error": message, "result": None}
+    with speedtest_job_lock:
+        speedtest_job.update(running=False, finished_at=int(time.time()), **outcome)
+
+
+def start_speedtest_job(kwargs):
+    """Start a background test; False when one is already running (manual or scheduled)."""
+    with speedtest_job_lock:
+        if speedtest_job["running"] or speedtest_run_lock.locked():
+            return False
+        speedtest_job.update(running=True, started_at=int(time.time()), finished_at=None, success=None, error=None, result=None)
+    threading.Thread(target=_speedtest_job_main, args=(kwargs,), daemon=True).start()
+    return True
+
+
 def run_speedtest_if_due():
     global last_speedtest_ts
 
@@ -1822,6 +1849,12 @@ def api_speedtest_run():
         secure = payload.get("secure")
         force_auto = payload.get("force_auto", False)
         backend = payload.get("backend")
+        if payload.get("async") is True:  # the UI: answer at once, poll /api/speedtest/status for the outcome
+            started = start_speedtest_job(dict(
+                requested_server_id=requested_server_id, secure=secure, force_auto=force_auto, backend=backend))
+            if not started:
+                return jsonify(success=False, error="A Speedtest is already running. Wait for it to finish and try again."), 409
+            return jsonify(success=True, started=True), 202
         result = run_speedtest_internal(
             requested_server_id=requested_server_id,
             secure=secure,
@@ -1833,6 +1866,15 @@ def api_speedtest_run():
         error_message = str(exc).strip() or type(exc).__name__
         logger.exception("Manual speedtest failed: %s", error_message)
         return jsonify(success=False, error=error_message), 500
+
+
+@app.route("/api/speedtest/status")
+def api_speedtest_status():
+    """State of the test started with {"async": true}; running is also true while a scheduled test runs."""
+    with speedtest_job_lock:
+        state = dict(speedtest_job)
+    state["running"] = state["running"] or speedtest_run_lock.locked()
+    return jsonify(state)
 
 
 @app.route("/api/logs/live")
