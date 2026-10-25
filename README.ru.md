@@ -1,4 +1,6 @@
-# NetProbe Enhanced
+<img src="docs/icon.png" alt="" width="72" align="right">
+
+# Internet Pulse
 
 Расширение для [NetProbe](https://github.com/bmartino1/NetProbe_Python) на Unraid: история по каждой цели, отчёт о
 потерях пакетов и **понятные уведомления Unraid** (email / Telegram) для Docker-контейнера NetProbe, плюс современный дашборд в двух стилях
@@ -7,7 +9,7 @@
 Это **расширение, а не форк контейнера**: оригинальный образ не меняется, поверх него монтируются три файла
 только для чтения. Уберёте монтирования — вернётся штатный NetProbe.
 
-> NetProbe Enhanced — независимый проект, не связанный с автором NetProbe и не одобренный им. На скриншотах вымышленные
+> Internet Pulse — независимый проект, не связанный с автором NetProbe и не одобренный им. На скриншотах вымышленные
 > данные (условный роутер ASUS, 192.168.1.1), их создаёт [`tests/demo_server.py`](tests/demo_server.py).
 
 [English version](README.md)
@@ -59,7 +61,7 @@
   **Fast.com (Netflix)** — его NetProbe измеряет сам, без аккаунта, ключа и доп. программ. Выбор действует для ручных и
   плановых тестов и хранится в `/data/netprobe-prefs.json`.
 - **Два стиля, два языка** — выпадающие списки. Один HTML-файл без CDN и внешних шрифтов.
-- **Безопасно:** сам NetProbe Enhanced ничего не отправляет, кроме штатного `notify` Unraid. Наружу идут только запросы,
+- **Безопасно:** сам Internet Pulse ничего не отправляет, кроме штатного `notify` Unraid. Наружу идут только запросы,
   которые вы включили: запускаемый или плановый Speedtest (серверы speedtest.net, Ookla или fast.com / Netflix — по
   выбранному сервису) и, только с галкой, определение публичного IP. Контейнеру не нужны привилегии, Docker-сокет и
   монтирование хоста.
@@ -88,7 +90,7 @@ Unraid (email и/или Telegram), на хосте `curl`, `jq`, `flock`. Про
 Новый релиз меняет только три файла контейнера. База, `alert-settings.json`, `notify-token`, скрипт моста и строка cron
 остаются как есть, миграция не нужна (новые таблицы и файлы создаются при первом использовании). Сохраните старые
 файлы, скопируйте новые в `…/custom/` и перезапустите контейнер — команды, проверка и откат в
-**[docs/INSTALL-UNRAID.md → Updating NetProbe Enhanced](docs/INSTALL-UNRAID.md#updating-netprobe-enhanced)** (на английском).
+**[docs/INSTALL-UNRAID.md → Updating Internet Pulse](docs/INSTALL-UNRAID.md#updating-internet-pulse)** (на английском).
 Что менялось в каждой версии: [CHANGELOG.md](CHANGELOG.md).
 
 ## Тесты и проверка сбоев без отправки чего-либо

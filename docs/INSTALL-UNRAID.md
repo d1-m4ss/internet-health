@@ -137,7 +137,7 @@ rm /boot/config/plugins/dynamix/netprobe-notify.cron && update_cron
 The extension keeps its data in separate `np_*` tables; the upstream tables are untouched, so nothing needs to be
 cleaned up for the stock app to work.
 
-## Updating NetProbe Enhanced
+## Updating Internet Pulse
 
 For an installation made with an earlier version of this repository (with or without Turbo mode). A release changes
 only the **three container files**; the notification bridge (`netprobe-unraid-notify.sh`), the cron line, the

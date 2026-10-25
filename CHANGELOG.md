@@ -1,10 +1,13 @@
 # Changelog
 
-The project is called **NetProbe Enhanced** (container, image, file and table names keep the upstream `netprobe` /
+The project is called **Internet Pulse** (formerly “NetProbe Enhanced”; container, image, file and table names keep the upstream `netprobe` /
 `np_` names so existing installations are unaffected).
 
 ## Unreleased
 
+- **New name and icon.** The project is now **Internet Pulse** (it was “NetProbe Enhanced”) with a new icon: a pulse line in a ring,
+  used as the browser-tab icon (inline SVG, nothing extra to mount), the mark in the page header, `docs/icon.svg` / `docs/icon.png`
+  and the README. The container is still called `NetProbe`; tables, files and variables keep their names.
 - **The chart filters are remembered** in the browser (period, WAN source and metric; `localStorage`, this browser only), so a
   reload or the next visit starts where you left off. A remembered provider that is no longer in the data, an unknown value or
   damaged storage is ignored quietly; a custom date window is not remembered.

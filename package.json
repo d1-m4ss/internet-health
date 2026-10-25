@@ -2,7 +2,7 @@
   "name": "netprobe-enhanced",
   "version": "0.1.0",
   "private": true,
-  "description": "Browser tests for the NetProbe Enhanced UI",
+  "description": "Browser tests for the Internet Pulse UI",
   "scripts": {
     "test:ui": "node tests/test_ui.cjs"
   },
