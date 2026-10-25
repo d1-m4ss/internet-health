@@ -133,13 +133,20 @@ The *Speedtest* tab (*Schedule and notifications*) can run the test automaticall
 Time: 03:02, 10.03.2026 EET
 ```
 
-## Telegram
+## Integrations: Unraid and Telegram
 
-Besides the Unraid bridge the container can send every notification straight to a Telegram chat (settings → *Telegram*, or the
+Settings → *Integrations* switches each destination on its own: **Unraid** (the bridge on the host: with it off the bridge gets an empty
+list, still sees that monitoring is alive, and nothing from that time is replayed when it is switched on again) and **Telegram**.
+Both, one or none can be on; history and charts are recorded either way, and the *Notifications enabled* switch of the alert
+settings silences all of them. The Unraid agents (email and others) still need the bridge.
+
+### Telegram
+
+The container can send every notification straight to a Telegram chat (tick *Telegram*, or set the
 variables `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`). The text is the same message the bridge hands to Unraid, with real line
 breaks, sent as plain text. To set it up: create a bot with @BotFather and copy the token; add the bot to your chat or channel
 (or write to it once) and find the chat ID (for a group it is negative, for example `-1001234567890`; `@channelname` also works);
-enter both, press *Send test*, then tick *Send notifications to Telegram* and Save.
+enter both, press *Send test* and Save.
 
 - It works with or without the Unraid bridge; with both you get both.
 - Messages created before you switched it on are not sent; a message that cannot be delivered is retried with a growing pause

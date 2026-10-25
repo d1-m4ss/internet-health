@@ -87,7 +87,7 @@ CLEANUP_TABLES = (("measurements", "ts < ?"), ("dns_measurements", "ts < ?"), ("
                   ("np_outages", "status NOT IN ('open','pending') AND COALESCE(end_ts,last_ts) < ?"))
 PREFS_DEFAULTS = dict(speedtest_service="", speedtest_schedule="container", speedtest_interval_h=6,
                       speedtest_times=["03:00"], speedtest_notify=False, show_public_ip=False, wan_check_min=15, wan_notify=False,
-                      history_retention_days=0)
+                      history_retention_days=0, notify_unraid=True)
 # Public IP and provider (opt-in: nothing is requested while show_public_ip is off). ipwho.is answers with JSON
 # (address and ISP name); the plain-text services after it only know the address.
 PUBLIC_IP_SOURCES = ("https://ipwho.is/", "https://api.ipify.org", "https://icanhazip.com")
@@ -581,7 +581,7 @@ class Extension:
             raise ValueError("history_retention_days must be one of: " + ", ".join(str(x) for x in RETENTION_CHOICES))
         if "wan_check_min" in values and (type(values["wan_check_min"]) is not int or values["wan_check_min"] not in WAN_CHECK_CHOICES):
             raise ValueError("wan_check_min must be one of: " + ", ".join(str(x) for x in WAN_CHECK_CHOICES))
-        for key in ("speedtest_notify", "show_public_ip", "wan_notify"):
+        for key in ("speedtest_notify", "show_public_ip", "wan_notify", "notify_unraid"):
             if key in values and type(values[key]) is not bool:
                 raise ValueError(key + " must be a boolean")
 
@@ -612,6 +612,10 @@ class Extension:
                 state = self.cleanup_state()
                 state["armed_at"] = int(self.clock())
                 self._write_settings(state, self.cleanup_path)
+            if values["notify_unraid"] and not old["notify_unraid"]:
+                # switching the Unraid integration back on never replays what happened while it was off
+                with self.db() as conn:
+                    conn.execute("UPDATE np_notifications SET acked=1 WHERE acked=0")
         return values
 
     # ---- history retention -------------------------------------------------------------
@@ -1042,8 +1046,8 @@ class Extension:
         """Deliver queued notifications that Telegram has not seen yet (oldest first, a few per round, ~1 per second);
         -> number sent. A failure backs off (30 s doubling to 15 min) and keeps the message; after a day it is given up."""
         cfg = self.telegram_config()
-        if not (cfg["enabled"] and cfg["ready"]):
-            return 0
+        if not (cfg["enabled"] and cfg["ready"]) or not self.effective_settings()["enabled"]:
+            return 0  # (the global "notifications enabled" switch of the alert settings silences every integration)
         now = int(self.clock())
         if now < self.tg_retry_at:
             return 0
@@ -2049,7 +2053,8 @@ def install_routes(app, ext):
         with ext.db() as conn:
             rows = [dict(x) for x in conn.execute("SELECT id,ts,level,subject,message,description FROM np_notifications WHERE acked=0 ORDER BY id LIMIT 20")]
             latest = conn.execute("SELECT MAX(cycle_ts) FROM np_targets").fetchone()[0]
-        return jsonify(notifications=rows if ext.effective_settings()["enabled"] else [], latest_probe_ts=latest,
+        deliver = ext.effective_settings()["enabled"] and ext.effective_prefs()["notify_unraid"]  # the Unraid integration can be switched off
+        return jsonify(notifications=rows if deliver else [], latest_probe_ts=latest,
                        process_started_at=ext.process_started_at, max_sample_age=180)
 
     @app.post("/api/notifications/<int:notification_id>/ack")

@@ -28,7 +28,7 @@ wget -O /boot/config/plugins/dockerMan/templates-user/my-InternetPulse.xml \
 ```
 
 *Docker → Add Container → Template: **InternetPulse*** → set *Router IP*, *Sites to ping*, the time zone (and, if you like, the Telegram
-token and chat ID) → *Apply*. Open `http://<unraid>:8788`. Telegram can also be set up later in the web UI (*Settings → Telegram*);
+token and chat ID) → *Apply*. Open `http://<unraid>:8788`. Telegram can also be set up later in the web UI (*Settings → Integrations*);
 the Unraid notification bridge of step 5 below is optional now. With docker compose use
 [`examples/docker-compose.image.yml`](../examples/docker-compose.image.yml).
 

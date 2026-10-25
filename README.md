@@ -51,8 +51,10 @@ bind-mounted read-only over it. Removing the mounts brings the stock NetProbe ba
   whole network). Recorded addresses are deleted with the rest of the history by the retention period, or at once with
   *Forget WAN addresses…*. The chosen period, WAN source and metric are remembered in your browser, so the next visit
   starts where you left off.
-- **Telegram straight from the container (optional).** Settings → *Telegram*: a bot token (from @BotFather) and a chat ID,
-  *Send test*, Save. The container then sends the same messages Unraid gets (alerts, recoveries, WAN changes, Speedtest
+- **Integrations: Unraid and Telegram.** Settings → *Integrations* has a switch for each channel: **Unraid** (the notification bridge
+  on the host; switching it off makes Unraid stop receiving events, switching it on again does not replay old ones) and **Telegram**
+  straight from the container, or both, or neither (history and charts are recorded either way). Ticking Telegram shows the bot token
+  (from @BotFather) and chat ID fields, *Send test*, Save; values given to the container as variables are not shown. The container then sends the same messages Unraid gets (alerts, recoveries, WAN changes, Speedtest
   results) to the chat through the Bot API — together with the Unraid bridge or without it. The token is stored in
   `/data/telegram.json` (mode 600), is never shown again by the UI or the API, and can instead be given to the container as
   `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`. Messages from before it was switched on are not sent; a failed delivery is

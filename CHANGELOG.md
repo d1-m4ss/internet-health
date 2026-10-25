@@ -5,13 +5,17 @@ The project is called **Internet Pulse** (formerly “NetProbe Enhanced”; cont
 
 ## Unreleased
 
+- **Integrations block** (settings): one switch for **Unraid** (the host bridge) and one for **Telegram**, in any combination, saved together
+  with one Save button. Ticking Telegram shows the token and chat fields; values that come from the container environment are not shown.
+  With Unraid off, `GET /api/notifications/pending` returns an empty list (new preference `notify_unraid`, default on) and switching it
+  on again does not replay what happened meanwhile; the *Notifications enabled* switch silences Telegram as well.
 - **A ready container image** (`ghcr.io/d1-m4ss/netprobe-enhanced`, from the first version tag): the pinned NetProbe image with the
   three Internet Pulse files baked in (`Dockerfile`), `--threads 4` by default, a health check, and an Unraid template
   (`docs/unraid/internet-pulse.xml`) for a one-click install; `examples/docker-compose.image.yml`. No bind mounts to maintain; an existing
   install switches by changing the repository and removing the three mounts (data and settings stay). CI builds the image, checks the base
   digest and starts it on an empty data folder (`scripts/smoke-image.sh`); a `v*` tag publishes it (`.github/workflows/release.yml`).
   The file-mount way keeps working.
-- **Telegram straight from the container** (settings → *Telegram*, or `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`): the same messages Unraid
+- **Telegram straight from the container** (settings → *Integrations*, or `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`): the same messages Unraid
   gets are sent to a chat through the Bot API, with or without the Unraid bridge. Token + chat ID, *Send test*, Save; the token is
   write-only (stored in `/data/telegram.json`, mode 600, never returned by the API); messages from before switch-on are not
   sent, failures are retried with a growing pause and given up after a day. New table column `np_notifications.tg`; endpoints

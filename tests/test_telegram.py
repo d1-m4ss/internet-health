@@ -328,5 +328,81 @@ class MigrationTests(unittest.TestCase):
                 self.assertEqual([tuple(r) for r in db.execute("SELECT subject,tg FROM np_notifications")], [("old", 0)])
 
 
+class IntegrationSwitchTests(TelegramBase):
+    """Unraid and Telegram are independent integrations: each can be on or off, any combination."""
+    def pending(self):
+        key = (self.root / "notify-token").read_text().strip()
+        return self.client.get("/api/notifications/pending", headers={"X-NetProbe-Notify-Key": key}).get_json()
+
+    def unraid(self, on):
+        response = self.client.post("/api/prefs", json={"notify_unraid": on}, headers=HEADERS)
+        self.assertEqual(response.status_code, 200)
+
+    def test_unraid_is_on_by_default(self):
+        self.assertIs(self.ext.prefs()["notify_unraid"], True)
+        self.notify()
+        self.assertEqual(len(self.pending()["notifications"]), 1)
+
+    def test_switched_off_the_bridge_receives_nothing_but_still_sees_the_monitor_alive(self):
+        self.notify()
+        self.unraid(False)
+        body = self.pending()
+        self.assertEqual(body["notifications"], [])
+        self.assertIn("latest_probe_ts", body)
+        self.assertIn("process_started_at", body)
+        self.assertEqual(body["max_sample_age"], 180, "the bridge's health check keeps working")
+        self.assertEqual(self.tg_of(), [0])
+        self.assertEqual(self.conn.execute("SELECT acked FROM np_notifications").fetchone()[0], 0)
+
+    def test_switching_it_back_on_does_not_replay_what_happened_meanwhile(self):
+        self.unraid(False)
+        self.notify("while off", offset=0)
+        self.notify("while off too", offset=1)
+        self.unraid(True)
+        self.assertEqual(self.pending()["notifications"], [])
+        self.now += 5
+        self.notify("after")
+        self.assertEqual([n["message"] for n in self.pending()["notifications"]], ["after"])
+        self.unraid(True)  # saving the same value again changes nothing
+        self.assertEqual(len(self.pending()["notifications"]), 1)
+
+    def test_telegram_only(self):
+        self.unraid(False)
+        self.configure()
+        self.now += 1
+        self.notify("only telegram")
+        self.assertEqual(self.ext.telegram_tick(), 1)
+        self.assertEqual(self.pending()["notifications"], [])
+
+    def test_unraid_only(self):
+        self.now += 1
+        self.notify("only unraid")
+        self.assertEqual(self.ext.telegram_tick(), 0)
+        self.assertEqual([n["message"] for n in self.pending()["notifications"]], ["only unraid"])
+        self.assertEqual(self.sent, [])
+
+    def test_everything_off_delivers_nowhere_and_keeps_the_history(self):
+        self.unraid(False)
+        self.configure(enabled=False)
+        self.now += 1
+        self.notify("nobody listens")
+        self.assertEqual((self.pending()["notifications"], self.ext.telegram_tick(), self.sent), ([], 0, []))
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM np_notifications").fetchone()[0], 1)
+
+    def test_the_global_notifications_switch_silences_both(self):
+        self.configure()
+        self.now += 1
+        self.notify()
+        self.ext.update_settings({"enabled": False})
+        self.assertEqual((self.pending()["notifications"], self.ext.telegram_tick(), self.sent), ([], 0, []))
+        self.ext.update_settings({"enabled": True})
+        self.assertEqual(self.ext.telegram_tick(), 1)
+
+    def test_the_preference_is_a_real_boolean(self):
+        for bad in ("false", 0, None):
+            self.assertEqual(self.client.post("/api/prefs", json={"notify_unraid": bad}, headers=HEADERS).status_code, 400)
+        self.assertIs(self.ext.prefs()["notify_unraid"], True)
+
+
 if __name__ == "__main__":
     unittest.main()
