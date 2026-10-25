@@ -2,7 +2,7 @@
   "name": "internet-health",
   "version": "0.1.0",
   "private": true,
-  "description": "Browser tests for the Internet Pulse UI",
+  "description": "Browser tests for the Internet Health UI",
   "scripts": {
     "test:ui": "node tests/test_ui.cjs"
   },

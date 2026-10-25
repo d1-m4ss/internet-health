@@ -1,11 +1,11 @@
 #!/bin/bash
-# Starts an Internet Pulse image next to nothing else (no host mounts but a throw-away data folder) and checks that it serves.
-# Usage: smoke-image.sh <image> [platform]      e.g. smoke-image.sh internet-pulse:test linux/amd64
+# Starts an Internet Health image next to nothing else (no host mounts but a throw-away data folder) and checks that it serves.
+# Usage: smoke-image.sh <image> [platform]      e.g. smoke-image.sh internet-health:test linux/amd64
 # Exit code 0: the page and the API answer; 1 otherwise. Cleans up after itself.
 set -euo pipefail
 IMAGE="${1:?usage: smoke-image.sh <image> [platform]}"
 PLATFORM="${2:-}"
-NAME="internet-pulse-smoke-$$"
+NAME="internet-health-smoke-$$"
 DATA=$(mktemp -d)
 cleanup() { docker rm -f "$NAME" >/dev/null 2>&1 || true; rm -rf "$DATA"; }
 trap cleanup EXIT
@@ -24,11 +24,11 @@ for i in $(seq 1 60); do
 done
 fail() { echo "FAIL: $1" >&2; docker logs --tail 40 "$NAME" >&2; exit 1; }
 page=$(curl -fsS -m 10 "http://127.0.0.1:$port/")
-grep -q "<title>Internet Pulse" <<< "$page" || fail "the page is not Internet Pulse"
+grep -q "<title>Internet Health" <<< "$page" || fail "the page is not Internet Health"
 grep -q 'rel="icon"' <<< "$page" || fail "no icon in the page"
 curl -fsS -m 5 "http://127.0.0.1:$port/api/prefs" | grep -q '"wan_check_min"' || fail "/api/prefs does not know the new preferences"
 curl -fsS -m 5 "http://127.0.0.1:$port/api/telegram" | grep -q '"token_set":false' || fail "/api/telegram is missing"
 [[ -f "$DATA/netprobe-prefs.json" || -f "$DATA/alert-settings.json" ]] || fail "no settings were written to /data"
 curl -fsS -m 5 -H 'Accept-Encoding: gzip' -o /dev/null -w '%{http_code}\n' "http://127.0.0.1:$port/" | grep -q 200 || fail "page request failed"
 docker logs "$NAME" 2>&1 | grep -qi "extension failed to start" && fail "the extension failed to start"
-echo "OK: $IMAGE serves Internet Pulse on a fresh data folder"
+echo "OK: $IMAGE serves Internet Health on a fresh data folder"

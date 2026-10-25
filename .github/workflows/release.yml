@@ -54,4 +54,4 @@ jobs:
         run: |
           python scripts/release.py notes "$VERSION" > notes.md
           printf '\nImage: `%s:%s`\n' "$IMAGE" "$VERSION" >> notes.md
-          gh release create "$GITHUB_REF_NAME" --title "Internet Pulse $VERSION" --notes-file notes.md --verify-tag
+          gh release create "$GITHUB_REF_NAME" --title "Internet Health $VERSION" --notes-file notes.md --verify-tag

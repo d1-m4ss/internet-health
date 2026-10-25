@@ -45,7 +45,7 @@ class RepositoryStateTests(unittest.TestCase):
             make_database(Path(tmp) / "netprobe.sqlite")
             app = Flask(__name__)
             npx.install_routes(app, npx.Extension(str(Path(tmp) / "netprobe.sqlite"), tmp))
-            self.assertEqual(app.test_client().get("/api/about").get_json(), {"name": "Internet Pulse", "version": npx.VERSION})
+            self.assertEqual(app.test_client().get("/api/about").get_json(), {"name": "Internet Health", "version": npx.VERSION})
 
     def test_the_changelog_matches_the_version(self):
         text = (ROOT / "CHANGELOG.md").read_text()

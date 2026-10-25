@@ -1,4 +1,4 @@
-# Internet Pulse — example docker-compose.yml (Unraid paths; change DATA to your own folder).
+# Internet Health — example docker-compose.yml (Unraid paths; change DATA to your own folder).
 # Full guide: docs/INSTALL-COMPOSE.md
 #
 # Before the first `docker compose up`, put the three files from this repository's src/ folder into

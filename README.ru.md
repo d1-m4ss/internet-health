@@ -1,6 +1,6 @@
 <img src="docs/icon.png" alt="" width="72" align="right">
 
-# Internet Pulse
+# Internet Health
 
 Расширение для [NetProbe](https://github.com/bmartino1/NetProbe_Python) на Unraid: история по каждой цели, отчёт о
 потерях пакетов и **понятные уведомления Unraid** (email / Telegram) для Docker-контейнера NetProbe, плюс современный дашборд в двух стилях
@@ -9,7 +9,7 @@
 Это **расширение, а не форк контейнера**: оригинальный образ не меняется, поверх него монтируются три файла
 только для чтения. Уберёте монтирования — вернётся штатный NetProbe.
 
-> Internet Pulse — независимый проект, не связанный с автором NetProbe и не одобренный им. На скриншотах вымышленные
+> Internet Health — независимый проект, не связанный с автором NetProbe и не одобренный им. На скриншотах вымышленные
 > данные (условный роутер ASUS, 192.168.1.1), их создаёт [`tests/demo_server.py`](tests/demo_server.py).
 
 [English version](README.md)
@@ -82,7 +82,7 @@ Unraid (email и/или Telegram), на хосте `curl`, `jq`, `flock`. Про
 ## Установка
 
 **Проще всего — готовый образ** (с первого релиза): *Add Container* в Unraid по шаблону
-[`docs/unraid/internet-pulse.xml`](docs/unraid/internet-pulse.xml) (образ `ghcr.io/d1-m4ss/internet-health`) или
+[`docs/unraid/internet-health.xml`](docs/unraid/internet-health.xml) (образ `ghcr.io/d1-m4ss/internet-health`) или
 [`examples/docker-compose.image.yml`](examples/docker-compose.image.yml). Ничего копировать и монтировать не нужно; переезд с
 текущей установки сохраняет данные — см. **[docs/INSTALL-UNRAID.md → Install the ready image](docs/INSTALL-UNRAID.md#install-the-ready-image-recommended)**
 (на английском). Дальше в разделе — способ с монтированием файлов.
@@ -103,7 +103,7 @@ Unraid (email и/или Telegram), на хосте `curl`, `jq`, `flock`. Про
 Новый релиз меняет только три файла контейнера. База, `alert-settings.json`, `notify-token`, скрипт моста и строка cron
 остаются как есть, миграция не нужна (новые таблицы и файлы создаются при первом использовании). Сохраните старые
 файлы, скопируйте новые в `…/custom/` и перезапустите контейнер — команды, проверка и откат в
-**[docs/INSTALL-UNRAID.md → Updating Internet Pulse](docs/INSTALL-UNRAID.md#updating-internet-pulse)** (на английском).
+**[docs/INSTALL-UNRAID.md → Updating Internet Health](docs/INSTALL-UNRAID.md#updating-internet-health)** (на английском).
 Что менялось в каждой версии: [CHANGELOG.md](CHANGELOG.md).
 
 ## Тесты и проверка сбоев без отправки чего-либо

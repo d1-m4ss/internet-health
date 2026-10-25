@@ -1,4 +1,4 @@
-# Internet Pulse: the NetProbe image with the three Internet Pulse files baked in (no bind mounts needed).
+# Internet Health: the NetProbe image with the three Internet Health files baked in (no bind mounts needed).
 # The base is pinned by digest; scripts/verify-image.sh checks that its original files are the ones src/app.py.patch was made for.
 # The base image is linux/amd64 only, so this one is too.
 FROM bmmbmm01/netprobe@sha256:386bdc2c177b11aef4a1223dfd91ae47fe2f9804c5449c5f4c2caae1d048c155
@@ -13,7 +13,7 @@ ENV GUNICORN_CMD_ARGS="--threads 4"
 
 ARG VERSION=dev
 ARG REVISION=unknown
-LABEL org.opencontainers.image.title="Internet Pulse" \
+LABEL org.opencontainers.image.title="Internet Health" \
       org.opencontainers.image.description="Internet monitoring for Unraid: per-target history, WAN / ISP, packet-loss report, Speedtest and Telegram alerts (NetProbe with extensions)" \
       org.opencontainers.image.source="https://github.com/d1-m4ss/internet-health" \
       org.opencontainers.image.licenses="MIT" \

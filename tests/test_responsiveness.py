@@ -177,13 +177,13 @@ class CompressionTests(AppTestCase):
     def test_clients_without_gzip_get_the_page_unchanged(self):
         response = self.client.get("/", headers={"Accept-Encoding": "identity"})
         self.assertNotIn("Content-Encoding", response.headers)
-        self.assertIn(b"Internet Pulse", response.data)
+        self.assertIn(b"Internet Health", response.data)
 
 
 class BrandTests(AppTestCase):
     def test_title_and_icon_are_the_product_ones_and_need_no_extra_file(self):
         page = self.client.get("/").data.decode()
-        self.assertIn("<title>Internet Pulse · Network Health</title>", page)
+        self.assertIn("<title>Internet Health · Unraid monitor</title>", page)
         self.assertRegex(page, r'<link rel="icon" type="image/svg\+xml" href="data:image/svg\+xml,%3Csvg')
         self.assertNotIn("NetProbe Enhanced", page, "the old product name is gone from the page")
         self.assertIn('<span class="brand-icon" aria-hidden="true"><svg ', page)

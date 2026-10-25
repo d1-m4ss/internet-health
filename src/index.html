@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark" id="colorSchemeMeta">
-  <title>Internet Pulse · Network Health</title>
+  <title>Internet Health · Unraid monitor</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%20role='img'%20aria-label='Internet%20Pulse'%3E%3Cdefs%3E%3ClinearGradient%20id='bg'%20x1='0'%20y1='0'%20x2='1'%20y2='1'%3E%3Cstop%20offset='0'%20stop-color='%2316464a'/%3E%3Cstop%20offset='1'%20stop-color='%230a1c22'/%3E%3C/linearGradient%3E%3ClinearGradient%20id='line'%20x1='0'%20y1='0'%20x2='1'%20y2='0'%3E%3Cstop%20offset='0'%20stop-color='%235eead4'/%3E%3Cstop%20offset='1'%20stop-color='%2338bdf8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20rx='15'%20fill='url(%23bg)'/%3E%3Ccircle%20cx='32'%20cy='32'%20r='22'%20fill='none'%20stroke='%235eead4'%20stroke-opacity='.28'%20stroke-width='3'/%3E%3Cpath%20d='M9%2034h12l5-14%208%2025%206-16%203%205h12'%20fill='none'%20stroke='url(%23line)'%20stroke-width='4.6'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E%3Ccircle%20cx='55'%20cy='34'%20r='3'%20fill='%2338bdf8'/%3E%3C/svg%3E">
   <script>
     /* Apply the saved language and style before the first paint (no flash). Storage may be unavailable. */
@@ -441,19 +441,19 @@
 <body>
 <div class="layout">
   <aside>
-    <div class="brand"><span class="brand-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5" stroke-opacity=".4" stroke-width="1.5"/><path d="M3 13h4.5l2-5.5 3.2 9.5 2.3-6 1 2H21"/></svg></span><span>Internet Pulse<small data-i18n="brand.sub">NETWORK HEALTH</small></span></div>
+    <div class="brand"><span class="brand-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5" stroke-opacity=".4" stroke-width="1.5"/><path d="M3 13h4.5l2-5.5 3.2 9.5 2.3-6 1 2H21"/></svg></span><span>Internet Health<small data-i18n="brand.sub">NETWORK HEALTH</small></span></div>
     <nav aria-label="Navigation" data-i18n-attr="aria-label:nav.aria">
       <a href="#overview" class="selected" data-i18n-attr="title:nav.overview"><span class="nav-icon" aria-hidden="true">▥</span><span class="nav-label" data-i18n="nav.overview">Обзор</span></a>
       <a href="#targets" data-i18n-attr="title:nav.targets"><span class="nav-icon" aria-hidden="true">◎</span><span class="nav-label" data-i18n="nav.targets">Цели</span></a>
       <a href="#diagnostics" data-i18n-attr="title:nav.diagnostics"><span class="nav-icon" aria-hidden="true">≋</span><span class="nav-label" data-i18n="nav.diagnostics">Диагностика</span></a>
       <a href="#speedtest" title="Speedtest"><span class="nav-icon" aria-hidden="true">⇅</span><span class="nav-label">Speedtest</span></a>
     </nav>
-    <div class="side-foot"><div><span class="pulse"></span><strong id="sidebarMode">…</strong></div><div style="margin-top:7px">Unraid · Internet Pulse</div></div>
+    <div class="side-foot"><div><span class="pulse"></span><strong id="sidebarMode">…</strong></div><div style="margin-top:7px">Unraid · Internet Health</div></div>
   </aside>
   <main id="overview">
     <header class="head">
-      <div class="unifi-top unifi-only"><span class="site-pill"><span class="site-dot" id="siteDot" data-s="unknown"></span><span>Unraid · Internet Pulse</span></span><span class="net-tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="topbar.network">Сеть</span></span></div>
-      <span class="wordmark unifi-only" aria-hidden="true">Internet Pulse</span>
+      <div class="unifi-top unifi-only"><span class="site-pill"><span class="site-dot" id="siteDot" data-s="unknown"></span><span>Unraid · Internet Health</span></span><span class="net-tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="topbar.network">Сеть</span></span></div>
+      <span class="wordmark unifi-only" aria-hidden="true">Internet Health</span>
       <div><div class="eyebrow" data-i18n="head.eyebrow">Internet monitoring / Unraid</div><h1 data-i18n="head.title">Состояние сети</h1></div>
       <div class="head-actions">
         <label class="pick"><span data-i18n="ctl.language">Язык</span><select id="langSelect"><option value="ru">Русский</option><option value="en">English</option></select></label>
@@ -617,7 +617,7 @@
       'kv.routerIp':'IP роутера','kv.gateway':'Шлюз Docker (Unraid)','kv.routerRtt':'RTT до роутера','kv.interval':'Интервал проб','kv.last':'Последний замер','kv.since':'Мониторинг с',
       'kv.score':'Качество','kv.hosts':'Узлы отвечают','kv.avgRtt':'Средняя RTT','kv.loss':'Потеря пакетов','kv.speed':'Последний Speedtest',
       'thr.loss':'потери ≥ {v}%','thr.rtt':'RTT ≥ {v} мс','thr.jitter':'джиттер ≥ {v} мс','thr.dns':'DNS ≥ {v} мс','thr.confirm':'тревога: {n} зам.','thr.recover':'восстановление: {n} зам.',
-      'brand.sub':'NETWORK HEALTH','nav.aria':'Навигация','nav.overview':'Обзор','nav.targets':'Цели','nav.diagnostics':'Диагностика',
+      'brand.sub':'UNRAID MONITOR','nav.aria':'Навигация','nav.overview':'Обзор','nav.targets':'Цели','nav.diagnostics':'Диагностика',
       'ctl.language':'Язык','ctl.style':'Стиль','head.eyebrow':'Мониторинг интернета / Unraid','head.title':'Состояние сети','head.refresh':'Обновить данные',
       'side.connecting':'Подключение…','side.live':'Данные получены','side.stale':'Замеры устарели','side.offline':'Нет полного ответа API',
       'status.last':'Последний замер','status.checking':'Проверяем сеть…','status.waiting':'Ожидание данных от NetProbe',
@@ -683,7 +683,7 @@
       'kv.routerIp':'Router IP','kv.gateway':'Docker gateway (Unraid)','kv.routerRtt':'RTT to router','kv.interval':'Probe interval','kv.last':'Last sample','kv.since':'Monitoring since',
       'kv.score':'Quality','kv.hosts':'Hosts reachable','kv.avgRtt':'Average RTT','kv.loss':'Packet loss','kv.speed':'Last Speedtest',
       'thr.loss':'loss ≥ {v}%','thr.rtt':'RTT ≥ {v} ms','thr.jitter':'jitter ≥ {v} ms','thr.dns':'DNS ≥ {v} ms','thr.confirm':'alert after {n} samples','thr.recover':'recover after {n} samples',
-      'brand.sub':'NETWORK HEALTH','nav.aria':'Navigation','nav.overview':'Overview','nav.targets':'Targets','nav.diagnostics':'Diagnostics',
+      'brand.sub':'UNRAID MONITOR','nav.aria':'Navigation','nav.overview':'Overview','nav.targets':'Targets','nav.diagnostics':'Diagnostics',
       'ctl.language':'Language','ctl.style':'Style','head.eyebrow':'Internet monitoring / Unraid','head.title':'Network status','head.refresh':'Refresh',
       'side.connecting':'Connecting…','side.live':'Data received','side.stale':'Samples are stale','side.offline':'API response incomplete',
       'status.last':'Last sample','status.checking':'Checking the network…','status.waiting':'Waiting for NetProbe data',

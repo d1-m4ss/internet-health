@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Release helper for Internet Pulse (versions follow https://semver.org).
+"""Release helper for Internet Health (versions follow https://semver.org).
 
   release.py version                  print the version in the code (src/netprobe_extensions.py)
   release.py notes 1.0.0              print the CHANGELOG section of a released version (the GitHub Release text)
@@ -140,7 +140,7 @@ def release(version, root=ROOT, dry_run=False, run_tests=True, day=None):
     (root / CHANGELOG).write_text(new_changelog)
     git(root, "add", str(CODE), str(CHANGELOG))
     git(root, "commit", "-q", "-m", "Release %s" % version)
-    git(root, "tag", "-a", "v" + version, "-m", "Internet Pulse %s" % version)
+    git(root, "tag", "-a", "v" + version, "-m", "Internet Health %s" % version)
     write_version(follow, root)
     git(root, "add", str(CODE))
     git(root, "commit", "-q", "-m", "Start %s" % follow)

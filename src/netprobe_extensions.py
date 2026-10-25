@@ -173,7 +173,7 @@ class FastTestError(RuntimeError):
 
 
 def _fast_get(url, timeout=FAST_TIMEOUT, limit=4_000_000):
-    request = urllib.request.Request(url, headers={"User-Agent": "Internet-Pulse"})
+    request = urllib.request.Request(url, headers={"User-Agent": "Internet-Health"})
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return response.read(limit).decode("utf-8", "replace")
 
@@ -181,7 +181,7 @@ def _fast_get(url, timeout=FAST_TIMEOUT, limit=4_000_000):
 def fetch_public_ip(url, timeout=PUBLIC_IP_TIMEOUT):
     """(address, ISP name or None) the internet sees, from one service; ValueError when the answer is unusable."""
     host = urlsplit(url).hostname
-    request = urllib.request.Request(url, headers={"User-Agent": "Internet-Pulse", "Accept": "application/json, text/plain"})
+    request = urllib.request.Request(url, headers={"User-Agent": "Internet-Health", "Accept": "application/json, text/plain"})
     with urllib.request.urlopen(request, timeout=timeout) as response:
         text = response.read(16384).decode("utf-8", "replace").strip()
     isp = None
@@ -251,7 +251,7 @@ def fast_latency(url, rounds=6):
     try:
         for _ in range(rounds):
             start = time.perf_counter()
-            conn.request("GET", _fast_path(url, 0), headers={"User-Agent": "Internet-Pulse"})
+            conn.request("GET", _fast_path(url, 0), headers={"User-Agent": "Internet-Health"})
             response = conn.getresponse()
             response.read()
             if response.status >= 400:
@@ -304,7 +304,7 @@ def fast_download(urls, seconds=FAST_DOWN_SECONDS, warmup=FAST_WARMUP, connectio
             while time.monotonic() < deadline:
                 conn = _fast_connect(url)
                 try:
-                    conn.request("GET", _fast_path(url, FAST_CHUNK), headers={"User-Agent": "Internet-Pulse"})
+                    conn.request("GET", _fast_path(url, FAST_CHUNK), headers={"User-Agent": "Internet-Health"})
                     response = conn.getresponse()
                     if response.status >= 400:
                         raise FastTestError("fast.com server answered HTTP %d" % response.status)
@@ -328,7 +328,7 @@ def fast_upload(urls, seconds=FAST_UP_SECONDS, warmup=FAST_WARMUP, connections=F
             try:
                 while time.monotonic() < deadline:
                     conn.request("POST", _fast_path(url), body=body, headers={
-                        "User-Agent": "Internet-Pulse", "Content-Type": "application/octet-stream"})
+                        "User-Agent": "Internet-Health", "Content-Type": "application/octet-stream"})
                     response = conn.getresponse()
                     response.read()
                     if response.status >= 400:
@@ -367,7 +367,7 @@ class TelegramError(Exception):
 def telegram_post(url, payload, timeout=TELEGRAM_TIMEOUT):
     """POST JSON to the Telegram Bot API -> (HTTP status, answer as a dict). Network failures raise OSError."""
     request = urllib.request.Request(url, data=json.dumps(payload).encode(), method="POST",
-                                     headers={"Content-Type": "application/json", "User-Agent": "Internet-Pulse"})
+                                     headers={"Content-Type": "application/json", "User-Agent": "Internet-Health"})
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             status, raw = response.status, response.read(65536)
@@ -1041,7 +1041,7 @@ class Extension:
 
     def telegram_test(self, token=None, chat_id=None):
         """The Send test button: uses the values from the form when given, else the saved ones."""
-        self.telegram_send("✅ Internet Pulse: test message\nTelegram is connected; alerts will arrive in this chat.", token, chat_id)
+        self.telegram_send("✅ Internet Health: test message\nTelegram is connected; alerts will arrive in this chat.", token, chat_id)
         self._telegram_note()
 
     def telegram_tick(self):
@@ -1998,7 +1998,7 @@ def install_routes(app, ext):
 
     @app.get("/api/about")
     def np_about():
-        return jsonify(name="Internet Pulse", version=VERSION)
+        return jsonify(name="Internet Health", version=VERSION)
 
     @app.get("/api/telegram")
     def np_telegram():

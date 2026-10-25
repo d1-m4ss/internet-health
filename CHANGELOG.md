@@ -1,10 +1,14 @@
 # Changelog
 
-The project is called **Internet Pulse** (formerly “NetProbe Enhanced”; container, image, file and table names keep the upstream `netprobe` /
+The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.0 and “NetProbe Enhanced” before; container, image, file and table names keep the upstream `netprobe` /
 `np_` names so existing installations are unaffected).
 
 ## Unreleased
 
+- **The product is now called Internet Health** (it matches the repository and the image: `ghcr.io/d1-m4ss/internet-health`). New page
+  title and header, `docs/unraid/internet-health.xml` (the template's container name is `InternetHealth`; an existing container keeps
+  its name and settings), image labels and `GET /api/about`. Nothing else changes: the container, tables, files and variables keep their
+  `netprobe` names.
 ## 1.0.0 — 2026-10-26
 
 - **Versions and releases.** One version in the code (`VERSION`, shown by `GET /api/about` and in the page footer), semver, and
