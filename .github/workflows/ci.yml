@@ -8,9 +8,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -30,9 +30,9 @@ jobs:
       - name: Network-failure simulator (real probe loop, bridge and queue; nothing leaves the machine)
         run: python tests/simulate_network.py
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
       - name: Browser tests (UI, both styles, both languages)
         run: |
           npm install --no-audit --no-fund
@@ -44,7 +44,7 @@ jobs:
   image:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: bash -n scripts/smoke-image.sh
       - name: Build the image (this pulls the pinned base)
         run: docker build --build-arg REVISION="$GITHUB_SHA" -t internet-pulse:ci .
