@@ -5,6 +5,8 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+## 1.0.1 — 2026-10-26
+
 - **The product is now called Internet Health** (it matches the repository and the image: `ghcr.io/d1-m4ss/internet-health`). New page
   title and header, `docs/unraid/internet-health.xml` (the template's container name is `InternetHealth`; an existing container keeps
   its name and settings), image labels and `GET /api/about`. Nothing else changes: the container, tables, files and variables keep their
