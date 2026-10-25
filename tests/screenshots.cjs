@@ -43,6 +43,13 @@ function startDemo(port, extra = []) {
       await ctx.close();
     }
     {
+      const {ctx, page} = await open(8799, 'netprobe', 'dark', 390, 640);
+      await page.evaluate(() => window.scrollTo(0, 500));
+      await page.waitForTimeout(300);
+      await page.screenshot({path: `${out}/mobile-netprobe-menu.png`});
+      await ctx.close();
+    }
+    {
       const {ctx, page} = await open(8799, 'unifi', 'light', 390, 844);
       await page.evaluate(() => window.scrollTo(0, 1400));
       await page.waitForTimeout(300);
@@ -76,6 +83,18 @@ function startDemo(port, extra = []) {
       await page.locator('#wanSelectChart').selectOption(backup);
       await page.waitForTimeout(1800);
       await page.locator('#diagnostics').screenshot({path: `${out}/wan-chart.png`});
+      await page.locator('#wanSelectChart').selectOption('all');
+      await page.locator('#unifiTabs [data-tab="loss"]').click();
+      await page.waitForFunction(() => !document.getElementById('lossWansBox').hidden);
+      await page.locator('#lossEpisodes').evaluate(e => { e.style.display = 'none'; });
+      await page.locator('#lossCard').screenshot({path: `${out}/loss-by-wan.png`});
+      await page.locator('#unifiTabs [data-tab="diagnostics"]').click();
+      await page.locator('#compareToggle').click();
+      await page.locator('#comparePicker summary').click();
+      await page.locator('[data-cmp-bywan]').check();
+      await page.waitForTimeout(1800);
+      await page.locator('#chartTitle').click();
+      await page.locator('#diagnostics').screenshot({path: `${out}/wan-compare.png`});
       await ctx.close();
     }
     {

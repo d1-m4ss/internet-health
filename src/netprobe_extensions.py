@@ -1976,17 +1976,25 @@ class Extension:
                 row["iso"] = datetime.fromtimestamp(row["ts"], timezone.utc).isoformat()
             return rows
 
-    def loss_report(self, seconds, end=None, target=None):
+    def loss_report(self, seconds, end=None, target=None, wan=None):
         """Packet-loss episodes per ping target in a window. An episode is a run of lossy samples
-        (loss > 0) that is not interrupted by a clean sample or by a gap longer than LOSS_GAP seconds."""
+        (loss > 0) that is not interrupted by a clean sample or by a gap longer than LOSS_GAP seconds.
+        wan = (address, provider) limits it to the samples one WAN source carried; `wan_sources` always lists how each
+        source fared in the window (the Turbo outages are not tied to a source)."""
         start, upper = self.window_bounds(seconds, end)
         sql = "SELECT target,ts,loss FROM np_targets WHERE kind='ping' AND loss IS NOT NULL AND ts>=? AND ts<=?"
         params = [start, upper]
         if target:
             sql += " AND target=?"
             params.append(target)
+        wan_sql, wan_params = self.wan_filter(wan)
         with self.db() as conn:
-            rows = conn.execute(sql + " ORDER BY target,ts LIMIT %d" % (LOSS_ROWS + 1), params).fetchall()
+            rows = conn.execute(sql + wan_sql + " ORDER BY target,ts LIMIT %d" % (LOSS_ROWS + 1), params + wan_params).fetchall()
+            by_wan = [dict(r) for r in conn.execute("""SELECT wan_ip, COALESCE(wan_isp,'') AS wan_isp, COUNT(*) AS samples, SUM(loss>0) AS lossy,
+                           AVG(loss) AS avg_loss, MAX(loss) AS max_loss, MIN(ts) AS first_ts, MAX(ts) AS last_ts
+                           FROM np_targets WHERE kind='ping' AND loss IS NOT NULL AND ts>=? AND ts<=?""" + (" AND target=?" if target else "")
+                                                       + " GROUP BY wan_ip, COALESCE(wan_isp,'') ORDER BY samples DESC",
+                                                       [start, upper] + ([target] if target else []))]
         rows_capped = len(rows) > LOSS_ROWS
         per, episodes = {}, []
         for row in rows[:LOSS_ROWS]:
@@ -2024,7 +2032,7 @@ class Extension:
         # `truncated`: the episode list was cut at LOSS_EPISODES. `rows_capped`: scanning stopped at LOSS_ROWS rows, so
         # later targets (alphabetically) are missing or partial -- the whole report is incomplete, not just the list.
         return dict(window=dict(**{"from": end_ts - seconds, "to": end_ts}), summary=summary, targets=targets,
-                    episodes=episodes[:LOSS_EPISODES], rows_capped=rows_capped,
+                    episodes=episodes[:LOSS_EPISODES], rows_capped=rows_capped, wan_sources=by_wan,
                     outages=self.outages(start, upper)), len(episodes) > LOSS_EPISODES
 
     def events(self, seconds, end=None):
@@ -2156,7 +2164,7 @@ def install_routes(app, ext):
     @app.get("/api/loss")
     def np_loss():
         seconds, end = window()
-        report, truncated = ext.loss_report(seconds, end, request.args.get("target") or None)
+        report, truncated = ext.loss_report(seconds, end, request.args.get("target") or None, wan_arg())
         return jsonify(data=report, truncated=truncated)
 
     def same_origin_request():

@@ -11,7 +11,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
   try {
     const now = Math.floor(Date.now() / 1000);
     const api = {
-      prefs: {speedtest_service: '', speedtest_schedule: 'container', speedtest_interval_h: 6, speedtest_times: ['03:00'], speedtest_notify: false, show_public_ip: false, wan_check_min: 15, wan_notify: false, history_retention_days: 0, notify_unraid: true}, history: {last: null, next_ts: null, db_bytes: 5320000, oldest_ts: now - 86400 * 40}, cleanupTotal: 1234, cleanupError: null, publicIp: {enabled: false}, targets: [], wanData: {sources: [], current: null}, publicIpDelay: 0, series: [], backups: [], backupFail: null, tg: {enabled: false, configured: false, token_set: false, chat_id: '', source: null, last_ok_ts: null, last_error: null, last_error_ts: null}, tgFail: null, delays: {}, statusSeq: [], status: {running: false, success: null, error: null, result: null}, runStatus: 202, prefsFail: false, prefsReadFail: false, speedRun: null, calls: [],
+      prefs: {speedtest_service: '', speedtest_schedule: 'container', speedtest_interval_h: 6, speedtest_times: ['03:00'], speedtest_notify: false, show_public_ip: false, wan_check_min: 15, wan_notify: false, history_retention_days: 0, notify_unraid: true}, history: {last: null, next_ts: null, db_bytes: 5320000, oldest_ts: now - 86400 * 40}, cleanupTotal: 1234, cleanupError: null, publicIp: {enabled: false}, targets: [], wanData: {sources: [], current: null}, publicIpDelay: 0, loss: null, historyByWan: null, series: [], backups: [], backupFail: null, tg: {enabled: false, configured: false, token_set: false, chat_id: '', source: null, last_ok_ts: null, last_error: null, last_error_ts: null}, tgFail: null, delays: {}, statusSeq: [], status: {running: false, success: null, error: null, result: null}, runStatus: 202, prefsFail: false, prefsReadFail: false, speedRun: null, calls: [],
       latest: {ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server: {id: '1', name: 'Example City', country: 'EX'}, backend: 'python'},
       history: [{ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server_id: '1', server_name: 'Example City', backend: 'python'}],
     };
@@ -82,7 +82,8 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
           case '/api/speedtest/status': return route.fulfill({json: api.statusSeq.length ? api.statusSeq.shift() : api.status});
           case '/api/settings': return route.fulfill({json: {settings: {enabled: true, loss_pct: 10, latency_ms: 150, jitter_ms: 80, dns_ms: 250, confirm_samples: 2, recovery_samples: 2, turbo: false}, storage: {bytes: 1, retention_days: null}, started_at: now - 60}});
           case '/api/score/latest': return route.fulfill({json: {data: {ts: now, score: 90, avg_loss_pct: 0, avg_latency_ms: 20, avg_jitter_ms: 2, avg_dns_latency_ms: 10}}});
-          case '/api/loss': return route.fulfill({json: {truncated: false, data: {targets: [], episodes: [], outages: [], summary: {}, window: {from: now - 3600, to: now}}}});
+          case '/api/loss': return route.fulfill({json: api.loss || {truncated: false, data: {targets: [], episodes: [], outages: [], summary: {}, window: {from: now - 3600, to: now}}}});
+          case '/api/history': return route.fulfill({json: {data: (api.historyByWan && api.historyByWan[url.searchParams.get('wan_ip') ?? '']) || []}});
           case '/api/logs/live': return route.fulfill({json: {lines: [], next_seq: 0}});
           default: return route.fulfill({json: {data: []}});
         }
@@ -657,6 +658,40 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       await page.waitForFunction(() => !document.querySelector('#metricTabs [data-metric="score"]').disabled);
       await page.waitForTimeout(300);
       assert.equal(calls().filter(c => c.query.includes('wan_ip')).length, 0);
+
+      // the loss report: limited by the same WAN choice, with a table of how each source fared
+      api.loss = {truncated: false, data: {targets: [], episodes: [], outages: [], summary: {samples: 12, lossy: 4, episodes: 2, avg_loss: 5, max_loss: 50}, window: {from: now - 3600, to: now}, rows_capped: false,
+        wan_sources: [{wan_ip: A.wan_ip, wan_isp: A.wan_isp, samples: 6, lossy: 2, avg_loss: 8.3, max_loss: 50}, {wan_ip: B.wan_ip, wan_isp: B.wan_isp, samples: 4, lossy: 2, avg_loss: 5, max_loss: 10}, {wan_ip: null, wan_isp: '', samples: 2, lossy: 0, avg_loss: 0, max_loss: 0}]}};
+      await page.locator('#refreshBtn').click();
+      await page.waitForFunction(() => !document.getElementById('lossWansBox').hidden);
+      assert.equal(await page.locator('#lossWans tr').count(), 3);
+      assert.match(await page.locator('#lossWans tr').nth(0).textContent(), /Alpha Net · 203\.0\.113\.10\s*6\s*2\s*8\.3% \/ 50%/);
+      assert.match(await page.locator('#lossWans tr').nth(2).textContent(), /No WAN recorded/);
+      api.calls.length = 0;
+      await page.locator('#lossWans [data-loss-wan]').nth(1).click();
+      await page.waitForFunction(() => document.getElementById('wanSelectChart').selectedOptions[0].textContent.startsWith('Beta Cable'));
+      await page.waitForTimeout(300);
+      assert(calls().some(c => c.path === '/api/loss' && c.query.includes('wan_ip=198.51.100.20&wan_isp=Beta%20Cable')), 'the loss report is requested for that source');
+      assert.equal(await page.locator('#lossWans tr.selected').count(), 1);
+      await sel('#wanSelectChart').selectOption('all');
+      await page.waitForTimeout(300);
+
+      // "one line per WAN source" in the compare chart
+      api.historyByWan = {[A.wan_ip]: [{ts: now - 1200, avg_loss_pct: 1}, {ts: now - 600, avg_loss_pct: 2}, {ts: now - 60, avg_loss_pct: 0}], [B.wan_ip]: [{ts: now - 900, avg_loss_pct: 6}, {ts: now - 300, avg_loss_pct: 9}]};
+      await page.locator('#compareToggle').click();
+      await page.locator('#comparePicker').evaluate(e => e.open = true);
+      assert.equal(await page.locator('[data-cmp-bywan]').count(), 1, 'offered because the period has two sources');
+      api.calls.length = 0;
+      await page.locator('[data-cmp-bywan]').check();
+      await page.waitForFunction(() => document.querySelectorAll('#compareLegend .lg').length === 2);
+      const legend = await page.locator('#compareLegend .lg').allTextContents();
+      assert(/Alpha Net/.test(legend[0]) && /Beta Cable/.test(legend[1]), legend.join(' | '));
+      assert(calls().some(c => c.path === '/api/history' && c.query.includes('wan_ip=203.0.113.10')) && calls().some(c => c.path === '/api/history' && c.query.includes('wan_ip=198.51.100.20')), 'one request per source');
+      assert.equal(await page.locator('#primaryChart path.c-series').count(), 2, 'two lines: one per source');
+      await page.locator('[data-cmp-bywan]').uncheck();
+      await page.waitForFunction(() => document.querySelectorAll('#compareLegend .lg').length === 0);
+      await page.locator('#compareToggle').click();
+      api.loss = null; api.historyByWan = null;
 
       // remembered filters: the period, the WAN source and the metric come back after a reload
       const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('netprobe.filters')));

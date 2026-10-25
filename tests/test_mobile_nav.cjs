@@ -47,6 +47,10 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
         assert(gap >= -1, `${label}: the target of a menu link is hidden under the pinned menu (gap ${gap}px)`);
         const bar = (await page.locator('aside').boundingBox()).height;
         assert(bar <= height * 0.25, `${label}: the pinned menu may take at most a quarter of the screen, it takes ${bar}px of ${height}px`);
+        if (width === 390) {
+          assert(bar <= 64, `${label}: on a phone the pinned menu is one row (at most 64px), it takes ${bar}px`);
+          assert(await page.evaluate(() => { const nav = document.querySelector('aside nav'); return nav.scrollWidth <= nav.clientWidth + 1; }), `${label}: every menu link is visible without scrolling the menu`);
+        }
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, label + ': no horizontal overflow');
         assert.deepEqual(errors, [], label + ': page errors');
         await page.close();

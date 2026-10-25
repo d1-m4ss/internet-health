@@ -252,6 +252,30 @@ class QueryTests(WanBase):
         self.assertEqual(data["current"], {"wan_ip": B[0], "wan_isp": B[1]})
         self.assertEqual(data["sources"][0]["last_ts"], max(s["last_ts"] for s in data["sources"]))
 
+    def test_the_loss_report_can_be_limited_to_one_wan_and_always_lists_how_each_fared(self):
+        everything = self.api("/api/loss").get_json()["data"]
+        self.assertEqual(everything["summary"]["samples"], 12)
+        by = {(w["wan_ip"], w["wan_isp"]): w for w in everything["wan_sources"]}
+        self.assertEqual(set(by), {(A[0], A[1]), (B[0], B[1]), (None, "")})
+        self.assertEqual((by[(A[0], A[1])]["samples"], by[(A[0], A[1])]["lossy"], by[(A[0], A[1])]["max_loss"]), (6, 2, 50))
+        self.assertEqual((by[(B[0], B[1])]["samples"], by[(B[0], B[1])]["lossy"], by[(B[0], B[1])]["max_loss"]), (4, 2, 10))
+        self.assertEqual((by[(None, "")]["samples"], by[(None, "")]["lossy"]), (2, 0))
+        self.assertAlmostEqual(by[(B[0], B[1])]["avg_loss"], 5.0)
+        only_a = self.api("/api/loss", wan_ip=A[0], wan_isp=A[1]).get_json()["data"]
+        self.assertEqual((only_a["summary"]["samples"], only_a["summary"]["lossy"], only_a["summary"]["max_loss"], only_a["summary"]["episodes"]), (6, 2, 50.0, 2))
+        only_b = self.api("/api/loss", wan_ip=B[0], wan_isp=B[1]).get_json()["data"]
+        self.assertEqual((only_b["summary"]["samples"], only_b["summary"]["max_loss"]), (4, 10.0))
+        self.assertTrue(all(e["peak"] == 10 for e in only_b["episodes"]), "episodes of the other source are not mixed in")
+        self.assertEqual(only_b["wan_sources"], everything["wan_sources"], "the breakdown does not depend on the filter")
+        unknown = self.api("/api/loss", wan_ip="").get_json()["data"]
+        self.assertEqual((unknown["summary"]["samples"], unknown["summary"]["lossy"], unknown["episodes"]), (2, 0, []))
+
+    def test_the_loss_breakdown_follows_the_chosen_target_and_bad_filters_are_refused(self):
+        one = self.api("/api/loss", target="google.com").get_json()["data"]
+        self.assertEqual(sum(w["samples"] for w in one["wan_sources"]), 6, "one target: half of the samples")
+        for bad in ({"wan_ip": "not-an-ip"}, {"wan_ip": A[0], "wan_isp": "x" * 121}):
+            self.assertEqual(self.api("/api/loss", **bad).status_code, 400)
+
     def test_targets_are_filtered_by_wan_with_their_own_statistics(self):
         everything = {r["target"]: r for r in self.api("/api/targets/recent").get_json()["data"]}
         only_a = {r["target"]: r for r in self.api("/api/targets/recent", wan_ip=A[0], wan_isp=A[1]).get_json()["data"]}

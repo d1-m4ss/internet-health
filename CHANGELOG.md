@@ -5,6 +5,10 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+- **WAN source in the loss report and in the compare chart.** `GET /api/loss` accepts `wan_ip` / `wan_isp` and returns `wan_sources` (how each source
+  fared in the window); the report shows that table, clicking a row selects the source. The compare chart gets *One line per WAN source*
+  (up to four sources; every picked series is drawn once per source).
+- **A compact pinned menu on phones** in the NetProbe style: one row (the mark instead of the name), about 47 px instead of 90–100.
 - **Database backups from the page** (Settings → *History*): *Back up now* makes a complete, consistent copy while monitoring keeps running
   (`VACUUM INTO`, a background job, refused when the disk is too full) in `/data/db-backups`, keeps the 5 newest, and lists them with
   *Download* and *Delete*. Deleting history by hand makes a copy first and stops if that fails. `GET/POST /api/backups`,

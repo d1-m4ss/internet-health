@@ -59,6 +59,10 @@ bind-mounted read-only over it. Removing the mounts brings the stock NetProbe ba
   `/data/telegram.json` (mode 600), is never shown again by the UI or the API, and can instead be given to the container as
   `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`. Messages from before it was switched on are not sent; a failed delivery is
   retried with a growing pause and given up after a day.
+- **The loss report and the compare chart know the WAN source.** The *WAN source* choice also limits the *Packet loss* report, and a
+  table in it shows how each source fared (probes, probes with loss, average / maximum; a click selects that source). In the compare
+  chart *One line per WAN source* draws every picked series once per source — for example the loss of the summary through your main
+  link and through the backup on one plot. The pinned menu on a phone is a single row now (about 47 px instead of 90–100).
 - **A message when the WAN changes.** Optional (*Send a notification when the external IP or provider changes*): one
   Unraid message with before and now — a warning when the provider changed (typically a switch to a backup link), an
   information message when only the address changed — confirmed by two checks in a row, at most 6 per hour.
@@ -98,6 +102,10 @@ bind-mounted read-only over it. Removing the mounts brings the stock NetProbe ba
 
 ![The chart for one WAN source](docs/screenshots/wan-chart.png)
 
+![Packet loss by WAN source](docs/screenshots/loss-by-wan.png)
+
+![Compare: one line per WAN source](docs/screenshots/wan-compare.png)
+
 ![Speedtest: service, schedule and notifications](docs/screenshots/speedtest-schedule.png)
 
 ![Speedtest chart: speed](docs/screenshots/speedtest-chart.png)
@@ -109,6 +117,8 @@ bind-mounted read-only over it. Removing the mounts brings the stock NetProbe ba
 On a phone the menu bar stays pinned to the top while the page scrolls:
 
 ![Pinned menu on a phone](docs/screenshots/mobile-menu-pinned.png)
+
+![The one-row menu in the NetProbe style](docs/screenshots/mobile-netprobe-menu.png)
 
 ## How it works
 

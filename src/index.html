@@ -187,8 +187,10 @@
     @media(max-width:1250px) { .metrics{grid-template-columns:repeat(3,minmax(0,1fr))} .grid-content{grid-template-columns:minmax(0,1fr) 305px} }
     /* phones and tablets: the menu bar stays pinned to the top (a block layout lets it stick for the whole page) */
     @media(max-width:930px) { html{scroll-padding-top:var(--stick-h,0px)} .layout{display:block} aside{position:sticky;top:0;z-index:30;height:auto;padding:13px 18px;flex-direction:row;align-items:center;justify-content:space-between} .brand{padding:0;font-size:16px} .brand small,.nav-head,.side-foot{display:none} nav{display:flex;flex-wrap:wrap} nav a{padding:7px 10px;font-size:12px} .nav-icon{display:none} main{padding:20px 16px} .grid-content{grid-template-columns:1fr} }
+    /* a phone: the pinned menu is one row (the name goes, the mark stays), so it takes ~56 px instead of ~100 */
+    @media(max-width:560px) { aside{padding:8px 12px;gap:8px} .brand{flex:0 0 auto} .brand>span:last-child{display:none} nav{flex-wrap:nowrap;justify-content:flex-end;min-width:0;overflow-x:auto;scrollbar-width:none} nav::-webkit-scrollbar{display:none} nav a{padding:6px 8px;white-space:nowrap} }
     @media(max-width:700px) { .path-row{grid-template-columns:1fr;gap:0} .link{grid-template-columns:auto 1fr;justify-items:start;align-items:center;gap:10px;padding:6px 0 6px 30px} .link-line{width:0;height:20px;border-top:0!important;border-left:2px dashed var(--unk);order:-1} .link[data-s="ok"] .link-line{border-left:2px solid var(--ok)} .link[data-s="warn"] .link-line{border-left-color:var(--warn)} .link[data-s="bad"] .link-line{border-left-color:var(--bad)} .link-cap{text-align:left} }
-    @media(max-width:560px) { .metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px} .metric{padding:15px} .metric-val{font-size:25px} .main-status{padding:16px;align-items:flex-start} .status-right{display:none} .card{padding:17px} .head h1{font-size:23px} .flex-tabs{max-width:100%;overflow-x:auto} .table{min-width:0} .table th:nth-child(3),.table td:nth-child(3){display:none} .metrics .metric:first-child{grid-column:span 2} .chart-select{width:100%} .head-actions .tag{max-width:100%;white-space:normal} .head-actions{width:100%} .setting-grid{gap:9px} .brand{margin-right:15px} aside{flex-wrap:wrap;gap:12px} nav a{padding:5px 8px} }
+    @media(max-width:560px) { .metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px} .metric{padding:15px} .metric-val{font-size:25px} .main-status{padding:16px;align-items:flex-start} .status-right{display:none} .card{padding:17px} .head h1{font-size:23px} .flex-tabs{max-width:100%;overflow-x:auto} .table{min-width:0} .table th:nth-child(3),.table td:nth-child(3){display:none} .metrics .metric:first-child{grid-column:span 2} .chart-select{width:100%} .head-actions .tag{max-width:100%;white-space:normal} .head-actions{width:100%} .setting-grid{gap:9px} }
 
     /* ===== Style "unifi": calm neutral palette, one blue accent, flat bordered cards, icon rail ===== */
     html[data-style="unifi"] {
@@ -542,6 +544,9 @@
           <div class="card-head"><div><h2 data-i18n="loss.title">Потери пакетов за период</h2><div class="card-sub" id="lossWindow"></div></div><label class="pick"><span data-i18n="loss.target">Цель</span><select id="lossTarget" class="chart-select"><option value="">…</option></select></label></div>
           <div class="loss-sum" id="lossSummary"></div>
           <div class="table-wrap"><table class="table"><thead><tr><th data-i18n="th.target2">Цель</th><th data-i18n="loss.th.samples">Проб</th><th data-i18n="loss.th.lossy">С потерями</th><th data-i18n="loss.th.avg">Средние / макс.</th><th data-i18n="loss.th.eps">Эпизодов</th></tr></thead><tbody id="lossTargets"><tr><td colspan="5" class="muted">…</td></tr></tbody></table></div>
+          <div id="lossWansBox" hidden><h3 class="loss-h" data-i18n="loss.wans">По WAN-источникам</h3>
+            <div class="table-wrap"><table class="table"><thead><tr><th data-i18n="wan.source">WAN-источник</th><th data-i18n="loss.th.samples">Проб</th><th data-i18n="loss.th.lossy">С потерями</th><th data-i18n="loss.th.avg">Средние / макс.</th></tr></thead><tbody id="lossWans"></tbody></table></div>
+            <p class="card-sub" data-i18n="loss.wansNote" style="margin:4px 0 0"></p></div>
           <h3 class="loss-h" data-i18n="loss.episodes">Эпизоды потерь</h3>
           <div class="loss-episodes" id="lossEpisodes"></div><div class="section-status" id="lossStatus" role="status"></div>
           <h3 class="loss-h" data-i18n="loss.outages">Короткие обрывы (Turbo)</h3>
@@ -627,7 +632,7 @@
       'tab.loss':'Потери','th.target2':'Цель','loss.goto':'Потери за период →','loss.title':'Потери пакетов за период','loss.target':'Цель','loss.all':'Все ping-цели','loss.avg':'Средние потери','loss.max':'Максимум','loss.lossy':'Проб с потерями','loss.eps':'Эпизодов',
       'loss.episodes':'Эпизоды потерь','loss.none':'Потерь за период нет','loss.noSamples':'Нет замеров за период','loss.unavailable':'Отчёт о потерях недоступен','loss.th.samples':'Проб','loss.th.lossy':'С потерями','loss.th.avg':'Средние / макс.','loss.th.eps':'Эпизодов',
       'loss.show':'показать на графике','loss.truncated':'Показаны последние {n} эпизодов; сводка учитывает все','loss.rowsCapped':'Период слишком велик: часть проб не обработана, отчёт неполный. Выберите период короче или одну цель.','loss.samples':'проб: {n}','loss.ofSamples':'из {n}','dur.s':'{n} с','dur.m':'{n} мин','dur.h':'{h} ч {m} мин',
-      'unit.ms':'мс','cmp.toggle':'Сравнение','cmp.summary':'Сводка (все цели)','cmp.ping':'Ping-цели','cmp.dns':'DNS-серверы','cmp.allDns':'Все DNS','cmp.clear':'Сбросить','cmp.selected':'Источники: {n}','cmp.none':'Для этого выбора нет доступных рядов','cmp.title':'Сравнение · рядов: {n}','cmp.sub':'Несколько метрик и целей на одном графике','cmp.sharedAxis':'Общая шкала, {u}','cmp.ownScale':'У каждого ряда своя шкала: 100% = максимум ряда за период (реальные значения — в легенде и подсказке)','cmp.max':'макс. {v}','cmp.capped':'Показаны первые {n} рядов','cmp.last':'сейчас',
+      'unit.ms':'мс','cmp.toggle':'Сравнение','cmp.byWan':'Одна линия на каждый WAN-источник','cmp.summary':'Сводка (все цели)','cmp.ping':'Ping-цели','cmp.dns':'DNS-серверы','cmp.allDns':'Все DNS','cmp.clear':'Сбросить','cmp.selected':'Источники: {n}','cmp.none':'Для этого выбора нет доступных рядов','cmp.title':'Сравнение · рядов: {n}','cmp.sub':'Несколько метрик и целей на одном графике','cmp.sharedAxis':'Общая шкала, {u}','cmp.ownScale':'У каждого ряда своя шкала: 100% = максимум ряда за период (реальные значения — в легенде и подсказке)','cmp.max':'макс. {v}','cmp.capped':'Показаны первые {n} рядов','cmp.last':'сейчас',
       'topbar.network':'Сеть','net.title':'Интернет','net.speedLink':'Speedtest','thr.title':'Пороги уведомлений','thr.configure':'Настроить',
       'up.title':'Работа интернета','up.uptime':'Uptime','up.tip':'Доля интервалов без сильных потерь/обрыва; интервалы без данных не учитываются','up.ok':'без потерь','up.warn':'были потери пакетов (до {v}%)','up.bad':'сильные потери или обрыв ({v}%)','up.gap':'нет данных',
       'chk.title':'Связность','chk.sub':'Доля успешных замеров за период','chk.bridge':'Мост Docker','chk.router':'Роутер','chk.internet':'Интернет','chk.dns':'DNS',
@@ -682,7 +687,7 @@
       'turbo.cost':'Цена: около 9 МБ ICMP-трафика в сутки и пара коротких процессов ping каждые 5 секунд.',
       'turbo.risk':'Риск ложных тревог: некоторые провайдеры ограничивают ICMP. Чтобы отсечь это, обрыв засчитывается, только если ВСЕ интернет-адреса не ответили два раунда подряд.',
       'turbo.default':'По умолчанию выключен. Настройка сохраняется и переживает перезапуск контейнера.',
-      'loss.outages':'Короткие обрывы (Turbo)','loss.noOutages':'Turbo-обрывов за период нет','out.internet':'Обрыв интернета','out.router':'Роутер не отвечал','out.open':'идёт сейчас',
+      'loss.outages':'Короткие обрывы (Turbo)','loss.wans':'По WAN-источникам','loss.wansNote':'Нажмите на строку, чтобы показать отчёт и графики только для этого источника. Короткие обрывы (Turbo) ниже не делятся по источникам.','loss.noOutages':'Turbo-обрывов за период нет','out.internet':'Обрыв интернета','out.router':'Роутер не отвечал','out.open':'идёт сейчас',
       'out.st.sent':'уведомление отправлено','out.st.pending':'ждёт отправки','out.st.covered':'тревога уже была от основного мониторинга','out.st.off':'уведомления выключены','out.st.capped':'лимит 3 в час','out.st.counted':'учтён в следующем сообщении','out.st.stopped':'Turbo выключен во время обрыва','out.st.open':'',
       'set.invalid':'Проверьте значения порогов.','set.saving':'Сохранение…','set.saved':'Сохранено на сервере.','set.notSaved':'Не сохранено: {e}','set.dirty':'Изменения ещё не сохранены.','set.storage':'SQLite: {mb} MiB · {ret}','set.noRetention':'Без автоматического удаления истории','set.retention':'Хранение: {d} дней','set.noStorage':'Хранилище: нет данных API',
       'diag.title':'Диагностика','diag.sub':'Логи и активные настройки NetProbe','diag.logs':'Логи приложения','diag.config':'Конфигурация (без секретов)','diag.logHint':'Для просмотра разверните раздел.','diag.noLines':'В текущем буфере нет строк.','diag.lastRead':'Последнее чтение · {when}','diag.logsUnavailable':'Логи недоступны · {e}','diag.configUnavailable':'Конфигурация API недоступна.',
@@ -693,7 +698,7 @@
       'tab.loss':'Loss','th.target2':'Target','loss.goto':'Packet loss report →','loss.title':'Packet loss in the period','loss.target':'Target','loss.all':'All ping targets','loss.avg':'Average loss','loss.max':'Peak','loss.lossy':'Samples with loss','loss.eps':'Episodes',
       'loss.episodes':'Loss episodes','loss.none':'No packet loss in this period','loss.noSamples':'No samples in this period','loss.unavailable':'Packet loss report unavailable','loss.th.samples':'Samples','loss.th.lossy':'With loss','loss.th.avg':'Average / peak','loss.th.eps':'Episodes',
       'loss.show':'show on chart','loss.truncated':'Showing the latest {n} episodes; the summary counts all of them','loss.rowsCapped':'The period is too long: some samples were not processed and the report is incomplete. Pick a shorter period or one target.','loss.samples':'samples: {n}','loss.ofSamples':'of {n}','dur.s':'{n} s','dur.m':'{n} min','dur.h':'{h} h {m} min',
-      'unit.ms':'ms','cmp.toggle':'Compare','cmp.summary':'Summary (all targets)','cmp.ping':'Ping targets','cmp.dns':'DNS servers','cmp.allDns':'All DNS','cmp.clear':'Clear','cmp.selected':'Sources: {n}','cmp.none':'No series are available for this selection','cmp.title':'Comparison · {n} series','cmp.sub':'Several metrics and targets on one chart','cmp.sharedAxis':'Shared scale, {u}','cmp.ownScale':'Each series has its own scale: 100% = the series maximum in the period (real values are in the legend and tooltip)','cmp.max':'max {v}','cmp.capped':'Showing the first {n} series','cmp.last':'now',
+      'unit.ms':'ms','cmp.toggle':'Compare','cmp.byWan':'One line per WAN source','cmp.summary':'Summary (all targets)','cmp.ping':'Ping targets','cmp.dns':'DNS servers','cmp.allDns':'All DNS','cmp.clear':'Clear','cmp.selected':'Sources: {n}','cmp.none':'No series are available for this selection','cmp.title':'Comparison · {n} series','cmp.sub':'Several metrics and targets on one chart','cmp.sharedAxis':'Shared scale, {u}','cmp.ownScale':'Each series has its own scale: 100% = the series maximum in the period (real values are in the legend and tooltip)','cmp.max':'max {v}','cmp.capped':'Showing the first {n} series','cmp.last':'now',
       'topbar.network':'Network','net.title':'Internet','net.speedLink':'Speedtest','thr.title':'Notification thresholds','thr.configure':'Configure',
       'up.title':'Internet performance','up.uptime':'Uptime','up.tip':'Share of intervals without heavy loss or an outage; intervals without data are ignored','up.ok':'no loss','up.warn':'packet loss (up to {v}%)','up.bad':'heavy loss or outage ({v}%)','up.gap':'no data',
       'chk.title':'Connectivity','chk.sub':'Share of successful samples in the period','chk.bridge':'Docker bridge','chk.router':'Router','chk.internet':'Internet','chk.dns':'DNS',
@@ -748,7 +753,7 @@
       'turbo.cost':'Cost: about 9 MB of ICMP traffic per day and a couple of short ping processes every 5 seconds.',
       'turbo.risk':'False-alarm risk: some ISPs rate-limit ICMP. To filter that out, an outage counts only when ALL internet addresses fail two rounds in a row.',
       'turbo.default':'Off by default. The setting is saved and survives container restarts.',
-      'loss.outages':'Short outages (Turbo)','loss.noOutages':'No Turbo outages in this period','out.internet':'Internet outage','out.router':'Router did not answer','out.open':'ongoing',
+      'loss.outages':'Short outages (Turbo)','loss.wans':'By WAN source','loss.wansNote':'Click a row to show the report and the charts for that source only. The short outages (Turbo) below are not split by source.','loss.noOutages':'No Turbo outages in this period','out.internet':'Internet outage','out.router':'Router did not answer','out.open':'ongoing',
       'out.st.sent':'notification sent','out.st.pending':'waiting to be sent','out.st.covered':'the regular monitor already alerted','out.st.off':'notifications disabled','out.st.capped':'3 per hour limit','out.st.counted':'counted in the next message','out.st.stopped':'Turbo was switched off during the outage','out.st.open':'',
       'set.invalid':'Check the threshold values.','set.saving':'Saving…','set.saved':'Saved on the server.','set.notSaved':'Not saved: {e}','set.dirty':'Changes are not saved yet.','set.storage':'SQLite: {mb} MiB · {ret}','set.noRetention':'History is never deleted automatically','set.retention':'Retention: {d} days','set.noStorage':'Storage: no API data',
       'diag.title':'Diagnostics','diag.sub':'NetProbe logs and active settings','diag.logs':'Application logs','diag.config':'Configuration (no secrets)','diag.logHint':'Expand the section to view.','diag.noLines':'The current buffer has no lines.','diag.lastRead':'Last read · {when}','diag.logsUnavailable':'Logs unavailable · {e}','diag.configUnavailable':'API configuration is unavailable.',
@@ -942,14 +947,20 @@
   /* ---------- compare mode ---------- */
   const unitOf = {avg_loss_pct:'%', avg_latency_ms:'ms', avg_jitter_ms:'ms', avg_dns_latency_ms:'ms', score:''};
   const MAX_SERIES = 10;
-  const cmpData = source => source === '' ? state.summary : state.charts.get(JSON.stringify([source, '', rangeKey(), wanKey()]))?.data;
+  /* "One line per WAN source": every picked series is drawn once per source (up to four) instead of using the single WAN selector. */
+  const overlayWans = () => wanSources().filter(x => x.wan_ip).slice(0, 4).map(x => [x.wan_ip, x.wan_isp || '']);
+  const byWanOn = () => state.cmp.byWan === true && overlayWans().length >= 2;
+  const wanCacheKey = (source, wan) => JSON.stringify([source, '', rangeKey(), wan ? 'w:' + wan.join('|') : wanKey()]);
+  const wanQuery = wan => `&wan_ip=${encodeURIComponent(wan[0])}&wan_isp=${encodeURIComponent(wan[1] || '')}`;
+  const cmpData = (source, wan = null) => !wan && source === '' ? state.summary : state.charts.get(wanCacheKey(source, wan))?.data;
   function cmpBuild() {
     const out = [];
-    for (const source of state.cmp.sources) for (const metric of state.cmp.metrics) {
+    const wans = byWanOn() ? overlayWans() : [null];
+    for (const source of state.cmp.sources) for (const metric of state.cmp.metrics) for (const wan of wans) {
       const key = source === '' ? metric : targetKeys[metric];
       if (!key) continue;
-      const data = cmpData(source) || [];
-      const label = (t(names[metric][0])) + ' · ' + (source === '' ? t('cmp.summary') : source);
+      const data = cmpData(source, wan) || [];
+      const label = (t(names[metric][0])) + ' · ' + (source === '' ? t('cmp.summary') : source) + (wan ? ' · ' + (wan[1] || wan[0]) : '');
       out.push({source, metric, key, unit: unitOf[metric], label, points: data.map(d => ({ts: d.ts, v: d[key]})).filter(d => numeric(d.ts)).sort((a, b) => a.ts - b.ts)});
     }
     return out;
@@ -957,13 +968,29 @@
   function cmpMenu() {
     const ping = state.targets.filter(x => x.kind !== 'dns'), dns = state.targets.filter(x => x.kind === 'dns');
     const opt = (value, label) => `<label class="cmp-opt"><input type="checkbox" data-cmp-target="${escape(value)}" ${state.cmp.sources.has(value) ? 'checked' : ''}><span>${escape(label)}</span></label>`;
-    $('cmpMenu').innerHTML = opt('', t('cmp.summary')) + `<div class="cmp-group"><span>${escape(t('cmp.ping'))}</span></div>` + ping.map(x => opt(x.target, x.target)).join('')
+    const byWanRow = overlayWans().length >= 2 ? `<label class="cmp-opt"><input type="checkbox" data-cmp-bywan ${state.cmp.byWan ? 'checked' : ''}><span>${escape(t('cmp.byWan'))}</span></label>` : '';
+    $('cmpMenu').innerHTML = byWanRow + opt('', t('cmp.summary')) + `<div class="cmp-group"><span>${escape(t('cmp.ping'))}</span></div>` + ping.map(x => opt(x.target, x.target)).join('')
       + `<div class="cmp-group"><span>${escape(t('cmp.dns'))}</span><span><button type="button" class="link-btn" data-cmp-action="alldns">${escape(t('cmp.allDns'))}</button> <button type="button" class="link-btn" data-cmp-action="clear">${escape(t('cmp.clear'))}</button></span></div>` + dns.map(x => opt(x.target, x.target)).join('');
     const picked = [...state.cmp.sources].map(x => x === '' ? t('cmp.summary') : x);
     $('cmpSummary').textContent = picked.length <= 2 ? picked.join(', ') : t('cmp.selected', {n: picked.length});
   }
   async function loadCompare() {
     const rk = rangeKey(), query = rq() + wanParam(), key = wanKey(), wanted = [...state.cmp.sources].filter(x => x !== '');
+    if (byWanOn()) {
+      const jobs = [];
+      for (const source of state.cmp.sources) for (const wan of overlayWans()) jobs.push([source, wan]);
+      await Promise.allSettled(jobs.map(async ([source, wan]) => {
+        try {
+          const url = source === '' ? `/api/history?${rq()}${wanQuery(wan)}` : `/api/targets/history?target=${encodeURIComponent(source)}&${rq()}${wanQuery(wan)}`;
+          const result = await api(url);
+          if (!Array.isArray(result.data)) throw new Error(t('err.badHistory'));
+          state.charts.set(wanCacheKey(source, wan), {data: result.data.slice().sort((a, b) => a.ts - b.ts)});
+          delete state.errors.chart;
+        } catch (e) { state.errors.chart = errorText(e); }
+      }));
+      if (state.cmp.on && rk === rangeKey()) { renderChart(); renderStatus(); }
+      return;
+    }
     await Promise.allSettled(wanted.map(async target => {
       try {
         const result = await api(`/api/targets/history?target=${encodeURIComponent(target)}&${query}`);
@@ -977,7 +1004,7 @@
   function setCompare(on) {
     state.cmp.on = on; $('diagnostics').dataset.compare = on ? '1' : '0'; $('compareToggle').setAttribute('aria-pressed', on ? 'true' : 'false');
     if (on) {
-      state.cmp.metrics = new Set([state.metric]); state.cmp.sources = new Set([state.target || '']);
+      state.cmp.metrics = new Set([state.metric]); state.cmp.sources = new Set([state.target || '']); state.cmp.byWan = false;
       cmpMenu(); loadCompare();
     } else { $('compareLegend').innerHTML = ''; $('axisNote').textContent = ''; $('chartTip').hidden = true; $('chartTip').innerHTML = ''; $('comparePicker').open = false; }
     renderChart();
@@ -988,7 +1015,7 @@
     $('chartTitle').textContent = t('cmp.title', {n: series.length}); $('chartSubtitle').textContent = t('cmp.sub'); $('seriesLabel').textContent = series.map(x => x.label).slice(0, 3).join(' · ') + (series.length > 3 ? ' …' : '');
     const pointsTotal = series.reduce((a, x) => a + x.points.length, 0);
     $('periodInfo').textContent = t('chart.points', {n: pointsTotal}) + (all.length > MAX_SERIES ? ' · ' + t('cmp.capped', {n: MAX_SERIES}) : '');
-    const loadedAll = [...state.cmp.sources].every(x => x === '' || state.charts.has(JSON.stringify([x, '', rangeKey(), wanKey()])));
+    const loadedAll = byWanOn() ? [...state.cmp.sources].every(x => overlayWans().every(w => state.charts.has(wanCacheKey(x, w)))) : [...state.cmp.sources].every(x => x === '' || state.charts.has(JSON.stringify([x, '', rangeKey(), wanKey()])));
     $('chartStatus').textContent = state.errors.chart ? t('chart.errPrefix', {kept: '', err: state.errors.chart}) : !loadedAll ? t('chart.loading') : '';
     const width = Math.max(300, svg.clientWidth || 900); svg.setAttribute('viewBox', `0 0 ${width} 250`); svg.dataset.metric = '';
     const vals = series.flatMap(x => x.points.map(p => p.v)).filter(numeric);
@@ -1224,6 +1251,9 @@
     $('lossEpisodes').innerHTML = r.episodes.length ? r.episodes.map((e, i) => `<button type="button" class="ep" data-episode="${i}" title="${escape(t('loss.show'))}"><span class="ep-ico" aria-hidden="true">${e.peak >= 50 ? '🔴' : '🟠'}</span><span class="ep-main">${escape(e.target)} · ${escape(when(e.start))}${e.end > e.start ? ' → ' + escape(hms(e.end)) : ''}</span><span class="ep-sub">${escape(e.end > e.start ? durText(e.duration) + ' · ' : '')}${escape(t('loss.samples', {n: e.samples}))} · ${escape(t('loss.show'))}</span><span class="ep-peak ${e.peak >= 50 ? 'bad' : ''}">${escape(pctText(e.peak))}</span></button>`).join('')
         + (state.lossRowsCapped ? `<div class="loss-empty">${escape(t('loss.rowsCapped'))}</div>` : '') + (state.lossTruncated ? `<div class="loss-empty">${escape(t('loss.truncated', {n: r.episodes.length}))}</div>` : '')
       : `<div class="loss-empty">${escape(s.samples ? '✅ ' + t('loss.none') : t('loss.noSamples'))}</div>`;
+    const wans = Array.isArray(r.wan_sources) ? r.wan_sources : [], known = wans.filter(x => x.wan_ip);
+    $('lossWansBox').hidden = !(state.prefs?.show_public_ip === true && (known.length > 1 || (known.length === 1 && wans.length > 1)));
+    $('lossWans').innerHTML = wans.map(x => { const sel = state.wanSel && wanSame([x.wan_ip || '', x.wan_isp || ''], state.wanSel); return `<tr class="${sel ? 'selected' : ''}"><td><button type="button" class="target-button host" data-loss-wan="${escape(JSON.stringify([x.wan_ip || '', x.wan_isp || '']))}">${escape(wanLabel(x.wan_ip, x.wan_isp))}</button></td><td>${x.samples}</td><td>${x.lossy ?? 0}</td><td>${escape(pctText(x.avg_loss))} / ${escape(pctText(x.max_loss))}</td></tr>`; }).join('');
     const outages = r.outages || [];
     $('lossOutages').innerHTML = outages.length ? outages.map(o => `<div class="ep outage"><span class="ep-ico" aria-hidden="true">${o.kind === 'router' ? '🔴' : '🟠'}</span><span class="ep-main">${escape(t(o.kind === 'router' ? 'out.router' : 'out.internet'))} · ${escape(when(o.start_ts))}${o.end_ts ? ' → ' + escape(hms(o.end_ts)) : ''}</span><span class="ep-sub">${escape([o.end_ts ? '' : t('out.open'), t('out.st.' + o.status)].filter(Boolean).join(' · '))}</span><span class="ep-peak ${o.kind === 'router' ? 'bad' : ''}">${escape(o.duration === null ? '…' : durText(o.duration))}</span></div>`).join('')
       : `<div class="loss-empty">${escape(t('loss.noOutages'))}</div>`;
@@ -1260,7 +1290,7 @@
       ['targets', '/api/targets/recent?' + query + wanParam(), r => { if (!Array.isArray(r.data)) throw bad(); state.targets = r.data; state.startedAt = r.started_at ?? state.startedAt; }],
       ['summary', '/api/history?' + query + wanParam(), r => { if (!Array.isArray(r.data)) throw bad(); state.summary = r.data; }],
       ['events', '/api/events?' + query, r => { if (!Array.isArray(r.data)) throw bad(); state.events = r.data; }],
-      ['loss', '/api/loss?' + query + (state.lossTarget ? '&target=' + encodeURIComponent(state.lossTarget) : ''), r => { if (!r.data || !Array.isArray(r.data.targets) || !Array.isArray(r.data.episodes)) throw bad(); state.loss = r.data; state.lossTruncated = Boolean(r.truncated); state.lossRowsCapped = r.data.rows_capped === true; }],
+      ['loss', '/api/loss?' + query + wanParam() + (state.lossTarget ? '&target=' + encodeURIComponent(state.lossTarget) : ''), r => { if (!r.data || !Array.isArray(r.data.targets) || !Array.isArray(r.data.episodes)) throw bad(); state.loss = r.data; state.lossTruncated = Boolean(r.truncated); state.lossRowsCapped = r.data.rows_capped === true; }],
       ...(state.win ? [['live', '/api/targets/recent?range=300', r => { if (!Array.isArray(r.data)) throw bad(); state.liveTargets = r.data; }]] : []),
       ['settings', '/api/settings', r => { if (!r.settings) throw bad(); state.settings = r.settings; state.storage = r.storage; state.turboAvailable = r.turbo_available; state.startedAt = r.started_at ?? state.startedAt; }],
       ['speed', '/api/speedtest/latest', r => { if (!Object.prototype.hasOwnProperty.call(r, 'result')) throw bad(); state.speed = r.result; }],
@@ -1338,6 +1368,9 @@
     const score = document.querySelector('#metricTabs [data-metric="score"]');
     if (score) { score.disabled = Boolean(state.wanSel); score.title = state.wanSel ? t('wan.noQuality') : ''; }
     if (state.wanSel && state.metric === 'score') state.metric = 'avg_loss_pct';
+    const avail = overlayWans().length >= 2;
+    if (state.cmp.on && avail !== state.cmpOverlayAvail) cmpMenu();   // the per-source option appears once there are two sources
+    state.cmpOverlayAvail = avail;
   }
   const saveSpeedChart = () => store('netprobe.speedchart', JSON.stringify({mode: state.speedMode, range: state.speedRange}));
   function saveFilters() { store(FILTERS_KEY, JSON.stringify({range: state.range, wan: state.wanSel, metric: state.metric})); }
@@ -1659,6 +1692,8 @@
   }));
   $('compareToggle').addEventListener('click', () => setCompare(!state.cmp.on));
   $('cmpMenu').addEventListener('change', event => {
+    const wanBox = event.target.closest('[data-cmp-bywan]');
+    if (wanBox) { state.cmp.byWan = wanBox.checked; cmpMenu(); loadCompare(); renderChart(); return; }
     const box = event.target.closest('[data-cmp-target]'); if (!box) return;
     if (box.checked) state.cmp.sources.add(box.dataset.cmpTarget); else if (state.cmp.sources.size > 1) state.cmp.sources.delete(box.dataset.cmpTarget); else box.checked = true;
     cmpMenu(); loadCompare(); renderChart();
@@ -1681,6 +1716,11 @@
   });
   $('rangeApply').addEventListener('click', applyCustomRange);
   $('lossTarget').addEventListener('change', () => { state.lossTarget = $('lossTarget').value; state.loss = null; renderLoss(); refresh(); });
+  $('lossWans').addEventListener('click', event => {
+    const b = event.target.closest('[data-loss-wan]'); if (!b) return;
+    const wan = JSON.parse(b.dataset.lossWan), index = (state.wanRows || []).findIndex(r => wanSame([r[0], r[1]], wan));
+    if (index >= 0) chooseWan(String(index)); else { state.wanSel = [wan[0], wan[1]]; saveFilters(); state.charts.clear(); renderWanPickers(); refresh(); }
+  });
   $('lossEpisodes').addEventListener('click', event => { const b = event.target.closest('[data-episode]'); if (b) zoomEpisode(Number(b.dataset.episode)); });
   $('lossTargets').addEventListener('click', event => { const b = event.target.closest('[data-loss-target]'); if (b) { state.lossTarget = b.dataset.lossTarget; state.loss = null; renderLoss(); refresh(); } });
   $('goLoss').addEventListener('click', () => { if (styleName === 'unifi') { openTab('loss'); $('unifiTabs').scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start'}); } else $('lossCard').scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start'}); });
