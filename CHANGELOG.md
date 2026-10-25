@@ -5,6 +5,11 @@ The project is called **Internet Pulse** (formerly “NetProbe Enhanced”; cont
 
 ## Unreleased
 
+- **Telegram straight from the container** (settings → *Telegram*, or `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`): the same messages Unraid
+  gets are sent to a chat through the Bot API, with or without the Unraid bridge. Token + chat ID, *Send test*, Save; the token is
+  write-only (stored in `/data/telegram.json`, mode 600, never returned by the API); messages from before switch-on are not
+  sent, failures are retried with a growing pause and given up after a day. New table column `np_notifications.tg`; endpoints
+  `GET/POST /api/telegram` and `POST /api/telegram/test`.
 - **New name and icon.** The project is now **Internet Pulse** (it was “NetProbe Enhanced”) with a new icon: a pulse line in a ring,
   used as the browser-tab icon (inline SVG, nothing extra to mount), the mark in the page header, `docs/icon.svg` / `docs/icon.png`
   and the README. The container is still called `NetProbe`; tables, files and variables keep their names.

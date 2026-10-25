@@ -22,6 +22,7 @@ import subprocess
 import tempfile
 import threading
 import time
+import urllib.error
 import urllib.request
 from urllib.parse import urljoin, urlsplit
 from zoneinfo import ZoneInfo
@@ -82,7 +83,7 @@ CLEANUP_VACUUM_MAX = 256 * 1024 * 1024  # larger databases are not VACUUMed in t
 # (table, condition on the cutoff); tables that are missing are skipped. State tables (np_state, np_flap) are never cleaned,
 # queued notifications that were not delivered yet and outages still being decided are kept.
 CLEANUP_TABLES = (("measurements", "ts < ?"), ("dns_measurements", "ts < ?"), ("speedtests", "ts < ?"),
-                  ("np_targets", "ts < ?"), ("np_events", "ts < ?"), ("np_notifications", "acked=1 AND ts < ?"),
+                  ("np_targets", "ts < ?"), ("np_events", "ts < ?"), ("np_notifications", "(acked=1 OR tg=1) AND ts < ?"),
                   ("np_outages", "status NOT IN ('open','pending') AND COALESCE(end_ts,last_ts) < ?"))
 PREFS_DEFAULTS = dict(speedtest_service="", speedtest_schedule="container", speedtest_interval_h=6,
                       speedtest_times=["03:00"], speedtest_notify=False, show_public_ip=False, wan_check_min=15, wan_notify=False,
@@ -101,6 +102,14 @@ WAN_MAX_AGE = 900      # a probe sample is tagged with the last known address on
                        # (at least; with a longer check interval one missed check is tolerated)
 PUBLIC_IP_RETRY = 60   # seconds before another attempt after every source failed
 PUBLIC_IP_TIMEOUT = 5
+# Telegram (optional, sent straight from the container with the Bot API; the same messages Unraid gets through the bridge).
+TELEGRAM_API = "https://api.telegram.org"
+TELEGRAM_TOKEN = re.compile(r"^\d{4,}:[A-Za-z0-9_-]{20,}$")
+TELEGRAM_CHAT = re.compile(r"^(-?\d{3,20}|@[A-Za-z][A-Za-z0-9_]{4,31})$")
+TELEGRAM_POLL = 5       # seconds between looks at the queue (only while Telegram is on and configured)
+TELEGRAM_TIMEOUT = 10
+TELEGRAM_MAX_AGE = 86400  # a message that could not be delivered for a day is given up
+TELEGRAM_BATCH = 10
 GZIP_TYPES = ("text/html", "application/json", "text/csv")  # compressed when the browser accepts gzip
 GZIP_MIN = 1024
 # fast.com client: the same public endpoints the fast.com page uses, no account or key.
@@ -162,7 +171,7 @@ class FastTestError(RuntimeError):
 
 
 def _fast_get(url, timeout=FAST_TIMEOUT, limit=4_000_000):
-    request = urllib.request.Request(url, headers={"User-Agent": "NetProbe-Enhanced"})
+    request = urllib.request.Request(url, headers={"User-Agent": "Internet-Pulse"})
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return response.read(limit).decode("utf-8", "replace")
 
@@ -170,7 +179,7 @@ def _fast_get(url, timeout=FAST_TIMEOUT, limit=4_000_000):
 def fetch_public_ip(url, timeout=PUBLIC_IP_TIMEOUT):
     """(address, ISP name or None) the internet sees, from one service; ValueError when the answer is unusable."""
     host = urlsplit(url).hostname
-    request = urllib.request.Request(url, headers={"User-Agent": "NetProbe-Enhanced", "Accept": "application/json, text/plain"})
+    request = urllib.request.Request(url, headers={"User-Agent": "Internet-Pulse", "Accept": "application/json, text/plain"})
     with urllib.request.urlopen(request, timeout=timeout) as response:
         text = response.read(16384).decode("utf-8", "replace").strip()
     isp = None
@@ -240,7 +249,7 @@ def fast_latency(url, rounds=6):
     try:
         for _ in range(rounds):
             start = time.perf_counter()
-            conn.request("GET", _fast_path(url, 0), headers={"User-Agent": "NetProbe-Enhanced"})
+            conn.request("GET", _fast_path(url, 0), headers={"User-Agent": "Internet-Pulse"})
             response = conn.getresponse()
             response.read()
             if response.status >= 400:
@@ -293,7 +302,7 @@ def fast_download(urls, seconds=FAST_DOWN_SECONDS, warmup=FAST_WARMUP, connectio
             while time.monotonic() < deadline:
                 conn = _fast_connect(url)
                 try:
-                    conn.request("GET", _fast_path(url, FAST_CHUNK), headers={"User-Agent": "NetProbe-Enhanced"})
+                    conn.request("GET", _fast_path(url, FAST_CHUNK), headers={"User-Agent": "Internet-Pulse"})
                     response = conn.getresponse()
                     if response.status >= 400:
                         raise FastTestError("fast.com server answered HTTP %d" % response.status)
@@ -317,7 +326,7 @@ def fast_upload(urls, seconds=FAST_UP_SECONDS, warmup=FAST_WARMUP, connections=F
             try:
                 while time.monotonic() < deadline:
                     conn.request("POST", _fast_path(url), body=body, headers={
-                        "User-Agent": "NetProbe-Enhanced", "Content-Type": "application/octet-stream"})
+                        "User-Agent": "Internet-Pulse", "Content-Type": "application/octet-stream"})
                     response = conn.getresponse()
                     response.read()
                     if response.status >= 400:
@@ -349,6 +358,27 @@ def run_fast_test(page=FAST_PAGE, api=FAST_API, down_seconds=FAST_DOWN_SECONDS, 
             "protocol": "https", "secure": True}
 
 
+class TelegramError(Exception):
+    pass
+
+
+def telegram_post(url, payload, timeout=TELEGRAM_TIMEOUT):
+    """POST JSON to the Telegram Bot API -> (HTTP status, answer as a dict). Network failures raise OSError."""
+    request = urllib.request.Request(url, data=json.dumps(payload).encode(), method="POST",
+                                     headers={"Content-Type": "application/json", "User-Agent": "Internet-Pulse"})
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            status, raw = response.status, response.read(65536)
+    except urllib.error.HTTPError as exc:
+        with exc:
+            status, raw = exc.code, exc.read(65536)
+    try:
+        body = json.loads(raw)
+    except ValueError:
+        body = {}
+    return status, body if isinstance(body, dict) else {}
+
+
 class Extension:
     def __init__(self, db_path, data_dir, clock=time.time, roles=None):
         self.db_path = str(db_path)
@@ -362,6 +392,11 @@ class Extension:
         self.prefs_path = self.data_dir / "netprobe-prefs.json"
         self.cleanup_path = self.data_dir / "history-cleanup.json"
         self.wan_state_path = self.data_dir / "wan-state.json"
+        self.telegram_path = self.data_dir / "telegram.json"          # token, chat, on/off (written 0600, never sent to the browser)
+        self.telegram_state_path = self.data_dir / "telegram-state.json"  # last success / last error, shown in the UI
+        self.tg_post = telegram_post  # replaced in tests
+        self.tg_fails, self.tg_retry_at = 0, 0
+        self.tg_thread, self.tg_stop = None, threading.Event()
         self.wan_pending = None   # (address, provider) seen once; a change is reported when the next check sees it again
         self.wan_checked_at = None  # when the watcher last checked (its interval is counted from here)
         self.cleanup_lock = threading.Lock()
@@ -417,6 +452,9 @@ class Extension:
             for column in ("wan_ip", "wan_isp"):  # the address and provider that carried the sample (only with the external-IP option on)
                 if column not in columns:
                     conn.execute("ALTER TABLE np_targets ADD COLUMN %s TEXT" % column)
+            notify_columns = {row["name"] for row in conn.execute("PRAGMA table_info(np_notifications)")}
+            if "tg" not in notify_columns:  # 0 = not yet sent to Telegram, 1 = sent, 2 = skipped (older than the switch-on or a day)
+                conn.execute("ALTER TABLE np_notifications ADD COLUMN tg INTEGER NOT NULL DEFAULT 0")
             conn.execute("UPDATE np_outages SET status='stopped',end_ts=last_ts WHERE status='open'")
             self.turbo_pending = bool(conn.execute("SELECT 1 FROM np_outages WHERE status='pending'").fetchone())
 
@@ -894,6 +932,168 @@ class Extension:
         """Erase the recorded addresses and providers from all samples; -> rows changed."""
         with self.lock, self.db() as conn:
             return conn.execute("UPDATE np_targets SET wan_ip=NULL,wan_isp=NULL WHERE wan_ip IS NOT NULL OR wan_isp IS NOT NULL").rowcount
+
+    # ---- Telegram ---------------------------------------------------------------------
+    @staticmethod
+    def _read_json(path):
+        try:
+            value = json.loads(Path(path).read_text())
+            return value if isinstance(value, dict) else {}
+        except (OSError, ValueError):
+            return {}
+
+    def telegram_config(self):
+        """Effective Telegram settings. TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID in the environment win over the file (and then
+        switch it on unless the file says otherwise), so a container template can carry them."""
+        saved = self._read_json(self.telegram_path)
+        env_token, env_chat = os.getenv("TELEGRAM_BOT_TOKEN", "").strip(), os.getenv("TELEGRAM_CHAT_ID", "").strip()
+        from_env = bool(env_token and env_chat)
+        token = env_token if from_env else str(saved.get("token") or "")
+        chat = env_chat if from_env else str(saved.get("chat_id") or "")
+        enabled = saved["enabled"] if isinstance(saved.get("enabled"), bool) else from_env
+        armed = saved.get("armed_at") if type(saved.get("armed_at")) is int else 0
+        ready = bool(TELEGRAM_TOKEN.match(token) and TELEGRAM_CHAT.match(chat))
+        return dict(enabled=enabled, token=token, chat_id=chat, source="env" if from_env else ("ui" if token or chat else None),
+                    armed_at=armed, ready=ready)
+
+    def telegram_view(self):
+        """What the browser may see: never the token itself."""
+        cfg, state = self.telegram_config(), self._read_json(self.telegram_state_path)
+        return dict(enabled=cfg["enabled"], configured=cfg["ready"], token_set=bool(cfg["token"]), chat_id=cfg["chat_id"], source=cfg["source"],
+                    last_ok_ts=state.get("last_ok_ts"), last_error=state.get("last_error"), last_error_ts=state.get("last_error_ts"))
+
+    def update_telegram(self, patch):
+        """patch: any of enabled (bool), token (str, empty = keep), chat_id (str), clear (True forgets token and chat)."""
+        if not isinstance(patch, dict) or set(patch) - {"enabled", "token", "chat_id", "clear"}:
+            raise ValueError("Unknown or invalid Telegram settings")
+        if "enabled" in patch and type(patch["enabled"]) is not bool:
+            raise ValueError("enabled must be a boolean")
+        if "clear" in patch and patch["clear"] is not True:
+            raise ValueError("clear must be true")
+        for key in ("token", "chat_id"):
+            if key in patch and not isinstance(patch[key], str):
+                raise ValueError(key + " must be a string")
+        token, chat = (patch.get("token") or "").strip(), (patch.get("chat_id") or "").strip() if "chat_id" in patch else None
+        if token and not TELEGRAM_TOKEN.match(token):
+            raise ValueError("The bot token looks like 123456789:AAH… (from @BotFather)")
+        if chat is not None and chat and not TELEGRAM_CHAT.match(chat):
+            raise ValueError("The chat ID is a number such as -1001234567890 (or @channelname)")
+        with self.lock:
+            before = self.telegram_config()
+            if before["source"] == "env" and (token or chat or patch.get("clear")):
+                raise ValueError("The token and chat are set by the container environment; change them there")
+            saved = self._read_json(self.telegram_path)
+            if patch.get("clear"):
+                saved.pop("token", None), saved.pop("chat_id", None)
+            if token:
+                saved["token"] = token
+            if chat is not None:
+                saved["chat_id"] = chat
+            if "enabled" in patch:
+                saved["enabled"] = patch["enabled"]
+            after_enabled = saved["enabled"] if isinstance(saved.get("enabled"), bool) else before["enabled"]
+            if after_enabled and not before["enabled"]:
+                saved["armed_at"] = int(self.clock())  # switching it on never replays old messages
+            self._write_settings(saved, self.telegram_path)
+            view = self.telegram_view()
+        if view["enabled"] and view["configured"]:
+            self.start_telegram()
+        return view
+
+    def _telegram_note(self, error=None, now=None):
+        now = int(now if now is not None else self.clock())
+        state = self._read_json(self.telegram_state_path)
+        if error is None:
+            state.update(last_ok_ts=now)
+            state.pop("last_error", None), state.pop("last_error_ts", None)
+        else:
+            state.update(last_error=error[:300], last_error_ts=now)
+        try:
+            self._write_settings(state, self.telegram_state_path)
+        except OSError:
+            logger.warning("Telegram state could not be saved")
+
+    def telegram_send(self, text, token=None, chat_id=None):
+        """Send one text through the Bot API; TelegramError carries a readable reason (never containing the token)."""
+        cfg = self.telegram_config()
+        token, chat_id = token or cfg["token"], chat_id or cfg["chat_id"]
+        if not (TELEGRAM_TOKEN.match(token or "") and TELEGRAM_CHAT.match(chat_id or "")):
+            raise TelegramError("Telegram is not configured: a bot token and a chat ID are needed")
+        scrub = lambda message: str(message).replace(token, "***")
+        try:
+            status, body = self.tg_post("%s/bot%s/sendMessage" % (TELEGRAM_API, token),
+                                        {"chat_id": chat_id, "text": text[:4096], "disable_web_page_preview": True}, TELEGRAM_TIMEOUT)
+        except Exception as exc:
+            raise TelegramError("api.telegram.org is not reachable: " + scrub(str(exc) or type(exc).__name__)) from None
+        if status == 200 and body.get("ok") is True:
+            return
+        reason = " ".join(CONTROL_CHARS.sub(" ", str(body.get("description") or "")).split())[:200]
+        error = TelegramError("Telegram refused the message (%s): %s" % (status, scrub(reason) or "no details"))
+        retry = (body.get("parameters") or {}).get("retry_after") if isinstance(body.get("parameters"), dict) else None
+        error.retry_after = retry if type(retry) is int and 0 < retry <= 3600 else None
+        raise error
+
+    def telegram_test(self, token=None, chat_id=None):
+        """The Send test button: uses the values from the form when given, else the saved ones."""
+        self.telegram_send("✅ Internet Pulse: test message\nTelegram is connected; alerts will arrive in this chat.", token, chat_id)
+        self._telegram_note()
+
+    def telegram_tick(self):
+        """Deliver queued notifications that Telegram has not seen yet (oldest first, a few per round, ~1 per second);
+        -> number sent. A failure backs off (30 s doubling to 15 min) and keeps the message; after a day it is given up."""
+        cfg = self.telegram_config()
+        if not (cfg["enabled"] and cfg["ready"]):
+            return 0
+        now = int(self.clock())
+        if now < self.tg_retry_at:
+            return 0
+        sent = 0
+        with self.db() as conn:
+            # not for messages from before it was switched on, nor ones too old to matter
+            conn.execute("UPDATE np_notifications SET tg=2 WHERE tg=0 AND ts<?", (max(cfg["armed_at"], now - TELEGRAM_MAX_AGE),))
+            rows = conn.execute("SELECT id,subject,message FROM np_notifications WHERE tg=0 ORDER BY id LIMIT ?", (TELEGRAM_BATCH,)).fetchall()
+        for row in rows:
+            text = (row["message"] or "").replace(NEWLINE, "\n").strip() or row["subject"]
+            try:
+                self.telegram_send(text)
+            except TelegramError as exc:
+                self.tg_fails += 1
+                delay = getattr(exc, "retry_after", None) or min(900, 30 * 2 ** (self.tg_fails - 1))
+                self.tg_retry_at = now + delay
+                if self.tg_fails == 1:
+                    logger.warning("Telegram delivery failed: %s", exc)
+                self._telegram_note(str(exc), now)
+                return sent
+            with self.db() as conn:
+                conn.execute("UPDATE np_notifications SET tg=1 WHERE id=?", (row["id"],))
+            self.tg_fails, sent = 0, sent + 1
+            self._telegram_note(None, now)
+            if len(rows) > 1:
+                time.sleep(1)  # the Bot API allows about one message a second per chat
+        return sent
+
+    def start_telegram(self, rounds=None):
+        """Background sender; started when Telegram is configured and on (at startup or when it is switched on). One per process."""
+        with self.lock:
+            if self.tg_thread and self.tg_thread.is_alive():
+                return self.tg_thread
+            self.tg_stop.clear()
+
+            def run():
+                done = 0
+                while not self.tg_stop.is_set() and (rounds is None or done < rounds):
+                    try:
+                        self.telegram_tick()
+                    except Exception:
+                        logger.exception("Telegram delivery round failed")
+                    done += 1
+                    self.tg_stop.wait(TELEGRAM_POLL)
+            self.tg_thread = threading.Thread(target=run, name="netprobe-telegram", daemon=True)
+            self.tg_thread.start()
+            return self.tg_thread
+
+    def stop_telegram(self):
+        self.tg_stop.set()
 
     # ---- scheduled speedtests ---------------------------------------------------------
     @property
@@ -1630,6 +1830,9 @@ class Extension:
 
 def install_routes(app, ext):
     from flask import jsonify, request, Response
+    cfg = ext.telegram_config()
+    if cfg["enabled"] and cfg["ready"]:
+        ext.start_telegram()  # started here (not from app.py) so that updating the extension alone is enough
     def period(default=3600):
         try:
             value = int(request.args.get("range", default))
@@ -1786,6 +1989,37 @@ def install_routes(app, ext):
             return jsonify(error=str(exc)), 400
         except CleanupBusy as exc:
             return jsonify(error=str(exc)), 409
+
+    @app.get("/api/telegram")
+    def np_telegram():
+        response = jsonify(ext.telegram_view())
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    @app.post("/api/telegram")
+    def np_telegram_save():
+        if not same_origin_request():
+            return jsonify(error="Same-origin settings request required"), 403
+        try:
+            return jsonify(ext.update_telegram(request.get_json(silent=True)))
+        except ValueError as exc:
+            return jsonify(error=str(exc)), 400
+        except OSError as exc:
+            return jsonify(error="Telegram settings could not be saved: %s" % exc.__class__.__name__), 500
+
+    @app.post("/api/telegram/test")
+    def np_telegram_test():
+        if not same_origin_request():
+            return jsonify(error="Same-origin settings request required"), 403
+        body = request.get_json(silent=True)
+        body = body if isinstance(body, dict) else {}
+        if set(body) - {"token", "chat_id"} or not all(isinstance(body.get(k, ""), str) for k in ("token", "chat_id")):
+            return jsonify(error="Expected {token, chat_id}"), 400
+        try:
+            ext.telegram_test((body.get("token") or "").strip() or None, (body.get("chat_id") or "").strip() or None)
+        except TelegramError as exc:
+            return jsonify(error=str(exc)), 502
+        return jsonify(ok=True, **ext.telegram_view())
 
     @app.get("/api/public-ip")
     def np_public_ip():

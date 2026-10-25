@@ -59,6 +59,15 @@ muting) → `compose` (diagnosis from the states of all targets, readable lines,
 `np_notifications` → bridge `GET /pending` → Unraid `notify` → bridge `POST /ack`. The bridge keeps a small
 checkpoint so a crash between "sent" and "acknowledged" cannot resend more than that one message (at-least-once delivery), and runs under `flock` in `/var/run`.
 
+### Telegram
+
+A second consumer of the same queue: `np_notifications.tg` is 0 (not sent), 1 (sent) or 2 (skipped). A sender thread
+(`start_telegram`, started from `install_routes` when Telegram is on and configured, or when it is switched on) looks every 5 s for
+rows with `tg=0`, sends them oldest first with the Bot API (`telegram_post`, one message a second, a batch of 10), and marks
+them. Rows created before it was switched on (`armed_at`) or older than a day are skipped, a failure backs off 30 s doubling to
+15 min (or the `retry_after` Telegram asks for). Delivery to Telegram and acknowledgement by the Unraid bridge are independent:
+neither takes the message away from the other. The token lives only in `/data/telegram.json` (or the environment).
+
 ## Testing strategy
 
 - `tests/test_extensions.py`, `test_messages.py`, `test_loss_window.py`, `test_review_fixes.py` — the extension

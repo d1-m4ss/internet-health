@@ -11,7 +11,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
   try {
     const now = Math.floor(Date.now() / 1000);
     const api = {
-      prefs: {speedtest_service: '', speedtest_schedule: 'container', speedtest_interval_h: 6, speedtest_times: ['03:00'], speedtest_notify: false, show_public_ip: false, wan_check_min: 15, wan_notify: false, history_retention_days: 0}, history: {last: null, next_ts: null, db_bytes: 5320000, oldest_ts: now - 86400 * 40}, cleanupTotal: 1234, cleanupError: null, publicIp: {enabled: false}, targets: [], wanData: {sources: [], current: null}, publicIpDelay: 0, delays: {}, statusSeq: [], status: {running: false, success: null, error: null, result: null}, runStatus: 202, prefsFail: false, prefsReadFail: false, speedRun: null, calls: [],
+      prefs: {speedtest_service: '', speedtest_schedule: 'container', speedtest_interval_h: 6, speedtest_times: ['03:00'], speedtest_notify: false, show_public_ip: false, wan_check_min: 15, wan_notify: false, history_retention_days: 0}, history: {last: null, next_ts: null, db_bytes: 5320000, oldest_ts: now - 86400 * 40}, cleanupTotal: 1234, cleanupError: null, publicIp: {enabled: false}, targets: [], wanData: {sources: [], current: null}, publicIpDelay: 0, tg: {enabled: false, configured: false, token_set: false, chat_id: '', source: null, last_ok_ts: null, last_error: null, last_error_ts: null}, tgFail: null, delays: {}, statusSeq: [], status: {running: false, success: null, error: null, result: null}, runStatus: 202, prefsFail: false, prefsReadFail: false, speedRun: null, calls: [],
       latest: {ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server: {id: '1', name: 'Example City', country: 'EX'}, backend: 'python'},
       history: [{ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server_id: '1', server_name: 'Example City', backend: 'python'}],
     };
@@ -46,6 +46,20 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
           case '/api/targets/recent': return route.fulfill({json: {data: api.targets, started_at: now - 3600}});
           case '/api/wan/sources': return route.fulfill({json: api.wanData});
           case '/api/wan/forget': api.forgotten = body; return route.fulfill({json: {forgotten: 42}});
+          case '/api/telegram':
+            if (request.method() === 'POST') {
+              if (api.tgFail) return route.fulfill({status: 400, json: {error: api.tgFail}});
+              if (body.clear) api.tg = {...api.tg, token_set: false, chat_id: '', configured: false};
+              if (typeof body.token === 'string') api.tg.token_set = true;
+              if (typeof body.chat_id === 'string') api.tg.chat_id = body.chat_id;
+              if (typeof body.enabled === 'boolean') api.tg.enabled = body.enabled;
+              api.tg.configured = api.tg.token_set && Boolean(api.tg.chat_id); api.tg.source = api.tg.configured ? 'ui' : null;
+            }
+            return route.fulfill({json: api.tg});
+          case '/api/telegram/test':
+            if (api.tgFail) return route.fulfill({status: 502, json: {error: api.tgFail}});
+            api.tg = {...api.tg, last_ok_ts: now, last_error: null};
+            return route.fulfill({json: {ok: true, ...api.tg}});
           case '/api/public-ip/refresh': {
             const finished = {...api.publicIp, ip: '198.51.100.99', isp: 'Refreshed Net', checked_at: now + 60, error: null, refreshing: false};
             api.publicIp = {...api.publicIp, refreshing: true};
@@ -234,6 +248,82 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       assert.match(await page.locator('#schedMode option').nth(0).textContent(), /Как задано в контейнере: каждые 4 ч/);
       assert.deepEqual(errors, []);
       api.prefs.speedtest_schedule = 'container';
+      await page.close();
+    }
+
+    // --- Telegram: a draft with Save, a test button, a write-only token ---
+    {
+      const {page, errors} = await open('netprobe', 'en');
+      await page.locator('#alertSettings').evaluate(e => e.open = true);
+      const posts = path => api.calls.filter(c => c.path === path && c.method === 'POST');
+      assert.equal(await page.locator('#tg_enabled').isChecked(), false);
+      assert.equal(await page.locator('#tg_token').getAttribute('type'), 'password');
+      assert.equal(await page.locator('#tg_token').getAttribute('placeholder'), '123456789:AA…');
+      // enabling without a token is refused in the browser, nothing is sent
+      await page.locator('#tg_enabled').check();
+      await page.locator('#tgSave').click();
+      assert.equal(await page.locator('#tgMessage').textContent(), 'Enter the bot token and the chat ID.');
+      assert.equal(posts('/api/telegram').length, 0);
+      // a server refusal keeps the draft
+      api.tgFail = 'The bot token looks like 123456789:AAH… (from @BotFather)';
+      await page.locator('#tg_token').fill('1111');
+      await page.locator('#tg_chat').fill('-11111');
+      await page.locator('#tgSave').click();
+      await page.waitForFunction(() => /Failed: The bot token looks like/.test(document.getElementById('tgMessage').textContent));
+      assert.equal(await page.locator('#tg_token').inputValue(), '1111', 'the draft stays');
+      // the test button sends the form values, saves nothing
+      api.tgFail = null;
+      const before = posts('/api/telegram').length;
+      await page.locator('#tg_token').fill('123456789:AAH-test_token_value_0123456789abc');
+      await page.locator('#tgTest').click();
+      await page.waitForFunction(() => document.getElementById('tgMessage').textContent === 'Test message sent.');
+      assert.deepEqual(posts('/api/telegram/test').pop().body, {token: '123456789:AAH-test_token_value_0123456789abc', chat_id: '-11111'});
+      assert.equal(posts('/api/telegram').length, before, 'testing does not save');
+      assert.match(await page.locator('#tgStatus').textContent(), /^Last delivery: /);
+      api.tgFail = 'Telegram refused the message (400): Bad Request: chat not found';
+      await page.locator('#tgTest').click();
+      await page.waitForFunction(() => /Failed: Telegram refused the message \(400\): Bad Request: chat not found/.test(document.getElementById('tgMessage').textContent));
+      api.tgFail = null;
+      // Save sends the draft; the token field is emptied and only a hint remains
+      await page.locator('#tgSave').click();
+      await page.waitForFunction(() => document.getElementById('tgMessage').textContent === 'Saved.');
+      assert.deepEqual(posts('/api/telegram').pop().body, {enabled: true, chat_id: '-11111', token: '123456789:AAH-test_token_value_0123456789abc'});
+      assert.equal(await page.locator('#tg_token').inputValue(), '');
+      assert.equal(await page.locator('#tg_token').getAttribute('placeholder'), 'saved · leave empty to keep it');
+      assert.equal(await page.locator('#tg_chat').inputValue(), '-11111');
+      assert.equal(await page.locator('#tgClear').isEnabled(), true);
+      // saving again without typing a token keeps the saved one (no token key is sent)
+      await page.locator('#tg_chat').fill('-22222');
+      await page.locator('#tgSave').click();
+      await page.waitForFunction(() => document.getElementById('tg_chat').value === '-22222' && document.getElementById('tgMessage').textContent === 'Saved.');
+      assert.deepEqual(posts('/api/telegram').pop().body, {enabled: true, chat_id: '-22222'});
+      // forgetting asks first
+      let asked = '';
+      page.once('dialog', async d => { asked = d.message(); await d.dismiss(); });
+      await page.locator('#tgClear').click();
+      await page.waitForTimeout(200);
+      assert.match(asked, /Delete the saved token and chat ID/);
+      assert.equal(api.tg.token_set, true, 'refused: still saved');
+      page.once('dialog', d => d.accept());
+      await page.locator('#tgClear').click();
+      await page.waitForFunction(() => document.getElementById('tg_chat').value === '' && !document.getElementById('tg_enabled').checked);
+      assert.deepEqual(posts('/api/telegram').pop().body, {clear: true, enabled: false});
+      assert.equal(await page.locator('#tgClear').isDisabled(), true);
+      // a delivery error and the environment mode are shown plainly
+      api.tg = {enabled: true, configured: true, token_set: true, chat_id: '-1', source: 'env', last_ok_ts: null, last_error: 'Telegram refused the message (403): Forbidden: bot was blocked by the user', last_error_ts: now};
+      await page.reload();
+      await page.locator('#alertSettings').evaluate(e => e.open = true);
+      await page.waitForFunction(() => document.getElementById('tg_chat').value === '-1');
+      assert.equal(await page.locator('#tg_token').isDisabled(), true, 'environment mode: only on/off');
+      assert.equal(await page.locator('#tg_enabled').isEnabled(), true);
+      assert.match(await page.locator('#tgStatus').textContent(), /set by the container environment/);
+      api.tg = {enabled: true, configured: true, token_set: true, chat_id: '-1', source: 'ui', last_ok_ts: null, last_error: 'Telegram refused the message (403): Forbidden: bot was blocked by the user', last_error_ts: now};
+      await page.reload();
+      await page.waitForFunction(() => /Delivery error \(.+\): Telegram refused the message \(403\)/.test(document.getElementById('tgStatus').textContent));
+      await page.locator('#langSelect').selectOption('ru');
+      assert.match(await page.locator('#tgStatus').textContent(), /Ошибка доставки \(/);
+      assert.equal(await page.locator('#tgBox strong').textContent(), 'Telegram');
+      assert.deepEqual(errors, []);
       await page.close();
     }
 

@@ -17,6 +17,9 @@ services:
       # The image starts one gunicorn worker; with threads it can answer several requests at once and keeps connections
       # open (the page loads from 13 small requests). Safe: the probe loop is a separate thread of the same process.
       GUNICORN_CMD_ARGS: "--threads 4"
+      # Optional: send the notifications straight to Telegram (or set it up in the web UI instead)
+      # TELEGRAM_BOT_TOKEN: "123456789:AAH..."
+      # TELEGRAM_CHAT_ID: "-1001234567890"
       TZ: Europe/Berlin
       APP_TIMEZONE: Europe/Berlin
       DB_ENGINE: sqlite

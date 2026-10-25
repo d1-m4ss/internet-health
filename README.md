@@ -51,6 +51,12 @@ bind-mounted read-only over it. Removing the mounts brings the stock NetProbe ba
   whole network). Recorded addresses are deleted with the rest of the history by the retention period, or at once with
   *Forget WAN addresses…*. The chosen period, WAN source and metric are remembered in your browser, so the next visit
   starts where you left off.
+- **Telegram straight from the container (optional).** Settings → *Telegram*: a bot token (from @BotFather) and a chat ID,
+  *Send test*, Save. The container then sends the same messages Unraid gets (alerts, recoveries, WAN changes, Speedtest
+  results) to the chat through the Bot API — together with the Unraid bridge or without it. The token is stored in
+  `/data/telegram.json` (mode 600), is never shown again by the UI or the API, and can instead be given to the container as
+  `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`. Messages from before it was switched on are not sent; a failed delivery is
+  retried with a growing pause and given up after a day.
 - **A message when the WAN changes.** Optional (*Send a notification when the external IP or provider changes*): one
   Unraid message with before and now — a warning when the provider changed (typically a switch to a backup link), an
   information message when only the address changed — confirmed by two checks in a row, at most 6 per hour.
@@ -70,8 +76,8 @@ bind-mounted read-only over it. Removing the mounts brings the stock NetProbe ba
   manual and scheduled tests and is stored in `/data/netprobe-prefs.json`.
 - **Two UI styles, two languages** chosen from drop-downs (remembered in the browser). One self-contained HTML
   file: no CDN, no external fonts, works offline on your LAN.
-- **Safe by construction:** Internet Pulse sends nothing anywhere except through Unraid's own `notify`. The only
-  outbound requests are the ones you ask for: the Speedtest you run or schedule (speedtest.net, Ookla or fast.com
+- **Safe by construction:** Internet Pulse sends messages only through Unraid's own `notify` and, if you configure it,
+  to your own Telegram chat. The only other outbound requests are the ones you ask for: the Speedtest you run or schedule (speedtest.net, Ookla or fast.com
   / Netflix servers, depending on the chosen service) and, only with the checkbox ticked, the public-IP / ISP lookup. The
   container gets no extra privileges, no Docker socket and no host mounts besides the three read-only files.
 
@@ -152,6 +158,7 @@ What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 | `PROBE_INTERVAL`, `PING_COUNT` | unchanged upstream behaviour (default 30 s, 4 pings) |
 | `SPEEDTEST_ENABLED`, `SPEEDTEST_INTERVAL`, `SPEEDTEST_BACKEND` | upstream behaviour (`python`, `ookla`, and now `fast`); the *Speedtest* tab can override service and schedule, see [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md) |
 | `APP_TIMEZONE` | zone of the daily Speedtest times (default `UTC`) |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | optional: Telegram delivery without the UI form (both needed; they win over the saved values and switch it on) |
 | `GUNICORN_CMD_ARGS` | `--threads 4` recommended: the stock image runs one single-threaded worker (see [docs/INSTALL-UNRAID.md](docs/INSTALL-UNRAID.md#web-server-threads-optional-recommended)) |
 
 Alert thresholds (loss ≥ 10 %, RTT ≥ 150 ms, jitter ≥ 80 ms, DNS ≥ 250 ms, 2 samples to alert, 2 to recover) are

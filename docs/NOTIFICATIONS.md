@@ -133,6 +133,19 @@ The *Speedtest* tab (*Schedule and notifications*) can run the test automaticall
 Time: 03:02, 10.03.2026 EET
 ```
 
+## Telegram
+
+Besides the Unraid bridge the container can send every notification straight to a Telegram chat (settings → *Telegram*, or the
+variables `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`). The text is the same message the bridge hands to Unraid, with real line
+breaks, sent as plain text. To set it up: create a bot with @BotFather and copy the token; add the bot to your chat or channel
+(or write to it once) and find the chat ID (for a group it is negative, for example `-1001234567890`; `@channelname` also works);
+enter both, press *Send test*, then tick *Send notifications to Telegram* and Save.
+
+- It works with or without the Unraid bridge; with both you get both.
+- Messages created before you switched it on are not sent; a message that cannot be delivered is retried with a growing pause
+  (30 s … 15 min, or the wait Telegram asks for) and given up after a day. The settings show the last delivery or the last error.
+- The token is never shown again; *Forget token…* removes it.
+
 ## WAN change
 
 With *Show my external IP and provider* on, NetProbe remembers the last WAN (`/data/wan-state.json`). *Send a notification
