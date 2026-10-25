@@ -1119,7 +1119,8 @@
       ['speed', '/api/speedtest/latest', r => { if (!Object.prototype.hasOwnProperty.call(r, 'result')) throw bad(); state.speed = r.result; }],
       ['speedHistory', '/api/speedtest/history?limit=10', r => { if (!Array.isArray(r.tests)) throw bad(); state.speedHistory = r.tests; }]
     ];
-    await Promise.allSettled([state.cmp.on ? loadCompare() : loadChart(), loadPrefs().then(loadPublicIp), ...tasks.map(async ([name, url, apply]) => { try { const result = await api(url); if ((name === 'targets' || name === 'events' || name === 'summary' || name === 'loss' || name === 'live') && rk !== rangeKey()) return; apply(result); delete state.errors[name]; state.loaded.add(name); } catch (e) { state.errors[name] = errorText(e); } })]);
+    loadPrefs().then(loadPublicIp); // optional extras never hold the dashboard back (a slow lookup service must not delay the data)
+    await Promise.allSettled([state.cmp.on ? loadCompare() : loadChart(), ...tasks.map(async ([name, url, apply]) => { try { const result = await api(url); if ((name === 'targets' || name === 'events' || name === 'summary' || name === 'loss' || name === 'live') && rk !== rangeKey()) return; apply(result); delete state.errors[name]; state.loaded.add(name); } catch (e) { state.errors[name] = errorText(e); } })]);
     state.refreshing = false; $('refreshBtn').disabled = false; draw();
     if (state.refreshQueued) { state.refreshQueued = false; refresh(); }
   }

@@ -5,6 +5,8 @@ The project is called **NetProbe Enhanced** (container, image, file and table na
 
 ## Unreleased
 
+- The external-IP lookup runs beside the dashboard refresh instead of inside it: a slow or unreachable lookup service
+  can no longer delay the data on screen.
 - **External (public) IP on request** (setting *Show my external IP*, off by default): the header tag and, in the
   UniFi style, a row in the *Internet* card. Nothing is requested while the setting is off; with it on the
   container asks `api.ipify.org` (fallbacks `icanhazip.com`, `ifconfig.me`) at most every 5 minutes, accepts only

@@ -11,7 +11,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
   try {
     const now = Math.floor(Date.now() / 1000);
     const api = {
-      prefs: {speedtest_service: '', speedtest_schedule: 'container', speedtest_interval_h: 6, speedtest_times: ['03:00'], speedtest_notify: false, show_public_ip: false}, publicIp: {enabled: false}, prefsFail: false, prefsReadFail: false, speedRun: null, calls: [],
+      prefs: {speedtest_service: '', speedtest_schedule: 'container', speedtest_interval_h: 6, speedtest_times: ['03:00'], speedtest_notify: false, show_public_ip: false}, publicIp: {enabled: false}, publicIpDelay: 0, prefsFail: false, prefsReadFail: false, speedRun: null, calls: [],
       latest: {ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server: {id: '1', name: 'Example City', country: 'EX'}, backend: 'python'},
       history: [{ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server_id: '1', server_name: 'Example City', backend: 'python'}],
     };
@@ -36,7 +36,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
               if ('show_public_ip' in body) api.publicIp = body.show_public_ip ? {enabled: true, ip: '198.51.100.7', source: 'api.ipify.org', checked_at: now, error: null} : {enabled: false};
             }
             return route.fulfill({json: {prefs: api.prefs, schedule: {next_ts: api.prefs.speedtest_schedule === 'daily' ? now + 7200 : null, timezone: 'Europe/Bucharest'}}});
-          case '/api/public-ip': return route.fulfill({json: api.publicIp});
+          case '/api/public-ip': if (api.publicIpDelay) await new Promise(r => setTimeout(r, api.publicIpDelay)); return route.fulfill({json: api.publicIp});
           case '/api/speedtest/latest': return route.fulfill({json: {result: api.latest}});
           case '/api/speedtest/history': return route.fulfill({json: {tests: api.history}});
           case '/api/speedtest/run': return route.fulfill(api.speedRun);
@@ -249,6 +249,20 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       assert(box && box.x >= 0 && box.x + box.width <= 1280, 'the tag fits the header');
       assert.deepEqual(errors, []);
       api.prefs.show_public_ip = false; api.publicIp = {enabled: false};
+      await page.close();
+    }
+
+    // --- a slow lookup service never delays the dashboard ---
+    {
+      api.prefs.show_public_ip = true; api.publicIp = {enabled: true, ip: '198.51.100.7', source: 'api.ipify.org', checked_at: now, error: null}; api.publicIpDelay = 4000;
+      const started = Date.now();
+      const {page, errors} = await open();
+      await page.waitForFunction(() => document.getElementById('scoreValue').textContent === '90.0' && !document.getElementById('refreshBtn').disabled);
+      assert(Date.now() - started < 3000, 'data is on screen and refresh is usable long before the 4 s lookup answers (' + (Date.now() - started) + ' ms)');
+      assert.equal(await page.locator('#ipTag').isVisible(), false, 'the tag waits for its own answer');
+      await page.waitForFunction(() => document.getElementById('ipTag').textContent === 'External IP: 198.51.100.7', null, {timeout: 8000});
+      assert.deepEqual(errors, []);
+      api.prefs.show_public_ip = false; api.publicIp = {enabled: false}; api.publicIpDelay = 0;
       await page.close();
     }
 
