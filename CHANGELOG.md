@@ -5,6 +5,11 @@ The project is called **NetProbe Enhanced** (container, image, file and table na
 
 ## Unreleased
 
+- **Speedtest schedule and notifications** (*Speedtest* tab → *Schedule and notifications*): automatic tests off, every
+  N hours, or every day at up to four times in `APP_TIMEZONE` (a missed daily test still runs within two hours),
+  with an optional Unraid message after every automatic test (`normal`) or failure (`warning`, with the reason).
+  Default is unchanged: the container variables decide. Previously the schedule could only be set with
+  `SPEEDTEST_INTERVAL` (every 4 h by default) and no message was sent.
 - **Speedtest service selection** (*Speedtest* tab): Speedtest.net (speedtest-cli, as before), the official Ookla CLI
   and the new **Fast.com (Netflix)** backend, implemented with the standard library only (latency, download, upload;
   8 / 4 parallel connections, 8 s per direction). The choice is stored in `/data/netprobe-prefs.json`

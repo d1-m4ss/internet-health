@@ -1,15 +1,16 @@
 --- upstream/app.py	2026-10-23 20:43:28
-+++ src/app.py	2026-10-25 18:44:38
-@@ -1,3 +1,8 @@
++++ src/app.py	2026-10-25 18:49:23
+@@ -1,3 +1,9 @@
 +# Derived from NetProbe_Python (https://github.com/bmartino1/NetProbe_Python), MIT License,
 +# Copyright (c) 2025-2026 Brandon Martino -- see THIRD_PARTY_NOTICES.md.
 +# Modified: optional netprobe_extensions integration (per-target history, alerts, loss report), ROUTER_NAME,
-+# DNS reply tracking for alerting, Turbo mode watcher, Fast.com backend and the speedtest service choice.
++# DNS reply tracking for alerting, Turbo mode watcher, Fast.com backend, the speedtest service choice,
++# the speedtest schedule and its notifications.
 +# Every change is listed in app.py.patch.
  import json
  import logging
  import os
-@@ -14,6 +19,13 @@
+@@ -14,7 +20,14 @@
  from flask import Flask, jsonify, render_template, request
  import dns.resolver
  import speedtest
@@ -17,13 +18,14 @@
 +    from netprobe_extensions import Extension, install_routes, ping_address
 +except Exception:  # extension files not mounted: native monitoring must still start
 +    Extension = install_routes = None
-+
+ 
 +    def ping_address(host, output):
 +        return None
- 
++
  try:
      import psycopg2
-@@ -126,7 +138,7 @@
+ except ImportError:
+@@ -126,7 +139,7 @@
  
  
  def normalize_speedtest_backend(value, variable_name="SPEEDTEST_BACKEND"):
@@ -32,7 +34,7 @@
      normalized = str(value or "python").strip().lower()
      aliases = {
          "python": "python",
-@@ -135,10 +147,12 @@
+@@ -135,10 +148,12 @@
          "ookla": "ookla",
          "official": "ookla",
          "speedtest": "ookla",
@@ -46,7 +48,7 @@
          )
      return aliases[normalized]
  
-@@ -229,6 +243,7 @@
+@@ -229,6 +244,7 @@
  
  # Optional router IP on the LAN.
  ROUTER_IP = os.getenv("ROUTER_IP", "").strip()
@@ -54,7 +56,7 @@
  
  # DNS lookup targets.
  #
-@@ -854,9 +869,14 @@
+@@ -854,9 +870,14 @@
              rtt_avg,
              jitter,
          )
@@ -70,7 +72,7 @@
          logger.error(
              "ping to %s failed: %s; stdout=%r stderr=%r",
              host,
-@@ -869,9 +889,42 @@
+@@ -869,9 +890,42 @@
              "latency": THRESHOLD_LATENCY * 2,
              "jitter": THRESHOLD_JITTER * 2,
              "loss": 100.0,
@@ -113,7 +115,7 @@
  def measure_dns_latency(domain, server, count):
      resolver = dns.resolver.Resolver(configure=False)
      resolver.nameservers = [server]
-@@ -881,6 +934,9 @@
+@@ -881,6 +935,9 @@
          start = time.perf_counter()
          try:
              resolver.resolve(domain, "A", lifetime=3)
@@ -123,7 +125,7 @@
          except Exception:
              pass
          elapsed = (time.perf_counter() - start) * 1000.0
-@@ -1036,6 +1092,9 @@
+@@ -1036,6 +1093,9 @@
  
  def resolve_speedtest_backend(requested_backend=None):
      if requested_backend is None or str(requested_backend).strip() == "":
@@ -133,7 +135,7 @@
          return SPEEDTEST_BACKEND
      return normalize_speedtest_backend(requested_backend, "backend")
  
-@@ -1415,6 +1474,11 @@
+@@ -1415,6 +1475,11 @@
  
          if selected_backend == "python":
              normalized = run_python_speedtest(selection, secure_mode)
@@ -145,7 +147,7 @@
          else:
              normalized = run_ookla_speedtest(selection)
  
-@@ -1435,11 +1499,11 @@
+@@ -1435,11 +1500,11 @@
          )
  
          logger.info(
@@ -160,7 +162,43 @@
              server.get("name"),
              normalized["protocol"],
              selection_mode,
-@@ -1490,6 +1554,8 @@
+@@ -1473,23 +1538,40 @@
+ 
+ def run_speedtest_if_due():
+     global last_speedtest_ts
+-    if not SPEEDTEST_ENABLED:
+-        return
+ 
+     now = time.time()
+     with last_speedtest_lock:
+-        if now - last_speedtest_ts < SPEEDTEST_INTERVAL:
++        # The schedule chosen in the UI (netprobe_extensions) decides; "container" or no extension keeps the
++        # SPEEDTEST_ENABLED / SPEEDTEST_INTERVAL behaviour.
++        scheduled = custom_extension.speedtest_due(now, last_speedtest_ts) if custom_extension is not None else None
++        if scheduled is None:
++            if not SPEEDTEST_ENABLED or now - last_speedtest_ts < SPEEDTEST_INTERVAL:
++                return
++        elif not scheduled or speedtest_run_lock.locked():
+             return
+         last_speedtest_ts = now
+ 
+     try:
+-        run_speedtest_internal()
++        result = run_speedtest_internal()
+     except Exception as exc:
+         logger.exception("Periodic speedtest failed: %s", exc)
++        if custom_extension is not None:
++            try:
++                custom_extension.notify_speedtest(error=exc, backend=resolve_speedtest_backend())
++            except Exception:
++                logger.exception("Speedtest failure notification could not be queued")
++        return
++    if custom_extension is not None:
++        try:
++            custom_extension.notify_speedtest(result)
++        except Exception:
++            logger.exception("Speedtest notification could not be queued")
+ 
  
  def probe_loop():
      gw = get_default_gateway()
@@ -169,7 +207,7 @@
  
      while True:
          ts = int(time.time())
-@@ -1515,6 +1581,7 @@
+@@ -1515,6 +1597,7 @@
          # ---------- DNS probes ----------
          dns_times = []
          dns_per_server = {}
@@ -177,7 +215,7 @@
          for server_ip in DNS_SERVERS:
              measured = measure_dns_latency_multi(
                  DNS_TEST_SITES,
-@@ -1531,6 +1598,12 @@
+@@ -1531,6 +1614,12 @@
          score = compute_score(avg_loss, avg_latency, avg_jitter, avg_dns)
          insert_measurement(ts, avg_latency, avg_jitter, avg_loss, avg_dns, score)
          insert_dns_measurements(ts, dns_per_server)
@@ -190,7 +228,16 @@
  
          logger.info(
              "Probe ts=%s score=%.2f loss=%.2f%% latency=%.1fms jitter=%.1fms dns=%.1fms",
-@@ -1626,6 +1699,7 @@
+@@ -1542,7 +1631,7 @@
+             avg_dns,
+         )
+ 
+-        if SPEEDTEST_ENABLED:
++        if SPEEDTEST_ENABLED or custom_extension is not None:
+             threading.Thread(target=run_speedtest_if_due, daemon=True).start()
+ 
+         time.sleep(PROBE_INTERVAL)
+@@ -1626,6 +1715,7 @@
          app_timezone=APP_TIMEZONE,
          gateway_ip=gw,
          router_ip=ROUTER_IP or None,
@@ -198,7 +245,7 @@
          sites=SITES,
          dns_test_site=DNS_TEST_SITE,
          dns_test_sites=DNS_TEST_SITES,
-@@ -1645,6 +1719,7 @@
+@@ -1645,6 +1735,7 @@
          speedtest_backends_available={
              "python": True,
              "ookla": ookla_binary_available(),
@@ -206,7 +253,7 @@
          },
          speedtest_secure=SPEEDTEST_SECURE,
          speedtest_ookla_path=SPEEDTEST_OOKLA_PATH,
-@@ -1766,6 +1841,16 @@
+@@ -1766,6 +1857,16 @@
  # Start probe loop when imported (for gunicorn worker start).
  ensure_db()
  ensure_speedtests_schema()

@@ -11,7 +11,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
   try {
     const now = Math.floor(Date.now() / 1000);
     const api = {
-      prefs: {speedtest_service: ''}, prefsFail: false, prefsReadFail: false, speedRun: null, calls: [],
+      prefs: {speedtest_service: '', speedtest_schedule: 'container', speedtest_interval_h: 6, speedtest_times: ['03:00'], speedtest_notify: false}, prefsFail: false, prefsReadFail: false, speedRun: null, calls: [],
       latest: {ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server: {id: '1', name: 'Example City', country: 'EX'}, backend: 'python'},
       history: [{ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server_id: '1', server_name: 'Example City', backend: 'python'}],
     };
@@ -26,7 +26,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
         const body = request.method() === 'POST' ? request.postDataJSON() : undefined;
         api.calls.push({path: url.pathname, method: request.method(), headers: request.headers(), body});
         switch (url.pathname) {
-          case '/api/config': return route.fulfill({json: {probe_interval: 30, ping_count: 4, sites: ['edge.example'], speedtest_backend: 'python', speedtest_secure: true,
+          case '/api/config': return route.fulfill({json: {probe_interval: 30, ping_count: 4, sites: ['edge.example'], speedtest_backend: 'python', speedtest_secure: true, speedtest_enabled: true, speedtest_interval: 14400,
             speedtest_backends_available: {python: true, ookla: false, fast: true}, speedtest_ookla_accept_license: false}});
           case '/api/prefs':
             if (api.prefsReadFail && request.method() === 'GET') return route.fulfill({status: 503, json: {error: 'Persistent preferences cannot be read'}});
@@ -34,7 +34,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
               if (api.prefsFail) return route.fulfill({status: 500, json: {error: 'disk full'}});
               Object.assign(api.prefs, body);
             }
-            return route.fulfill({json: {prefs: api.prefs}});
+            return route.fulfill({json: {prefs: api.prefs, schedule: {next_ts: api.prefs.speedtest_schedule === 'daily' ? now + 7200 : null, timezone: 'Europe/Bucharest'}}});
           case '/api/speedtest/latest': return route.fulfill({json: {result: api.latest}});
           case '/api/speedtest/history': return route.fulfill({json: {tests: api.history}});
           case '/api/speedtest/run': return route.fulfill(api.speedRun);
@@ -123,6 +123,80 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       assert.equal(await page.locator('#speedBackend').inputValue(), '');
       await page.close();
     }
+    // --- schedule and notifications ---
+    {
+      const {page, errors} = await open();
+      const posts = () => api.calls.filter(c => c.path === '/api/prefs' && c.method === 'POST');
+      await page.locator('#schedBox summary').click();
+      assert.equal(await page.locator('#schedMode').inputValue(), 'container');
+      assert.match(await page.locator('#schedMode option').nth(0).textContent(), /As set in the container: every 4 h/);
+      assert.match(await page.locator('#schedNote').textContent(), /SPEEDTEST_ENABLED and SPEEDTEST_INTERVAL \(every 4 h\)/);
+      assert.equal(await page.locator('#schedIntervalWrap').isVisible(), false);
+      assert.equal(await page.locator('#schedTimesWrap').isVisible(), false);
+
+      await page.locator('#schedMode').selectOption('daily');
+      assert.equal(await page.locator('#schedTimesWrap').isVisible(), true, 'daily mode asks for times');
+      assert.equal(await page.locator('#schedIntervalWrap').isVisible(), false);
+      assert.match(await page.locator('#schedNote').textContent(), /Save to apply/);
+      const before = posts().length;
+      for (const bad of ['25:00', '', '03:00, 03:00 , 4:5', '01:00,02:00,03:00,04:00,05:00']) {
+        await page.locator('#schedTimes').fill(bad);
+        await page.locator('#schedForm button[type="submit"]').click();
+        assert.match(await page.locator('#schedMessage').textContent(), /Times are 1 to 4 different HH:MM/, 'rejects ' + JSON.stringify(bad));
+      }
+      assert.equal(posts().length, before, 'invalid times are never sent');
+
+      await page.locator('#schedTimes').fill('15:30, 3:00;15:30');
+      await page.locator('#schedNotify').check();
+      await page.locator('#schedForm button[type="submit"]').click();
+      await page.waitForFunction(() => /Schedule saved/.test(document.getElementById('schedMessage').textContent));
+      const sent = posts().pop();
+      assert.deepEqual(sent.body, {speedtest_schedule: 'daily', speedtest_notify: true, speedtest_times: ['03:00', '15:30']});
+      assert.equal(sent.headers['x-netprobe-request'], 'settings');
+      assert.equal(await page.locator('#schedTimes').inputValue(), '03:00, 15:30');
+      assert.match(await page.locator('#schedNote').textContent(), /Next test: .+ · time zone Europe\/Bucharest/);
+
+      await page.locator('#schedMode').selectOption('interval');
+      const count = posts().length;
+      for (const bad of ['0', '169', '1.5', '']) {
+        await page.locator('#schedInterval').fill(bad);
+        await page.locator('#schedForm button[type="submit"]').click();
+        const refused = (await page.locator('#schedInterval').evaluate(e => !e.validity.valid)) || /whole number of hours from 1 to 168/.test(await page.locator('#schedMessage').textContent());
+        assert(refused, 'rejects ' + JSON.stringify(bad));
+      }
+      assert.equal(posts().length, count, 'invalid intervals are never sent');
+      await page.locator('#schedInterval').fill('12');
+      await page.locator('#schedForm button[type="submit"]').click();
+      await page.waitForFunction(() => /Schedule saved/.test(document.getElementById('schedMessage').textContent));
+      assert.deepEqual(posts().pop().body, {speedtest_schedule: 'interval', speedtest_notify: true, speedtest_interval_h: 12});
+
+      await page.locator('#schedMode').selectOption('off');
+      assert.match(await page.locator('#schedNote').textContent(), /Automatic tests are off/);
+      api.prefsFail = true;
+      await page.locator('#schedForm button[type="submit"]').click();
+      await page.waitForFunction(() => /Not saved: .*disk full/.test(document.getElementById('schedMessage').textContent));
+      assert.equal(await page.locator('#schedFields').evaluate(e => e.disabled), false, 'the form is usable again after a failed save');
+      api.prefsFail = false;
+      await page.locator('#schedForm button[type="submit"]').click();
+      await page.waitForFunction(() => /Schedule saved/.test(document.getElementById('schedMessage').textContent));
+      assert.deepEqual(posts().pop().body, {speedtest_schedule: 'off', speedtest_notify: true});
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+
+    // --- the saved schedule is what a reload shows (and Russian texts exist) ---
+    {
+      const {page, errors} = await open('netprobe', 'ru');
+      assert.equal(await page.locator('#schedMode').inputValue(), 'off');
+      assert.equal(await page.locator('#schedNotify').isChecked(), true);
+      assert.equal(await page.locator('#schedInterval').inputValue(), '12');
+      assert.match(await page.locator('#schedNote').textContent(), /Автоматические тесты выключены/);
+      assert.match(await page.locator('#schedMode option').nth(0).textContent(), /Как задано в контейнере: каждые 4 ч/);
+      assert.deepEqual(errors, []);
+      api.prefs.speedtest_schedule = 'container';
+      await page.close();
+    }
+
     // --- unreadable preferences never turn the whole dashboard OFFLINE ---
     {
       api.prefsReadFail = true;
@@ -134,7 +208,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       assert.deepEqual(errors, []);
       await page.close();
     }
-    console.log('PASS: speedtest service list (Speedtest.net / Ookla CLI / Fast.com) with explanations, saved choice, form adapts to fast.com, unknown upload shown as a dash, failed save reverted, works without the preferences API');
+    console.log('PASS: schedule form (container/off/N hours/daily times, validation, notify switch, next test, saved state after reload, RU texts), speedtest service list (Speedtest.net / Ookla CLI / Fast.com) with explanations, saved choice, form adapts to fast.com, unknown upload shown as a dash, failed save reverted, works without the preferences API');
   } finally {
     await browser.close();
   }

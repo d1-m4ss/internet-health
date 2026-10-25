@@ -2,7 +2,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import csv
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hmac
 import http.client
 import io
@@ -23,6 +23,7 @@ import threading
 import time
 import urllib.request
 from urllib.parse import urljoin, urlsplit
+from zoneinfo import ZoneInfo
 
 
 DEFAULTS = dict(enabled=True, loss_pct=10.0, latency_ms=150.0,
@@ -57,7 +58,16 @@ TURBO_ICON = "⚡"
 # Speedtest service: "" keeps what the container variable SPEEDTEST_BACKEND says. python = speedtest.net servers
 # through speedtest-cli, ookla = the official Ookla CLI (a binary the user installs), fast = fast.com (Netflix).
 SPEEDTEST_SERVICES = ("", "python", "ookla", "fast")
-PREFS_DEFAULTS = dict(speedtest_service="")
+# Speedtest schedule: container = the container variables SPEEDTEST_ENABLED / SPEEDTEST_INTERVAL decide (the default),
+# off = no automatic tests, interval = every N hours since the last test, daily = at fixed local times.
+SPEEDTEST_SCHEDULES = ("container", "off", "interval", "daily")
+SPEEDTEST_CATCHUP = 7200  # a daily test missed by up to two hours (container was restarting) still runs
+SPEEDTEST_TIMES_MAX = 4
+SPEED_ICON = "📶"
+SPEED_NAMES = {"python": "Speedtest.net", "ookla": "Ookla CLI", "fast": "Fast.com"}
+TIME_OF_DAY = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+PREFS_DEFAULTS = dict(speedtest_service="", speedtest_schedule="container", speedtest_interval_h=6,
+                      speedtest_times=["03:00"], speedtest_notify=False)
 # fast.com client: the same public endpoints the fast.com page uses, no account or key.
 FAST_PAGE = "https://fast.com/"
 FAST_API = "https://api.fast.com/netflix/speedtest/v2"
@@ -438,6 +448,18 @@ class Extension:
             raise ValueError("Unknown or invalid preferences")
         if "speedtest_service" in values and values["speedtest_service"] not in SPEEDTEST_SERVICES:
             raise ValueError("speedtest_service must be one of: " + ", ".join(repr(x) for x in SPEEDTEST_SERVICES))
+        if "speedtest_schedule" in values and values["speedtest_schedule"] not in SPEEDTEST_SCHEDULES:
+            raise ValueError("speedtest_schedule must be one of: " + ", ".join(SPEEDTEST_SCHEDULES))
+        if "speedtest_interval_h" in values and (type(values["speedtest_interval_h"]) is not int
+                                                 or not 1 <= values["speedtest_interval_h"] <= 168):
+            raise ValueError("speedtest_interval_h must be an integer from 1 to 168")
+        if "speedtest_times" in values:
+            times = values["speedtest_times"]
+            if (not isinstance(times, list) or not 1 <= len(times) <= SPEEDTEST_TIMES_MAX or len(set(times)) != len(times)
+                    or not all(isinstance(x, str) and TIME_OF_DAY.match(x) for x in times)):
+                raise ValueError("speedtest_times must be 1 to %d different times of day as HH:MM" % SPEEDTEST_TIMES_MAX)
+        if "speedtest_notify" in values and type(values["speedtest_notify"]) is not bool:
+            raise ValueError("speedtest_notify must be a boolean")
 
     def prefs(self):
         try:
@@ -464,6 +486,97 @@ class Extension:
 
     def speedtest_service(self):
         return self.effective_prefs()["speedtest_service"]
+
+    # ---- scheduled speedtests ---------------------------------------------------------
+    @property
+    def tz(self):
+        """Time zone of the schedule: the container's APP_TIMEZONE (UTC when unset or unknown)."""
+        name = os.getenv("APP_TIMEZONE", "UTC") or "UTC"
+        try:
+            return ZoneInfo(name)
+        except Exception:
+            logger.warning("APP_TIMEZONE %r is unknown; the speedtest schedule uses UTC", name)
+            return ZoneInfo("UTC")
+
+    def last_speedtest_ts(self):
+        with self.db() as conn:
+            return conn.execute("SELECT COALESCE(MAX(ts),0) FROM speedtests").fetchone()[0]
+
+    def schedule_slots(self, times, now):
+        """Scheduled instants (epoch) of yesterday, today and tomorrow, ascending."""
+        tz = self.tz
+        today = datetime.fromtimestamp(now, tz).date()
+        slots = []
+        for offset in (-1, 0, 1):
+            day = today + timedelta(days=offset)
+            for text in times:
+                slots.append(datetime(day.year, day.month, day.day, int(text[:2]), int(text[3:]), tzinfo=tz).timestamp())
+        return sorted(slots)
+
+    def speedtest_due(self, now, last_attempt=0):
+        """None: the container variables decide. True/False: the schedule chosen in the UI says run / do not run."""
+        try:
+            prefs = self.effective_prefs()
+            mode = prefs["speedtest_schedule"]
+            if mode == "container":
+                return None
+            if mode == "off":
+                return False
+            last = max(last_attempt, self.last_speedtest_ts())
+            if mode == "interval":
+                return now - last >= prefs["speedtest_interval_h"] * 3600
+            slot = max((x for x in self.schedule_slots(prefs["speedtest_times"], now) if x <= now), default=None)
+            return slot is not None and last < slot and now - slot <= SPEEDTEST_CATCHUP
+        except Exception:
+            logger.exception("Speedtest schedule could not be evaluated; no test is started")
+            return False
+
+    def next_speedtest(self, now):
+        """Epoch of the next scheduled test, or None (container variables / schedule off)."""
+        prefs = self.effective_prefs()
+        if prefs["speedtest_schedule"] == "interval":
+            return max(now, self.last_speedtest_ts() + prefs["speedtest_interval_h"] * 3600)
+        if prefs["speedtest_schedule"] == "daily":
+            return min((x for x in self.schedule_slots(prefs["speedtest_times"], now) if x > now), default=None)
+        return None
+
+    def notify_speedtest(self, result=None, error=None, backend=None):
+        """Queue a message for a finished (result) or failed (error) scheduled test, when the user asked for them."""
+        if not self.effective_prefs()["speedtest_notify"] or not self.effective_settings()["enabled"]:
+            return None
+        ts = int(self.clock())
+        service = SPEED_NAMES.get((result or {}).get("backend") or backend, "Speedtest")
+        clock = time.strftime("%H:%M, %d.%m.%Y %Z", time.localtime(ts))
+        if error is not None:
+            reason = " ".join(CONTROL_CHARS.sub(" ", str(error)).split())[:300] or "unknown error"
+            lines = ["⚠️ Scheduled Speedtest failed (%s)" % service, "", "• Reason: " + reason, "", "Time: " + clock]
+            subject, level = "⚠️ NetProbe: Speedtest failed (%s)" % service, "warning"
+            description = "The scheduled Speedtest (%s) failed: %s" % (service, reason)
+        else:
+            def mbps(value):
+                return "%.1f Mbps" % value if isinstance(value, (int, float)) else "not measured"
+            down, up, ping = result.get("download_mbps"), result.get("upload_mbps"), result.get("ping_ms")
+            server = result.get("server") or {}
+            where = " ".join(CONTROL_CHARS.sub(" ", ", ".join(str(x) for x in (server.get("name"), server.get("country")) if x)).split())
+            lines = ["%s Scheduled Speedtest (%s)" % (SPEED_ICON, service), "",
+                     "• Download: " + mbps(down), "• Upload: " + mbps(up),
+                     "• Ping: " + ("%.1f ms" % ping if isinstance(ping, (int, float)) else "not measured")]
+            if where:
+                lines.append("• Server: " + where)
+            with self.db() as conn:
+                before = conn.execute("""SELECT ts,download_mbps,upload_mbps FROM speedtests ORDER BY ts DESC LIMIT 1 OFFSET 1""").fetchone()
+            if before and before["download_mbps"] is not None:
+                lines.append("• Previous: ↓ %.0f / ↑ %s Mbps (%s)" % (
+                    before["download_mbps"], "%.0f" % before["upload_mbps"] if before["upload_mbps"] is not None else "—",
+                    time.strftime("%H:%M, %d.%m", time.localtime(before["ts"]))))
+            lines += ["", "Time: " + clock]
+            subject = "%s NetProbe: Speedtest ↓ %s / ↑ %s" % (
+                SPEED_ICON, "%.0f" % down if isinstance(down, (int, float)) else "—",
+                "%.0f" % up if isinstance(up, (int, float)) else "—")
+            level = "normal"
+            description = "Scheduled Speedtest (%s): download %s, upload %s." % (service, mbps(down), mbps(up))
+        with self.lock, self.db() as conn:
+            return self.queue(conn, ts, level, subject[:120], description[:240], NEWLINE.join(lines)[:MAX_MESSAGE])
 
     def run_fast_speedtest(self):
         return run_fast_test()
@@ -680,7 +793,8 @@ class Extension:
         """True when the regular monitor alerted for this outage, or already considered one of the turbo addresses
         DOWN when it began (an alert sent before a restart or before turbo was switched on is never repeated)."""
         if conn.execute("""SELECT 1 FROM np_notifications WHERE level IN ('alert','warning') AND subject NOT LIKE ?
-                AND ts>=? AND ts<=?""", (TURBO_ICON + "%", row["start_ts"] - TURBO_LOOKBACK, row["end_ts"])).fetchone():
+                AND subject NOT LIKE ? AND subject NOT LIKE ? AND ts>=? AND ts<=?""",
+                (TURBO_ICON + "%", "%Speedtest%", SPEED_ICON + "%", row["start_ts"] - TURBO_LOOKBACK, row["end_ts"])).fetchone():
             return True
         for target in [t for h in self.turbo_hosts for t in (h, "dns:" + h)]:
             last = conn.execute("SELECT state FROM np_events WHERE target=? AND ts<=? ORDER BY ts DESC,id DESC LIMIT 1",
@@ -1139,7 +1253,7 @@ def install_routes(app, ext):
             except (ValueError, TypeError):
                 return jsonify(error="Invalid preferences"), 400
         try:
-            return jsonify(prefs=ext.prefs())
+            return jsonify(prefs=ext.prefs(), schedule=dict(next_ts=ext.next_speedtest(int(ext.clock())), timezone=str(ext.tz)))
         except (ValueError, OSError):
             return jsonify(error="Persistent preferences cannot be read"), 503
 

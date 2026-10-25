@@ -32,6 +32,9 @@ bind-mounted read-only over it. Removing the mounts brings the stock NetProbe ba
 - **Turbo mode (opt-in) for short outages.** A light watcher pings the router and two internet IPs every 5 s and
   reports outages from about 10 s that the regular checks miss: one message after recovery with the duration, at
   most 3 per hour, and silence when the regular monitor already alerted. Off by default; ⓘ in the settings explains it.
+- **Scheduled Speedtest with a notification.** In the *Speedtest* tab: off, every N hours, or every day at set times
+  (for example 03:00); optionally one Unraid message with the result (or the reason it failed) after every automatic
+  test. Without changes the container variables `SPEEDTEST_ENABLED` / `SPEEDTEST_INTERVAL` keep deciding.
 - **Packet-loss report for any period** — summary, per-target table and a list of loss episodes; click an
   episode to zoom the chart onto it. Periods from 1 minute to a month, or a custom *from–to* window.
 - **Compare mode** — several metrics and several targets (for example all DNS servers) on one chart, with a
@@ -101,6 +104,8 @@ Tested with image `bmmbmm01/netprobe@sha256:386bdc2c177b11aef4a1223dfd91ae47fe2f
 | `SITES` | comma-separated ping targets; include 1–2 IP addresses besides names |
 | `DNS_NAMESERVER_n` / `_IP` | DNS servers probed (existing upstream variables) |
 | `PROBE_INTERVAL`, `PING_COUNT` | unchanged upstream behaviour (default 30 s, 4 pings) |
+| `SPEEDTEST_ENABLED`, `SPEEDTEST_INTERVAL`, `SPEEDTEST_BACKEND` | upstream behaviour (`python`, `ookla`, and now `fast`); the *Speedtest* tab can override service and schedule, see [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md) |
+| `APP_TIMEZONE` | zone of the daily Speedtest times (default `UTC`) |
 
 Alert thresholds (loss ≥ 10 %, RTT ≥ 150 ms, jitter ≥ 80 ms, DNS ≥ 250 ms, 2 samples to alert, 2 to recover) are
 edited in the UI (*Notifications* tab / *Notification thresholds*) or in `/data/alert-settings.json`.

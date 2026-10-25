@@ -1,7 +1,8 @@
 # Derived from NetProbe_Python (https://github.com/bmartino1/NetProbe_Python), MIT License,
 # Copyright (c) 2025-2026 Brandon Martino -- see THIRD_PARTY_NOTICES.md.
 # Modified: optional netprobe_extensions integration (per-target history, alerts, loss report), ROUTER_NAME,
-# DNS reply tracking for alerting, Turbo mode watcher, Fast.com backend and the speedtest service choice.
+# DNS reply tracking for alerting, Turbo mode watcher, Fast.com backend, the speedtest service choice,
+# the speedtest schedule and its notifications.
 # Every change is listed in app.py.patch.
 import json
 import logging
@@ -1537,19 +1538,34 @@ def run_speedtest_internal(
 
 def run_speedtest_if_due():
     global last_speedtest_ts
-    if not SPEEDTEST_ENABLED:
-        return
 
     now = time.time()
     with last_speedtest_lock:
-        if now - last_speedtest_ts < SPEEDTEST_INTERVAL:
+        # The schedule chosen in the UI (netprobe_extensions) decides; "container" or no extension keeps the
+        # SPEEDTEST_ENABLED / SPEEDTEST_INTERVAL behaviour.
+        scheduled = custom_extension.speedtest_due(now, last_speedtest_ts) if custom_extension is not None else None
+        if scheduled is None:
+            if not SPEEDTEST_ENABLED or now - last_speedtest_ts < SPEEDTEST_INTERVAL:
+                return
+        elif not scheduled or speedtest_run_lock.locked():
             return
         last_speedtest_ts = now
 
     try:
-        run_speedtest_internal()
+        result = run_speedtest_internal()
     except Exception as exc:
         logger.exception("Periodic speedtest failed: %s", exc)
+        if custom_extension is not None:
+            try:
+                custom_extension.notify_speedtest(error=exc, backend=resolve_speedtest_backend())
+            except Exception:
+                logger.exception("Speedtest failure notification could not be queued")
+        return
+    if custom_extension is not None:
+        try:
+            custom_extension.notify_speedtest(result)
+        except Exception:
+            logger.exception("Speedtest notification could not be queued")
 
 
 def probe_loop():
@@ -1615,7 +1631,7 @@ def probe_loop():
             avg_dns,
         )
 
-        if SPEEDTEST_ENABLED:
+        if SPEEDTEST_ENABLED or custom_extension is not None:
             threading.Thread(target=run_speedtest_if_due, daemon=True).start()
 
         time.sleep(PROBE_INTERVAL)

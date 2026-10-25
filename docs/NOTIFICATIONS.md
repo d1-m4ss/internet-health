@@ -108,6 +108,31 @@ Time: 14:05, 23.10.2026 MSK
   (*+2 more short outages since 13:10*). With alerts disabled, outages are still recorded but not sent.
 - Every Turbo outage, with what happened to its message, is listed in the loss report (`/api/loss` → `outages`).
 
+## Scheduled Speedtest
+
+The *Speedtest* tab (*Schedule and notifications*) can run the test automatically and tell you the result:
+
+- **As set in the container** (default): the variables `SPEEDTEST_ENABLED` / `SPEEDTEST_INTERVAL` decide, as before.
+- **Off**, **every N hours** (1–168, counted from the last test, manual ones included) or **every day at set times**
+  (up to four `HH:MM` values in the container's `APP_TIMEZONE`). A daily test missed because the container was
+  restarting still runs within two hours of its time; later it waits for the next time. A failed test is not
+  retried before the next slot.
+- **Notification** (off by default; follows the main *notifications enabled* switch): after every automatic test one
+  message, level `normal`; when the test fails, level `warning` with the reason. The measuring service (Speedtest.net,
+  Ookla CLI or Fast.com) is named; an unmeasured upload reads *not measured*, never 0.
+
+```text
+📶 Scheduled Speedtest (Fast.com)
+
+• Download: 482.3 Mbps
+• Upload: 91.0 Mbps
+• Ping: 12.0 ms
+• Server: Netflix, Brasov, RO
+• Previous: ↓ 470 / ↑ 88 Mbps (03:01, 09.03)
+
+Time: 03:02, 10.03.2026 EET
+```
+
 Delivery is at-least-once: a message stays queued until the bridge acknowledges it, and a failing `notify` never
 loses messages. The bridge (`src/netprobe-unraid-notify.sh`) also reports its own health: two stale polls in a row
 produce *monitoring is not working*, two fresh ones *monitoring is working again*.

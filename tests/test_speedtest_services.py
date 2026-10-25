@@ -166,13 +166,14 @@ class PrefsTests(unittest.TestCase):
         self.headers = {"X-NetProbe-Request": "settings"}
 
     def test_default_follows_the_container_setting(self):
-        self.assertEqual(self.client.get("/api/prefs").get_json(), {"prefs": {"speedtest_service": ""}})
+        self.assertEqual(self.client.get("/api/prefs").get_json()["prefs"], npx.PREFS_DEFAULTS)
+        self.assertEqual(npx.PREFS_DEFAULTS["speedtest_service"], "")
         self.assertEqual(self.ext.speedtest_service(), "")
 
     def test_each_service_is_saved_and_survives_a_restart(self):
         for service in ("python", "ookla", "fast", ""):
             response = self.client.post("/api/prefs", json={"speedtest_service": service}, headers=self.headers)
-            self.assertEqual(response.get_json(), {"prefs": {"speedtest_service": service}})
+            self.assertEqual(response.get_json()["prefs"], dict(npx.PREFS_DEFAULTS, speedtest_service=service))
             fresh = npx.Extension(str(self.root / "netprobe.sqlite"), str(self.root))
             self.assertEqual(fresh.speedtest_service(), service)
 
