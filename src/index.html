@@ -729,6 +729,14 @@
   const say = (id, key, params) => { if (key === null) { delete msgs[id]; $(id).textContent = ''; } else { msgs[id] = [key, params]; $(id).textContent = t(key, params); } };
   const renderMsgs = () => { for (const [id, [key, params]] of Object.entries(msgs)) $(id).textContent = t(key, params); };
   const store = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+  /* The chart filters (period, WAN source, metric) are remembered in this browser only; whatever cannot be restored is dropped silently. */
+  const FILTERS_KEY = 'netprobe.filters';
+  function readFilters() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(FILTERS_KEY) || 'null');
+      return raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+    } catch (e) { return {}; }
+  }
   const locale = () => lang === 'ru' ? 'ru-RU' : 'en-GB';
   function applyStatic() {
     document.documentElement.lang = lang;
@@ -1215,8 +1223,16 @@
   const wanSources = () => state.wanData?.sources || [];
   const wanSame = (a, b) => a[0] === b[0] && (a[1] || '') === (b[1] || '');
   async function loadWanSources() {
-    if (state.prefs?.show_public_ip !== true) { state.wanData = null; if (state.wanSel) { state.wanSel = null; state.charts.clear(); } renderWanPickers(); return; }
+    const restored = state.wanRestored === true; state.wanRestored = false;
+    if (state.prefs?.show_public_ip !== true) {
+      state.wanData = null;
+      if (state.wanSel) { state.wanSel = null; saveFilters(); state.charts.clear(); renderWanPickers(); if (restored) refresh(); return; }
+      renderWanPickers(); return;
+    }
     try { const r = await api('/api/wan/sources?' + rq()); if (Array.isArray(r.sources)) state.wanData = r; } catch (e) { /* optional */ }
+    if (restored && state.wanSel && state.wanData && !wanSources().some(x => wanSame([x.wan_ip || '', x.wan_isp || ''], state.wanSel))) {
+      state.wanSel = null; saveFilters(); state.charts.clear(); refresh();   // the remembered provider is gone from the data: back to all sources
+    }
     renderWanPickers();
   }
   function renderWanPickers() {
@@ -1238,9 +1254,10 @@
     if (score) { score.disabled = Boolean(state.wanSel); score.title = state.wanSel ? t('wan.noQuality') : ''; }
     if (state.wanSel && state.metric === 'score') state.metric = 'avg_loss_pct';
   }
+  function saveFilters() { store(FILTERS_KEY, JSON.stringify({range: state.range, wan: state.wanSel, metric: state.metric})); }
   function chooseWan(value) {
     const row = value === 'all' ? null : state.wanRows?.[Number(value)];
-    state.wanSel = row ? [row[0], row[1]] : null;
+    state.wanSel = row ? [row[0], row[1]] : null; saveFilters();
     state.charts.clear(); renderWanPickers(); refresh();
   }
   async function forgetWan() {
@@ -1248,7 +1265,7 @@
     state.historyBusy = true; renderHistory(); say('retMsg', null);
     try {
       const done = await api('/api/wan/forget', {method:'POST', headers:{'Content-Type':'application/json', 'X-NetProbe-Request':'settings'}, body:JSON.stringify({confirm:true})});
-      state.wanSel = null; state.charts.clear(); say('retMsg', 'wan.forgotten', {n: num(done.forgotten)}); refresh();
+      state.wanSel = null; saveFilters(); state.charts.clear(); say('retMsg', 'wan.forgotten', {n: num(done.forgotten)}); refresh();
     } catch (e) { say('retMsg', 'hist.fail', {e: errorText(e)}); }
     finally { state.historyBusy = false; await loadPrefs(); }
   }
@@ -1434,7 +1451,7 @@
   const reduceMotion = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   document.querySelectorAll('#metricTabs button').forEach(b => b.addEventListener('click', () => {
     if (state.cmp.on) { const m = b.dataset.metric; if (state.cmp.metrics.has(m)) { if (state.cmp.metrics.size > 1) state.cmp.metrics.delete(m); } else state.cmp.metrics.add(m); renderChart(); return; }
-    state.metric = b.dataset.metric; renderChart();
+    state.metric = b.dataset.metric; saveFilters(); renderChart();
   }));
   $('compareToggle').addEventListener('click', () => setCompare(!state.cmp.on));
   $('cmpMenu').addEventListener('change', event => {
@@ -1456,7 +1473,7 @@
     const value = $('periodSelect').value;
     if (value === 'custom') { $('customRange').hidden = false; const to = state.win ? state.win.to : Math.floor(Date.now() / 1000), from = state.win ? state.win.from : to - 86400; $('rangeFrom').value = toLocalInput(from); $('rangeTo').value = toLocalInput(to); return; }
     const v = Number(value);
-    if (Number.isFinite(v) && v >= 1) { state.win = null; $('customRange').hidden = true; say('rangeError', null); state.range = v; state.charts.clear(); renderChart(); refresh(); }
+    if (Number.isFinite(v) && v >= 1) { state.win = null; $('customRange').hidden = true; say('rangeError', null); state.range = v; saveFilters(); state.charts.clear(); renderChart(); refresh(); }
   });
   $('rangeApply').addEventListener('click', applyCustomRange);
   $('lossTarget').addEventListener('change', () => { state.lossTarget = $('lossTarget').value; state.loss = null; renderLoss(); refresh(); });
@@ -1482,6 +1499,12 @@
   $('styleSelect').addEventListener('change', () => { styleName = $('styleSelect').value === 'unifi' ? 'unifi' : 'netprobe'; store('netprobe.style', styleName); document.documentElement.dataset.style = styleName; applyStatic(); renderChart(); renderUnifi(); });
   new ResizeObserver(() => renderChart()).observe($('primaryChart'));
   { const bar = document.querySelector('aside'), pin = () => document.documentElement.style.setProperty('--stick-h', (matchMedia('(max-width:930px)').matches ? Math.ceil(bar.getBoundingClientRect().height) : 0) + 'px'); new ResizeObserver(pin).observe(bar); pin(); }
+  {
+    const saved = readFilters(), options = [...$('periodSelect').options].map(o => o.value).filter(v => v !== 'custom');
+    if (options.includes(String(saved.range))) { state.range = Number(saved.range); $('periodSelect').value = String(saved.range); }
+    if (typeof saved.metric === 'string' && Object.hasOwn(names, saved.metric) && !(saved.metric === 'score' && saved.wan)) state.metric = saved.metric;
+    if (Array.isArray(saved.wan) && saved.wan.length === 2 && typeof saved.wan[0] === 'string' && (saved.wan[1] === null || typeof saved.wan[1] === 'string')) { state.wanSel = [saved.wan[0], saved.wan[1] || '']; state.wanRestored = true; }
+  }
   applyStatic(); $('sourceTag').textContent = t('side.connecting'); $('sidebarMode').textContent = t('side.connecting'); $('statusName').textContent = t('status.checking'); $('statusDescription').textContent = t('status.waiting');
   draw(); refresh(); setInterval(refresh, 30000); setInterval(() => { renderStatus(); if ($('detailsLog').open) loadLogs(); }, 3000);
 })();

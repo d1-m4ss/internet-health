@@ -47,7 +47,8 @@ bind-mounted read-only over it. Removing the mounts brings the stock NetProbe ba
   *WAN source* selector above the chart and in the *Targets* table (kept in sync) shows the history, statistics and
   per-target breakdown of one source (the overall quality score is not drawn for a single WAN, it belongs to the
   whole network). Recorded addresses are deleted with the rest of the history by the retention period, or at once with
-  *Forget WAN addresses…*.
+  *Forget WAN addresses…*. The chosen period, WAN source and metric are remembered in your browser, so the next visit
+  starts where you left off.
 - **A message when the WAN changes.** Optional (*Send a notification when the external IP or provider changes*): one
   Unraid message with before and now — a warning when the provider changed (typically a switch to a backup link), an
   information message when only the address changed — confirmed by two checks in a row, at most 6 per hour.

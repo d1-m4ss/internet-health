@@ -421,6 +421,37 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       await page.waitForTimeout(300);
       assert.equal(calls().filter(c => c.query.includes('wan_ip')).length, 0);
 
+      // remembered filters: the period, the WAN source and the metric come back after a reload
+      const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('netprobe.filters')));
+      await sel('#periodSelect').selectOption('86400');
+      await sel('#wanSelectChart').selectOption({label: 'Beta Cable · 198.51.100.20 · 60 samples'});
+      await page.locator('#metricTabs [data-metric="avg_latency_ms"]').click();
+      assert.deepEqual(await stored(), {range: 86400, wan: ['198.51.100.20', 'Beta Cable'], metric: 'avg_latency_ms'});
+      api.calls.length = 0;
+      await page.reload();
+      await page.waitForFunction(() => document.getElementById('wanSelectChart').selectedOptions[0]?.textContent.startsWith('Beta Cable'));
+      assert.equal(await sel('#periodSelect').inputValue(), '86400');
+      assert.equal(await page.locator('#metricTabs button.active').getAttribute('data-metric'), 'avg_latency_ms');
+      await page.waitForTimeout(400);
+      const firstHistory = calls().find(c => c.path === '/api/history');
+      assert(firstHistory && firstHistory.query.startsWith('?range=86400') && firstHistory.query.endsWith('&wan_ip=198.51.100.20&wan_isp=Beta%20Cable'), 'the very first request already carries the filters: ' + firstHistory?.query);
+      // a provider that is no longer in the data, an unknown metric and a period that does not exist are dropped quietly
+      await page.evaluate(() => localStorage.setItem('netprobe.filters', JSON.stringify({range: 12345, wan: ['192.0.2.77', 'Gone Net'], metric: 'nope'})));
+      await page.reload();
+      await page.waitForFunction(() => document.getElementById('wanSelectChart').options.length > 1);
+      await page.waitForFunction(() => JSON.parse(localStorage.getItem('netprobe.filters')).wan === null);
+      assert.equal(await sel('#wanSelectChart').inputValue(), 'all');
+      assert.equal(await sel('#periodSelect').inputValue(), '3600');
+      assert.equal(await page.locator('#metricTabs button.active').getAttribute('data-metric'), 'avg_loss_pct');
+      // damaged storage never breaks the page
+      for (const junk of ['{not json', 'null', '[1,2]', '"text"']) {
+        await page.evaluate(v => localStorage.setItem('netprobe.filters', v), junk);
+        await page.reload();
+        await page.waitForFunction(() => document.getElementById('wanSelectChart').options.length > 1);
+        assert.equal(await sel('#wanSelectChart').inputValue(), 'all', junk);
+      }
+      await page.evaluate(() => localStorage.removeItem('netprobe.filters'));
+
       // forgetting the recorded addresses: asks first, sends the explicit confirmation
       await page.locator('#alertSettings').evaluate(e => e.open = true);
       await page.locator('#wanForget').click();

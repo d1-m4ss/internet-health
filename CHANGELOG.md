@@ -5,6 +5,9 @@ The project is called **NetProbe Enhanced** (container, image, file and table na
 
 ## Unreleased
 
+- **The chart filters are remembered** in the browser (period, WAN source and metric; `localStorage`, this browser only), so a
+  reload or the next visit starts where you left off. A remembered provider that is no longer in the data, an unknown value or
+  damaged storage is ignored quietly; a custom date window is not remembered.
 - **Settings tidy-up:** the database size line moved into the *History* block, and the external-IP options (checkbox, interval,
   notification) are now a draft with a **Save** button instead of applying at once; a failed save keeps what you typed.
 - **How often the external IP is checked** (settings, next to *Show my external IP and provider*): every 15 minutes (default),
