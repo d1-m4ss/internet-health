@@ -85,11 +85,17 @@ CLEANUP_TABLES = (("measurements", "ts < ?"), ("dns_measurements", "ts < ?"), ("
                   ("np_targets", "ts < ?"), ("np_events", "ts < ?"), ("np_notifications", "acked=1 AND ts < ?"),
                   ("np_outages", "status NOT IN ('open','pending') AND COALESCE(end_ts,last_ts) < ?"))
 PREFS_DEFAULTS = dict(speedtest_service="", speedtest_schedule="container", speedtest_interval_h=6,
-                      speedtest_times=["03:00"], speedtest_notify=False, show_public_ip=False, history_retention_days=0)
+                      speedtest_times=["03:00"], speedtest_notify=False, show_public_ip=False, wan_notify=False, history_retention_days=0)
 # Public IP and provider (opt-in: nothing is requested while show_public_ip is off). ipwho.is answers with JSON
 # (address and ISP name); the plain-text services after it only know the address.
 PUBLIC_IP_SOURCES = ("https://ipwho.is/", "https://api.ipify.org", "https://icanhazip.com")
+PUBLIC_IP_ONLY = ("https://api.ipify.org", "https://icanhazip.com")  # cheap address-only checks between full lookups
 PUBLIC_IP_TTL = 300    # seconds a successful answer is reused
+WAN_CHECK_EVERY = 60   # with the option on: how often the address is checked (one tiny plain-text request)
+WAN_FULL_EVERY = 86400  # the provider name is refreshed at least this often, or at once when the address changes
+WAN_ICON = "🌐"
+WAN_NOTIFY_MAX_PER_HOUR = 6  # a link that keeps flapping must not flood the phone
+WAN_MAX_AGE = 900      # a probe sample is tagged with the last known address only while it was confirmed this recently
 PUBLIC_IP_RETRY = 60   # seconds before another attempt after every source failed
 PUBLIC_IP_TIMEOUT = 5
 GZIP_TYPES = ("text/html", "application/json", "text/csv")  # compressed when the browser accepts gzip
@@ -352,6 +358,8 @@ class Extension:
         self.settings_path = self.data_dir / "alert-settings.json"
         self.prefs_path = self.data_dir / "netprobe-prefs.json"
         self.cleanup_path = self.data_dir / "history-cleanup.json"
+        self.wan_state_path = self.data_dir / "wan-state.json"
+        self.wan_pending = None   # (address, provider) seen once; a change is reported when the next check sees it again
         self.cleanup_lock = threading.Lock()
         if not self.settings_path.exists():
             self._write_settings(DEFAULTS)
@@ -401,6 +409,10 @@ class Extension:
                     last_ts INTEGER NOT NULL, kind TEXT NOT NULL, status TEXT NOT NULL, sent_ts INTEGER);
                 CREATE INDEX IF NOT EXISTS np_outages_start ON np_outages(start_ts);
             """)
+            columns = {row["name"] for row in conn.execute("PRAGMA table_info(np_targets)")}
+            for column in ("wan_ip", "wan_isp"):  # the address and provider that carried the sample (only with the external-IP option on)
+                if column not in columns:
+                    conn.execute("ALTER TABLE np_targets ADD COLUMN %s TEXT" % column)
             conn.execute("UPDATE np_outages SET status='stopped',end_ts=last_ts WHERE status='open'")
             self.turbo_pending = bool(conn.execute("SELECT 1 FROM np_outages WHERE status='pending'").fetchone())
 
@@ -525,7 +537,7 @@ class Extension:
         if "history_retention_days" in values and (type(values["history_retention_days"]) is not int
                                                    or values["history_retention_days"] not in RETENTION_CHOICES):
             raise ValueError("history_retention_days must be one of: " + ", ".join(str(x) for x in RETENTION_CHOICES))
-        for key in ("speedtest_notify", "show_public_ip"):
+        for key in ("speedtest_notify", "show_public_ip", "wan_notify"):
             if key in values and type(values[key]) is not bool:
                 raise ValueError(key + " must be a boolean")
 
@@ -725,6 +737,115 @@ class Extension:
         with self.ip_lock:
             if self.effective_prefs()["show_public_ip"]:  # switched off meanwhile: keep nothing
                 self.ip_cache = result
+        if result["ip"]:
+            self.wan_observe(result["ip"], result["isp"])
+
+    def current_wan(self):
+        """(address, provider) to record with a probe sample: the last confirmed ones, only while the external-IP option is on.
+        Never touches the network."""
+        cached = self.ip_cache
+        if (not cached or not cached.get("ip") or self.clock() - cached["checked_at"] > WAN_MAX_AGE
+                or not self.effective_prefs()["show_public_ip"]):
+            return None, None
+        return cached["ip"], cached.get("isp")
+
+    def wan_tick(self):
+        """One check of the WAN address (called every WAN_CHECK_EVERY s while the option is on). A cheap address-only request
+        confirms it; the provider lookup (ipwho.is) only runs when the address changed or the name is a day old."""
+        if not self.effective_prefs()["show_public_ip"]:
+            return
+        now = self.clock()
+        cached = self.ip_cache
+        if cached and cached.get("ip") and now - cached["checked_at"] < WAN_FULL_EVERY:
+            for url in PUBLIC_IP_ONLY:
+                try:
+                    address = self.ip_fetch(url)[0]
+                except Exception:
+                    continue
+                if address == cached["ip"]:
+                    with self.ip_lock:
+                        if self.ip_cache is cached:
+                            self.ip_cache = dict(cached, checked_at=int(now))
+                    self.wan_observe(address, cached.get("isp"))
+                    return
+                break  # the address changed: look up the provider too
+            else:
+                return  # no answer from any service (offline): keep what is known
+        self.refresh_public_ip()
+
+    def wan_state(self):
+        try:
+            state = json.loads(self.wan_state_path.read_text())
+            return state if isinstance(state, dict) and state.get("ip") else None
+        except (OSError, ValueError):
+            return None
+
+    def wan_observe(self, address, provider):
+        """Compare a confirmed address with the last one known; a change of address (confirmed by two checks in a row, so one odd
+        answer is not a change) is remembered and, when the user asked for it, announced. A provider name that merely changed
+        its spelling with the same address is not a change."""
+        if not self.effective_prefs()["show_public_ip"]:
+            return None
+        now = int(self.clock())
+        known = self.wan_state()
+        if known is None:
+            self._write_settings(dict(ip=address, isp=provider, since=now), self.wan_state_path)
+            self.wan_pending = None
+            return None
+        if address == known["ip"]:
+            self.wan_pending = None
+            if provider and provider != known.get("isp"):
+                self._write_settings(dict(known, isp=provider), self.wan_state_path)
+            return None
+        if self.wan_pending is None or self.wan_pending[0] != address:
+            self.wan_pending = (address, provider)  # first sighting
+            return None
+        provider = provider or self.wan_pending[1]
+        self.wan_pending = None
+        self._write_settings(dict(ip=address, isp=provider, since=now), self.wan_state_path)
+        return self.notify_wan_change(known, dict(ip=address, isp=provider), now)
+
+    def notify_wan_change(self, before, after, now):
+        """Queue the message about a changed WAN, when asked for, alerts are on and the hourly limit is not used up."""
+        if not self.effective_prefs()["wan_notify"] or not self.effective_settings()["enabled"]:
+            return None
+        name = lambda isp: " ".join(CONTROL_CHARS.sub(" ", isp or "").split())[:120] or "provider not reported"
+        changed = bool(before.get("isp") and after.get("isp") and before["isp"] != after["isp"])
+        clock = lambda t: time.strftime("%H:%M, %d.%m", time.localtime(t))
+        title = ("WAN changed: " + name(after.get("isp"))) if changed else "External IP changed" + (" (%s)" % name(after["isp"]) if after.get("isp") else "")
+        lines = ["%s %s" % (WAN_ICON, title), "",
+                 "• Before: %s · %s%s" % (name(before.get("isp")), before["ip"], " (since %s)" % clock(before["since"]) if before.get("since") else ""),
+                 "• Now: %s · %s" % (name(after.get("isp")), after["ip"]), "",
+                 "The router may have switched to another link, or the provider assigned a new address." if changed else
+                 "The provider assigned a new address, or the router switched links.",
+                 "", "Time: " + time.strftime("%H:%M, %d.%m.%Y %Z", time.localtime(now))]
+        with self.lock, self.db() as conn:
+            recent = conn.execute("SELECT COUNT(*) FROM np_notifications WHERE subject LIKE ? AND ts>?", (WAN_ICON + "%", now - 3600)).fetchone()[0]
+            if recent >= WAN_NOTIFY_MAX_PER_HOUR:
+                logger.warning("WAN changed again; the hourly notification limit is used up")
+                return None
+            return self.queue(conn, now, "warning" if changed else "normal", ("%s NetProbe: %s" % (WAN_ICON, title))[:120],
+                              ("%s: %s → %s" % (title, before["ip"], after["ip"]))[:240], NEWLINE.join(lines)[:MAX_MESSAGE])
+
+    def start_wan_watcher(self, sleep=time.sleep, rounds=None):
+        """Background thread behind the WAN history; idle (no requests) while the option is off."""
+        def run():
+            done = 0
+            while rounds is None or done < rounds:
+                try:
+                    self.wan_tick()
+                except Exception:
+                    logger.exception("WAN address check failed")
+                done += 1
+                sleep(WAN_CHECK_EVERY)
+        thread = threading.Thread(target=run, name="netprobe-wan", daemon=True)
+        thread.start()
+        return thread
+
+    def forget_wan(self):
+        """Erase the recorded addresses and providers from all samples; -> rows changed."""
+        with self.lock, self.db() as conn:
+            return conn.execute("UPDATE np_targets SET wan_ip=NULL,wan_isp=NULL WHERE wan_ip IS NOT NULL OR wan_isp IS NOT NULL").rowcount
 
     # ---- scheduled speedtests ---------------------------------------------------------
     @property
@@ -861,6 +982,7 @@ class Extension:
         for address in dns_failed:  # no DNS reply at all; any measured latency was only elapsed time
             rows.append(dict(target="dns:" + address, address=address, kind="dns",
                              ts=ts, latency=None, jitter=None, loss=None))
+        wan_ip, wan_isp = self.current_wan()
         with self.lock, self.db() as conn:
             cfg = self.effective_settings()
             changes = []
@@ -870,8 +992,8 @@ class Extension:
                 if previous and ts <= previous["last_ts"]:
                     continue
                 conn.execute("""INSERT OR IGNORE INTO np_targets
-                    (cycle_ts,ts,target,address,kind,latency,jitter,loss) VALUES (?,?,?,?,?,?,?,?)""",
-                    (ts, row["ts"], target, row["address"], row["kind"], row["latency"], row["jitter"], row["loss"]))
+                    (cycle_ts,ts,target,address,kind,latency,jitter,loss,wan_ip,wan_isp) VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                    (ts, row["ts"], target, row["address"], row["kind"], row["latency"], row["jitter"], row["loss"], wan_ip, wan_isp))
                 observed, reasons = self.classify(row, cfg)
                 active = previous["active"] if previous else "OK"
                 # Leaving OK counts consecutive non-OK samples (DOWN/DEGRADED alternate on lossy links);
@@ -1033,8 +1155,8 @@ class Extension:
         """True when the regular monitor alerted for this outage, or already considered one of the turbo addresses
         DOWN when it began (an alert sent before a restart or before turbo was switched on is never repeated)."""
         if conn.execute("""SELECT 1 FROM np_notifications WHERE level IN ('alert','warning') AND subject NOT LIKE ?
-                AND subject NOT LIKE ? AND subject NOT LIKE ? AND ts>=? AND ts<=?""",
-                (TURBO_ICON + "%", "%Speedtest%", SPEED_ICON + "%", row["start_ts"] - TURBO_LOOKBACK, row["end_ts"])).fetchone():
+                AND subject NOT LIKE ? AND subject NOT LIKE ? AND subject NOT LIKE ? AND ts>=? AND ts<=?""",
+                (TURBO_ICON + "%", "%Speedtest%", SPEED_ICON + "%", WAN_ICON + "%", row["start_ts"] - TURBO_LOOKBACK, row["end_ts"])).fetchone():
             return True
         for target in [t for h in self.turbo_hosts for t in (h, "dns:" + h)]:
             last = conn.execute("SELECT state FROM np_events WHERE target=? AND ts<=? ORDER BY ts DESC,id DESC LIMIT 1",
@@ -1284,12 +1406,24 @@ class Extension:
         """(start, upper) of a query window: relative to now by default, or ending at an explicit `end`."""
         return (end if end is not None else int(self.clock())) - seconds, (end if end is not None else 2 ** 53)
 
-    def recent_targets(self, seconds, end=None):
+    @staticmethod
+    def wan_filter(wan):
+        """(SQL, params) selecting the samples of one WAN source: wan = (address, provider); an empty address means samples
+        recorded without a known WAN; None means no filter."""
+        if wan is None:
+            return "", []
+        address, provider = wan
+        if not address:
+            return " AND wan_ip IS NULL", []
+        return " AND wan_ip=? AND COALESCE(wan_isp,'')=?", [address, provider or ""]
+
+    def recent_targets(self, seconds, end=None, wan=None):
         start, upper = self.window_bounds(seconds, end)
+        wan_sql, wan_params = self.wan_filter(wan)
         with self.db() as conn:
             rows = conn.execute("""SELECT target,COUNT(*) samples,AVG(latency) avg_latency,
                 MAX(latency) max_latency,AVG(loss) avg_loss,MAX(loss) max_loss
-                FROM np_targets WHERE ts>=? AND ts<=? GROUP BY target ORDER BY target""", (start, upper)).fetchall()
+                FROM np_targets WHERE ts>=? AND ts<=?""" + wan_sql + " GROUP BY target ORDER BY target", [start, upper] + wan_params).fetchall()
             out = []
             for r in rows:
                 latest = dict(conn.execute("SELECT * FROM np_targets WHERE target=? ORDER BY ts DESC,id DESC LIMIT 1", (r["target"],)).fetchone())
@@ -1299,14 +1433,29 @@ class Extension:
                 latest.update(dict(state) if state else dict(active="UNKNOWN", candidate="UNKNOWN", streak=0));latest["state"] = latest.pop("active")
                 latest["addresses"] = [dict(x) for x in conn.execute("""SELECT address,COUNT(*) samples,
                     AVG(latency) avg_latency,MAX(latency) max_latency,AVG(loss) avg_loss,MAX(loss) max_loss
-                    FROM np_targets WHERE target=? AND ts>=? AND ts<=? GROUP BY address""", (r["target"], start, upper))]
+                    FROM np_targets WHERE target=? AND ts>=? AND ts<=?""" + wan_sql + " GROUP BY address", [r["target"], start, upper] + wan_params)]
+                latest["wan_sources"] = [dict(x) for x in conn.execute("""SELECT wan_ip,wan_isp,COUNT(*) samples,
+                    AVG(latency) avg_latency,MAX(latency) max_latency,AVG(loss) avg_loss,MAX(loss) max_loss
+                    FROM np_targets WHERE target=? AND ts>=? AND ts<=? GROUP BY wan_ip,wan_isp
+                    ORDER BY samples DESC,wan_ip,wan_isp""", (r["target"], start, upper))]
                 out.append(latest)
             return out
 
-    def target_history(self, target, seconds, address=None, end=None):
+    def wan_sources(self, seconds, end=None):
+        """The WAN sources seen in the period (newest first) and the current one, for the selectors."""
+        start, upper = self.window_bounds(seconds, end)
+        with self.db() as conn:
+            rows = [dict(x) for x in conn.execute("""SELECT wan_ip,wan_isp,COUNT(*) samples,MIN(ts) first_ts,MAX(ts) last_ts
+                FROM np_targets WHERE ts>=? AND ts<=? GROUP BY wan_ip,wan_isp ORDER BY last_ts DESC,wan_ip""", (start, upper))]
+        cached = self.ip_cache
+        current = {"wan_ip": cached["ip"], "wan_isp": cached.get("isp")} if cached and cached.get("ip") else None
+        return dict(sources=rows, current=current)
+
+    def target_history(self, target, seconds, address=None, end=None, wan=None):
         step = max(1, math.ceil(seconds / 599))
         condition = "target=?" if address is None else "target=? AND address=?"
         start, upper = self.window_bounds(seconds, end)
+        wan_sql, wan_params = self.wan_filter(wan)
         params = [step, start, upper, target]
         if address is not None:
             params.append(address)
@@ -1314,12 +1463,32 @@ class Extension:
             return [dict(r) for r in conn.execute("""SELECT CAST(ts/? AS INTEGER) bucket,MAX(ts) ts,
                 AVG(latency) latency,AVG(jitter) jitter,AVG(loss) loss,MAX(loss) max_loss,
                 CASE WHEN COUNT(DISTINCT address)=1 THEN MAX(address) ELSE NULL END address
-                FROM np_targets WHERE ts>=? AND ts<=? AND """ + condition + " GROUP BY bucket ORDER BY bucket", params)]
+                FROM np_targets WHERE ts>=? AND ts<=? AND """ + condition + wan_sql + " GROUP BY bucket ORDER BY bucket", params + wan_params)]
 
-    def history(self, seconds, end=None):
+    def history(self, seconds, end=None, wan=None):
         step = max(1, math.ceil(seconds / 599))
         start, upper = self.window_bounds(seconds, end)
         with self.db() as conn:
+            if wan is not None:
+                # one WAN source: rebuilt from the per-target samples; the native quality score belongs to the whole network and
+                # cannot be attributed to a single provider, so it is left out (null) instead of invented
+                wan_sql, wan_params = self.wan_filter(wan)
+                rows = [dict(r) for r in conn.execute("""SELECT CAST(ts/? AS INTEGER) bucket,MAX(ts) ts,
+                    AVG(CASE WHEN kind='ping' THEN latency END) avg_latency_ms,
+                    AVG(CASE WHEN kind='ping' THEN jitter END) avg_jitter_ms,
+                    AVG(CASE WHEN kind='ping' THEN loss END) avg_loss_pct,
+                    MAX(CASE WHEN kind='ping' THEN loss END) max_loss_pct,
+                    AVG(CASE WHEN kind='dns' THEN latency END) avg_dns_latency_ms
+                    FROM np_targets WHERE ts>=? AND ts<=?""" + wan_sql + " GROUP BY bucket ORDER BY bucket", [step, start, upper] + wan_params)]
+                dns = {}
+                for r in conn.execute("""SELECT CAST(ts/? AS INTEGER) bucket,target,AVG(latency) latency
+                    FROM np_targets WHERE ts>=? AND ts<=? AND kind='dns'""" + wan_sql + " GROUP BY bucket,target", [step, start, upper] + wan_params):
+                    dns.setdefault(r["bucket"], {})[r["target"][4:]] = r["latency"]
+                for row in rows:
+                    row["dns_per_server"] = dns.get(row.pop("bucket"), {})
+                    row["score"] = None
+                    row["iso"] = datetime.fromtimestamp(row["ts"], timezone.utc).isoformat()
+                return rows
             rows = [dict(r) for r in conn.execute("""SELECT CAST(ts/? AS INTEGER) bucket,MAX(ts) ts,
                 AVG(avg_latency_ms) avg_latency_ms,AVG(avg_jitter_ms) avg_jitter_ms,
                 AVG(avg_loss_pct) avg_loss_pct,MAX(avg_loss_pct) max_loss_pct,
@@ -1400,14 +1569,14 @@ class Extension:
             rows = conn.execute("SELECT * FROM np_targets WHERE ts>=? AND ts<=? ORDER BY ts,id LIMIT 50001", (start, upper)).fetchall()
         output = io.StringIO(newline="")
         writer = csv.writer(output)
-        writer.writerow(["timestamp", "target", "address", "kind", "loss_pct", "rtt_ms", "jitter_ms"])
+        writer.writerow(["timestamp", "target", "address", "kind", "loss_pct", "rtt_ms", "jitter_ms", "wan_ip", "wan_isp"])
         def safe(value):
             if isinstance(value, str) and (value.lstrip().startswith(("=", "+", "-", "@")) or value.startswith(("\t", "\r", "\n"))):
                 return "'" + value
             return value
         for row in rows[:50000]:
             writer.writerow([datetime.fromtimestamp(row["ts"], timezone.utc).isoformat()] +
-                            [safe(row[k]) for k in ("target", "address", "kind", "loss", "latency", "jitter")])
+                            [safe(row[k]) for k in ("target", "address", "kind", "loss", "latency", "jitter", "wan_ip", "wan_isp")])
         return output.getvalue(), len(rows) > 50000
 
 
@@ -1458,20 +1627,50 @@ def install_routes(app, ext):
                 response.headers.add("Vary", "Accept-Encoding")
         return response
 
+    def wan_arg():
+        """?wan_ip=<address>&wan_isp=<provider> selects one WAN source; wan_ip= (empty) means samples without a known WAN."""
+        if "wan_ip" not in request.args:
+            return None
+        address, provider = request.args.get("wan_ip", ""), request.args.get("wan_isp", "")
+        try:
+            if address:
+                address = str(ipaddress.ip_address(address))
+            if len(provider) > 120:
+                raise ValueError()
+        except ValueError:
+            from werkzeug.exceptions import BadRequest
+            raise BadRequest("wan_ip must be an IP address (or empty) and wan_isp at most 120 characters")
+        return address, provider
+
     @app.get("/api/targets/recent")
     def np_recent():
         seconds, end = window()
-        return jsonify(data=ext.recent_targets(seconds, end), started_at=ext.started_at())
+        return jsonify(data=ext.recent_targets(seconds, end, wan_arg()), started_at=ext.started_at())
+
+    @app.get("/api/wan/sources")
+    def np_wan_sources():
+        seconds, end = window()
+        return jsonify(ext.wan_sources(seconds, end))
+
+    @app.post("/api/wan/forget")
+    def np_wan_forget():
+        """Erase every recorded WAN address and provider from the history (needs "confirm": true)."""
+        if not same_origin_request():
+            return jsonify(error="Same-origin settings request required"), 403
+        body = request.get_json(silent=True)
+        if not isinstance(body, dict) or body.get("confirm") is not True or set(body) - {"confirm"}:
+            return jsonify(error="Expected {\"confirm\": true}"), 400
+        return jsonify(forgotten=ext.forget_wan())
 
     @app.get("/api/targets/history")
     def np_history_target():
         seconds, end = window()
-        return jsonify(data=ext.target_history(request.args.get("target", ""), seconds, request.args.get("address"), end))
+        return jsonify(data=ext.target_history(request.args.get("target", ""), seconds, request.args.get("address"), end, wan_arg()))
 
     @app.get("/api/history")
     def np_history():
         seconds, end = window()
-        return jsonify(data=ext.history(seconds, end))
+        return jsonify(data=ext.history(seconds, end, wan_arg()))
 
     @app.get("/api/events")
     def np_events():

@@ -27,10 +27,20 @@ The project is called **NetProbe Enhanced** (container, image, file and table na
   can no longer delay the data on screen.
 - **WAN / ISP card with the external IP on request** (setting *Show my external IP and provider*, off by default): a
   card under the status banner with the address the internet sees and the provider's name (the layout follows the
-  proposal in PR 1). Nothing is requested while the setting is off; with it on the container asks `ipwho.is`
-  (fallbacks `api.ipify.org`, `icanhazip.com`, which give the address only) at most every 5 minutes, accepts only
-  public IP addresses and shows lookup failures plainly (`GET /api/public-ip`). An unknown provider reads *not
-  reported*.
+  proposal in PR 1). Nothing is requested while the setting is off; with it on the container checks the address with
+  `api.ipify.org` once a minute and asks `ipwho.is` for the provider only when the address changes and once a day,
+  accepts only public IP addresses and shows lookup failures plainly (`GET /api/public-ip`). An unknown provider reads
+  *not reported*.
+- **WAN history** (needs that option): every sample is stored with the address and provider (`np_targets.wan_ip` /
+  `wan_isp`, added by an automatic migration; older rows stay without a WAN). A *WAN source* selector above the chart and
+  in the targets table (one shared choice) filters the chart, the targets statistics and the compare mode
+  (`wan_ip` / `wan_isp` parameters of `/api/history`, `/api/targets/history`, `/api/targets/recent`; `GET /api/wan/sources`);
+  with a single WAN selected the overall quality score is not drawn. The CSV export has `wan_ip` and `wan_isp` columns.
+  *Forget WAN addresses…* (`POST /api/wan/forget`) erases the recorded addresses; the retention period deletes them with
+  the samples.
+- **Notification when the external IP or provider changes** (`wan_notify`, off by default): before / now, a warning when the
+  provider changed and an information message when only the address did; a change must be seen by two checks in a row,
+  the last known WAN survives restarts (`/data/wan-state.json`), at most 6 messages per hour.
 - **Speedtest schedule and notifications** (*Speedtest* tab → *Schedule and notifications*): automatic tests off, every
   N hours, or every day at up to four times in `APP_TIMEZONE` (a missed daily test still runs within two hours),
   with an optional Unraid message after every automatic test (`normal`) or failure (`warning`, with the reason).

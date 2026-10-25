@@ -11,7 +11,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
   try {
     const now = Math.floor(Date.now() / 1000);
     const api = {
-      prefs: {speedtest_service: '', speedtest_schedule: 'container', speedtest_interval_h: 6, speedtest_times: ['03:00'], speedtest_notify: false, show_public_ip: false, history_retention_days: 0}, history: {last: null, next_ts: null, db_bytes: 5320000, oldest_ts: now - 86400 * 40}, cleanupTotal: 1234, cleanupError: null, publicIp: {enabled: false}, publicIpDelay: 0, delays: {}, statusSeq: [], status: {running: false, success: null, error: null, result: null}, runStatus: 202, prefsFail: false, prefsReadFail: false, speedRun: null, calls: [],
+      prefs: {speedtest_service: '', speedtest_schedule: 'container', speedtest_interval_h: 6, speedtest_times: ['03:00'], speedtest_notify: false, show_public_ip: false, wan_notify: false, history_retention_days: 0}, history: {last: null, next_ts: null, db_bytes: 5320000, oldest_ts: now - 86400 * 40}, cleanupTotal: 1234, cleanupError: null, publicIp: {enabled: false}, targets: [], wanData: {sources: [], current: null}, publicIpDelay: 0, delays: {}, statusSeq: [], status: {running: false, success: null, error: null, result: null}, runStatus: 202, prefsFail: false, prefsReadFail: false, speedRun: null, calls: [],
       latest: {ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server: {id: '1', name: 'Example City', country: 'EX'}, backend: 'python'},
       history: [{ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server_id: '1', server_name: 'Example City', backend: 'python'}],
     };
@@ -42,6 +42,9 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
             if (body.dry_run) return route.fulfill({json: {days: body.days, dry_run: true, total: api.cleanupTotal, deleted: {}, bytes_before: 5320000, bytes_after: 5320000, ts: now}});
             api.history.last = {ts: now, days: body.days, total: api.cleanupTotal, bytes_before: 5320000, bytes_after: 2100000};
             return route.fulfill({json: {days: body.days, dry_run: false, total: api.cleanupTotal, deleted: {}, bytes_before: 5320000, bytes_after: 2100000, ts: now}});
+          case '/api/targets/recent': return route.fulfill({json: {data: api.targets, started_at: now - 3600}});
+          case '/api/wan/sources': return route.fulfill({json: api.wanData});
+          case '/api/wan/forget': api.forgotten = body; return route.fulfill({json: {forgotten: 42}});
           case '/api/public-ip': if (api.publicIpDelay) await new Promise(r => setTimeout(r, api.publicIpDelay)); return route.fulfill({json: api.publicIp});
           case '/api/speedtest/latest': return route.fulfill({json: {result: api.latest}});
           case '/api/speedtest/history': return route.fulfill({json: {tests: api.history}});
@@ -344,6 +347,109 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       await page.waitForFunction(() => document.getElementById('wanIp').textContent === '198.51.100.7', null, {timeout: 8000});
       assert.deepEqual(errors, []);
       api.prefs.show_public_ip = false; api.publicIp = {enabled: false}; api.publicIpDelay = 0;
+      await page.close();
+    }
+
+    // --- WAN source selectors: one choice shared by the chart and the targets table ---
+    {
+      const A = {wan_ip: '203.0.113.10', wan_isp: 'Alpha Net'}, B = {wan_ip: '198.51.100.20', wan_isp: 'Beta Cable'};
+      const row = (loss, extra = {}) => ({target: 'google.com', address: '192.0.2.1', kind: 'ping', ts: now, latency: 20, jitter: 1, loss, avg_latency: 21, max_latency: 30, avg_loss: loss, max_loss: loss, samples: 70, state: 'OK', addresses: [], wan_sources: [], ...extra});
+      api.prefs.show_public_ip = true; api.publicIp = {enabled: true, ip: A.wan_ip, isp: A.wan_isp, source: 'ipwho.is', checked_at: now, error: null};
+      api.wanData = {sources: [{...A, samples: 120, first_ts: now - 3000, last_ts: now}, {...B, samples: 60, first_ts: now - 3500, last_ts: now - 2000}, {wan_ip: null, wan_isp: null, samples: 10, first_ts: now - 3600, last_ts: now - 3500}], current: A};
+      api.targets = [row(0, {wan_sources: [{...A, samples: 40, avg_latency: 20, max_latency: 31, avg_loss: 0, max_loss: 0}, {...B, samples: 30, avg_latency: 60, max_latency: 90, avg_loss: 5, max_loss: 20}]})];
+      const {page, errors} = await open('netprobe', 'en');
+      const dialogs = [];
+      let answer = false;
+      page.on('dialog', async d => { dialogs.push(d.message()); await (answer ? d.accept() : d.dismiss()); });
+      const sel = (id) => page.locator(id);
+      await page.waitForFunction(() => !document.getElementById('wanPickChart').hidden);
+      assert.equal(await page.locator('#wanPickTargets').isVisible(), true);
+      const labels = await sel('#wanSelectChart option').allTextContents();
+      assert.deepEqual(labels, ['All WAN sources', 'Current WAN: Alpha Net · 203.0.113.10 · 120 samples', 'Beta Cable · 198.51.100.20 · 60 samples', 'No WAN recorded (before it was switched on) · 10 samples']);
+      assert.deepEqual(await sel('#wanSelectTargets option').allTextContents(), labels, 'both selectors offer the same choices');
+      assert.equal(await sel('#wanSelectChart').inputValue(), 'all');
+      // the table shows how each WAN carried the target when the period saw more than one
+      assert.match(await page.locator('#targetsBody').textContent(), /Alpha Net · 203\.0\.113\.10: RTT 20\.0 \/ max 31\.0 ms.*Beta Cable · 198\.51\.100\.20: RTT 60\.0 \/ max 90\.0 ms/s);
+      const calls = () => api.calls.filter(c => c.method === 'GET');
+      assert.equal(calls().filter(c => c.query.includes('wan_ip')).length, 0, 'no filter, no parameter');
+
+      // choosing a WAN in the chart selector filters the chart and the table, and the other selector follows
+      api.calls.length = 0;
+      await sel('#wanSelectChart').selectOption({label: 'Beta Cable · 198.51.100.20 · 60 samples'});
+      await page.waitForFunction(() => document.getElementById('wanSelectTargets').selectedOptions[0].textContent.startsWith('Beta Cable'));
+      await page.waitForTimeout(300);
+      const filtered = calls().map(c => c.path + c.query);
+      const expected = '&wan_ip=198.51.100.20&wan_isp=Beta%20Cable';
+      assert(filtered.some(u => u.startsWith('/api/history?') && u.endsWith(expected)), 'summary history is filtered: ' + filtered.join(' '));
+      assert(filtered.some(u => u.startsWith('/api/targets/recent?') && u.endsWith(expected)), 'the targets table is filtered');
+      assert.equal(await page.locator('#metricTabs [data-metric="score"]').isDisabled(), true, 'no quality score for a single WAN');
+      assert.match(await page.locator('#metricTabs [data-metric="score"]').getAttribute('title'), /whole network/);
+      const summaryCalls = filtered.filter(u => u === '/api/history?range=3600' + expected);
+      assert.equal(summaryCalls.length, 1, 'the filtered summary is requested once, not twice');
+
+      // the other selector drives the same state; "no WAN recorded" asks for the empty address
+      api.calls.length = 0;
+      await sel('#wanSelectTargets').selectOption({index: 3});
+      await page.waitForFunction(() => document.getElementById('wanSelectChart').selectedOptions[0].textContent.startsWith('No WAN recorded'));
+      await page.waitForTimeout(300);
+      assert(calls().some(c => c.path === '/api/targets/recent' && /&wan_ip=&wan_isp=$/.test(c.query)), 'empty wan_ip selects samples without a WAN');
+
+      // back to everything: no parameter, the quality score is available again
+      api.calls.length = 0;
+      await sel('#wanSelectChart').selectOption('all');
+      await page.waitForFunction(() => !document.querySelector('#metricTabs [data-metric="score"]').disabled);
+      await page.waitForTimeout(300);
+      assert.equal(calls().filter(c => c.query.includes('wan_ip')).length, 0);
+
+      // forgetting the recorded addresses: asks first, sends the explicit confirmation
+      await page.locator('#alertSettings').evaluate(e => e.open = true);
+      await page.locator('#wanForget').click();
+      await page.waitForFunction(() => !document.getElementById('wanForget').disabled);
+      assert.match(dialogs.pop(), /Erase the recorded IP addresses and providers from the whole history\?/);
+      assert.equal(api.forgotten, undefined, 'refused: nothing sent');
+      answer = true;
+      await page.locator('#wanForget').click();
+      await page.waitForFunction(() => /Addresses erased from 42 records/.test(document.getElementById('retMsg').textContent));
+      assert.deepEqual(api.forgotten, {confirm: true});
+
+      // the notification switch: needs the option on, is saved on its own, a failed save is reverted
+      const notify = page.locator('#wan_notify');
+      assert.equal(await notify.isEnabled(), true);
+      assert.equal(await notify.isChecked(), false);
+      await notify.check();
+      await page.waitForFunction(() => document.getElementById('wan_notify').checked && !document.getElementById('wan_notify').disabled);
+      assert.deepEqual(api.calls.filter(c => c.path === '/api/prefs' && c.method === 'POST').pop().body, {wan_notify: true});
+      api.prefsFail = true;
+      await notify.uncheck();
+      await page.waitForFunction(() => /Could not save/.test(document.getElementById('ipMessage').textContent));
+      assert.equal(await notify.isChecked(), true, 'reverted to what is stored');
+      api.prefsFail = false;
+      assert.match(await page.locator('label:has(#wan_notify)').textContent(), /when the external IP or provider changes/);
+
+      // switching the option off removes the selectors again
+      api.prefs.show_public_ip = false; api.publicIp = {enabled: false};
+      await page.locator('#show_public_ip').evaluate(e => { e.checked = false; e.dispatchEvent(new Event('change')); });
+      await page.waitForFunction(() => document.getElementById('wanPickChart').hidden);
+      assert.equal(await page.locator('#wanPickTargets').isVisible(), false);
+      assert.equal(await notify.isDisabled(), true, 'nothing to notify about while the option is off');
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+    {
+      // a single WAN in the period: selectors are there, the table shows no per-source lines; unknown only: no selectors
+      const A = {wan_ip: '203.0.113.10', wan_isp: 'Alpha Net'};
+      api.prefs.show_public_ip = true; api.publicIp = {enabled: true, ip: A.wan_ip, isp: A.wan_isp, source: 'ipwho.is', checked_at: now, error: null};
+      api.wanData = {sources: [{...A, samples: 70, first_ts: now - 3000, last_ts: now}], current: A};
+      api.targets = [{target: 'google.com', address: '192.0.2.1', kind: 'ping', ts: now, latency: 20, jitter: 1, loss: 0, avg_latency: 21, max_latency: 30, avg_loss: 0, max_loss: 0, samples: 70, state: 'OK', addresses: [], wan_sources: [{...A, samples: 70, avg_latency: 21, max_latency: 30, avg_loss: 0, max_loss: 0}]}];
+      const {page, errors} = await open('unifi', 'ru');
+      await page.waitForFunction(() => !document.getElementById('wanPickChart').hidden);
+      assert.deepEqual(await page.locator('#wanSelectChart option').allTextContents(), ['Все WAN-источники', 'Текущий WAN: Alpha Net · 203.0.113.10 · 70 замеров']);
+      assert.equal(await page.locator('#targetsBody .wan-src').count(), 0, 'one source: no per-source lines');
+      api.wanData = {sources: [{wan_ip: null, wan_isp: null, samples: 70, first_ts: now - 3000, last_ts: now}], current: null};
+      await page.locator('#refreshBtn').click();
+      await page.waitForFunction(() => document.getElementById('wanPickChart').hidden);
+      assert.deepEqual(errors, []);
+      api.prefs.show_public_ip = false; api.publicIp = {enabled: false}; api.targets = []; api.wanData = {sources: [], current: null};
       await page.close();
     }
 

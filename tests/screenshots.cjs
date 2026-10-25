@@ -62,6 +62,17 @@ function startDemo(port, extra = []) {
       await ctx.close();
     }
     {
+      const {ctx, page} = await open(8799, 'unifi', 'light', 1440, 1000);
+      await page.locator('#periodSelect').selectOption('86400');
+      await page.waitForTimeout(1500);
+      await page.locator('#targets').screenshot({path: `${out}/wan-targets.png`});
+      const backup = await page.locator('#wanSelectChart option').evaluateAll(o => o.find(x => x.textContent.includes('Sample Mobile Backup')).value);
+      await page.locator('#wanSelectChart').selectOption(backup);
+      await page.waitForTimeout(1800);
+      await page.locator('#diagnostics').screenshot({path: `${out}/wan-chart.png`});
+      await ctx.close();
+    }
+    {
       const {ctx, page} = await open(8798, 'unifi', 'light', 1440, 1000);
       await page.screenshot({path: `${out}/simulated-outage.png`});
       await ctx.close();

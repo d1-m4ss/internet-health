@@ -37,9 +37,18 @@ bind-mounted read-only over it. Removing the mounts brings the stock NetProbe ba
   test. Without changes the container variables `SPEEDTEST_ENABLED` / `SPEEDTEST_INTERVAL` keep deciding.
 - **A *WAN / ISP* card with your external IP, on request.** Tick *Show my external IP and provider* in the settings
   and a card under the status banner shows the address the internet sees and your provider's name. Off by default:
-  nothing is requested until you tick it; then the container asks `ipwho.is` (fallbacks `api.ipify.org`,
-  `icanhazip.com`, which know the address only) at most once every 5 minutes. The service sees the address the
-  request comes from.
+  nothing is requested and nothing recorded until you tick it; then the container asks `api.ipify.org` once a minute
+  for the address (one tiny request) and `ipwho.is` for the provider name only when the address changes and once a
+  day. The services see the address the request comes from.
+- **WAN history and a WAN selector.** With that option on, every measurement is stored together with the address and
+  provider that carried it, so a failover to a backup link or a provider change can be told apart in the data: a
+  *WAN source* selector above the chart and in the *Targets* table (kept in sync) shows the history, statistics and
+  per-target breakdown of one source (the overall quality score is not drawn for a single WAN, it belongs to the
+  whole network). Recorded addresses are deleted with the rest of the history by the retention period, or at once with
+  *Forget WAN addresses…*.
+- **A message when the WAN changes.** Optional (*Send a notification when the external IP or provider changes*): one
+  Unraid message with before and now — a warning when the provider changed (typically a switch to a backup link), an
+  information message when only the address changed — confirmed by two checks in a row, at most 6 per hour.
 - **History retention (off by default).** The database grows without limit unless you say otherwise. In the settings
   choose to keep history for 7 / 30 / 90 / 180 days or 1 year: older records (target checks, DNS, events, Speedtests,
   delivered notifications) are then deleted once a night, in small batches, and the file is compacted. You can also
@@ -64,6 +73,10 @@ bind-mounted read-only over it. Removing the mounts brings the stock NetProbe ba
 ![Compare several DNS servers](docs/screenshots/compare-dns.png)
 
 ![Packet loss report](docs/screenshots/loss-report.png)
+
+![WAN sources in the Targets table](docs/screenshots/wan-targets.png)
+
+![The chart for one WAN source](docs/screenshots/wan-chart.png)
 
 ![Speedtest: service, schedule and notifications](docs/screenshots/speedtest-schedule.png)
 

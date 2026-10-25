@@ -16,6 +16,15 @@ Only additive tables are created in the existing SQLite file: `np_targets` (ever
 `np_flap` (muting state). Settings live in `/data/alert-settings.json` and the bridge token in
 `/data/notify-token`. Nothing is deleted unless a retention period is chosen (below).
 
+## WAN history
+
+`np_targets.wan_ip` / `wan_isp` (added by `ALTER TABLE` when missing) hold the address and provider confirmed within the last 15
+minutes when the sample was stored; they stay empty while *Show my external IP* is off. A watcher thread (`start_wan_watcher`)
+checks the address once a minute with a plain-text request (`api.ipify.org`) and only asks `ipwho.is` for the provider when it
+changed or is a day old. The same observation feeds the WAN-change message (two checks in a row, state kept in
+`/data/wan-state.json`). Queries accept a `(wan_ip, wan_isp)` filter; the per-WAN summary is rebuilt from `np_targets`, so the native
+quality score is not available for it.
+
 ## History retention
 
 `history_retention_days` in `/data/netprobe-prefs.json` is `0` (keep everything, the default) or one of 7, 30, 90, 180,

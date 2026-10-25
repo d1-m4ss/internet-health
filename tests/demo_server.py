@@ -79,8 +79,20 @@ def main():
     module.measure_dns_latency = lambda domain, server, count: (
         None if real_dns_latency(domain, server, count) is None else DNS_MS.get(server, 12.0) * rnd.uniform(0.8, 1.4))
     world.start = int(time.time()) - total * sim.STEP
+    # WAN history: every sample carries the address and provider that carried it. Invented values (documentation addresses): the
+    # primary provider, with a stretch on a backup mobile link in the middle of the history. Nothing here touches the network.
+    ext = module.custom_extension
+    wans = {"primary": ("198.51.100.23", "Example Broadband Ltd"), "backup": ("203.0.113.45", "Sample Mobile Backup")}
+    ext.ip_fetch = lambda url, timeout=None: wans["primary"]
+    ext.update_prefs({"show_public_ip": True, "speedtest_service": "python", "speedtest_schedule": "daily",
+                      "speedtest_times": ["03:00"], "speedtest_notify": True})
+
+    def carried_by(name):
+        ext.ip_cache = dict(ip=wans[name][0], isp=wans[name][1], source="ipwho.is", checked_at=int(ext.clock()), error=None)
     for i in range(total):
+        carried_by("backup" if 0.45 * total <= i < 0.6 * total else "primary")
         world.tick(i)
+    carried_by("primary")
     now = int(time.time())
     with sqlite3.connect(world.db) as conn:  # drop the 2023 fixture rows and add recent Speedtests
         conn.execute("DELETE FROM measurements WHERE ts < ?", (now - int(args.hours * 3600) - 3600,))
@@ -91,17 +103,12 @@ def main():
                          "requested_server_id,backend) VALUES (?,?,?,?,?,?,?,?,?,?)",
                          (now - int(hours_ago * 3600), ping, down, up, "10001", "Example City", "speedtest.example.net:8080", "Exampleland", None, "python"))
 
-    # the extension features shown in the screenshots; nothing here touches the network: the lookup is replaced by invented values
-    ext = module.custom_extension
-    ext.ip_fetch = lambda url, timeout=None: ("198.51.100.23", "Example Broadband Ltd")  # documentation address, invented provider
-    ext.update_prefs({"show_public_ip": True, "speedtest_service": "python", "speedtest_schedule": "daily",
-                      "speedtest_times": ["03:00"], "speedtest_notify": True})
-
     def keep_probing():  # new probe every STEP seconds so the dashboard stays LIVE
         index = total
         while True:
             time.sleep(sim.STEP)
             world.start = int(time.time()) - index * sim.STEP
+            carried_by("primary")
             world.tick(index)
             index += 1
     threading.Thread(target=keep_probing, daemon=True).start()

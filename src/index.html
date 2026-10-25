@@ -64,6 +64,9 @@
     .btn.primary:hover { background:var(--primary-hover) }
     .btn:disabled { opacity:.45;cursor:not-allowed }
     a.btn { text-decoration:none }
+    .pick[hidden] { display:none }
+    .head-tools { display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end } .head-tools .chart-select { max-width:300px }
+    .wan-src { display:block;color:var(--mute);font-size:11px;overflow-wrap:anywhere }
     .btn.danger { border-color:var(--bad-line);color:var(--bad) } .btn.danger:hover:not(:disabled) { background:var(--bad-bg) }
     #retBox { margin-top:18px;padding-top:14px;border-top:1px solid var(--line) }
     .pick { display:inline-flex;align-items:center;gap:6px;color:var(--mute);font-size:12px }
@@ -510,7 +513,7 @@
       <div class="metric"><div class="metric-label" data-i18n="metric.dns">Ответ DNS</div><div class="metric-val"><span id="dnsValue">—</span><small> ms</small></div><div class="metric-footer" data-i18n="mf.dns">Среднее по DNS-серверам</div></div>
     </section>
     <section class="card" id="diagnostics" data-compare="0">
-      <div class="chart-top"><div><h2 id="chartTitle">…</h2><div class="card-sub" id="chartSubtitle"></div></div><label class="pick"><span class="hide" data-i18n="chart.periodLabel">Период</span><select id="periodSelect" class="chart-select" data-i18n-attr="aria-label:chart.periodLabel"><option value="60" data-i18n="period.1m">1 минута</option><option value="300" data-i18n="period.5m">5 минут</option><option value="900" data-i18n="period.15m">15 минут</option><option value="3600" selected data-i18n="period.1h">1 час</option><option value="21600" data-i18n="period.6h">6 часов</option><option value="86400" data-i18n="period.24h">24 часа</option><option value="259200" data-i18n="period.3d">3 дня</option><option value="604800" data-i18n="period.1w">Неделя</option><option value="2592000" data-i18n="period.1mo">Месяц (30 дн.)</option><option value="custom" data-i18n="period.custom">Свой период…</option></select></label></div>
+      <div class="chart-top"><div><h2 id="chartTitle">…</h2><div class="card-sub" id="chartSubtitle"></div></div><label class="pick" id="wanPickChart" hidden><span class="hide" data-i18n="wan.source">WAN</span><select id="wanSelectChart" class="chart-select" data-i18n-attr="aria-label:wan.source"></select></label><label class="pick"><span class="hide" data-i18n="chart.periodLabel">Период</span><select id="periodSelect" class="chart-select" data-i18n-attr="aria-label:chart.periodLabel"><option value="60" data-i18n="period.1m">1 минута</option><option value="300" data-i18n="period.5m">5 минут</option><option value="900" data-i18n="period.15m">15 минут</option><option value="3600" selected data-i18n="period.1h">1 час</option><option value="21600" data-i18n="period.6h">6 часов</option><option value="86400" data-i18n="period.24h">24 часа</option><option value="259200" data-i18n="period.3d">3 дня</option><option value="604800" data-i18n="period.1w">Неделя</option><option value="2592000" data-i18n="period.1mo">Месяц (30 дн.)</option><option value="custom" data-i18n="period.custom">Свой период…</option></select></label></div>
       <div class="chart-top" style="margin-bottom:0"><div class="chart-controls"><label class="hide" for="chartTarget" data-i18n="chart.targetLabel">Цель графика</label><select id="chartTarget" class="chart-select"><option value="">…</option></select><details id="comparePicker" class="cmp-picker"><summary><span id="cmpSummary">…</span></summary><div class="cmp-menu" id="cmpMenu"></div></details><div class="flex-tabs" id="metricTabs"><button data-metric="avg_loss_pct" class="active"><span data-i18n="mt.loss">Потери</span><span class="chip-val" data-chip="avg_loss_pct"></span></button><button data-metric="avg_latency_ms"><span data-i18n="mt.latency">Задержка</span><span class="chip-val" data-chip="avg_latency_ms"></span></button><button data-metric="avg_jitter_ms"><span data-i18n="mt.jitter">Джиттер</span><span class="chip-val" data-chip="avg_jitter_ms"></span></button><button data-metric="avg_dns_latency_ms"><span>DNS</span><span class="chip-val" data-chip="avg_dns_latency_ms"></span></button><button data-metric="score"><span data-i18n="mt.score">Качество</span><span class="chip-val" data-chip="score"></span></button></div><button type="button" class="btn cmp-toggle" id="compareToggle" aria-pressed="false" data-i18n="cmp.toggle">Сравнение</button><button type="button" class="link-btn" id="goLoss" data-i18n="loss.goto">Потери за период →</button></div></div>
       <div class="range-row" id="customRange" hidden><label class="pick"><span data-i18n="range.from">С</span><input type="datetime-local" id="rangeFrom" class="chart-select"></label><label class="pick"><span data-i18n="range.to">По</span><input type="datetime-local" id="rangeTo" class="chart-select"></label><button type="button" class="btn" id="rangeApply" data-i18n="range.apply">Применить</button><span class="section-status" id="rangeError" role="status"></span></div>
       <div class="cmp-legend" id="compareLegend"></div><div class="chart-wrap"><svg id="primaryChart" role="img" data-i18n-attr="aria-label:chart.aria" viewBox="0 0 900 250" preserveAspectRatio="none"></svg><div class="chart-tip" id="chartTip" hidden></div></div><div class="axis-note" id="axisNote"></div>
@@ -523,7 +526,7 @@
       <div class="unifi-tabs unifi-only" id="unifiTabs" role="tablist"><button type="button" data-tab="targets" class="active" data-i18n="tab.targets">Цели</button><button type="button" data-tab="dns" data-i18n="tab.dns">DNS</button><button type="button" data-tab="events" data-i18n="tab.events">События</button><button type="button" data-tab="loss" data-i18n="tab.loss">Потери</button><button type="button" data-tab="speedtest">Speedtest</button><button type="button" data-tab="settings" data-i18n="tab.settings">Уведомления</button><button type="button" data-tab="diagnostics" data-i18n="tab.diag">Диагностика</button></div>
       <div class="stack">
         <section class="card" id="targets">
-          <div class="card-head"><div><h2 data-i18n="targets.title">Контрольные адреса</h2><div class="card-sub" data-i18n="targets.sub">Маршрутизатор и внешние узлы</div></div><a class="btn" id="exportLink" href="/api/export/targets.csv?range=3600">CSV ↓</a></div>
+          <div class="card-head"><div><h2 data-i18n="targets.title">Контрольные адреса</h2><div class="card-sub" data-i18n="targets.sub">Маршрутизатор и внешние узлы</div></div><div class="head-tools"><label class="pick" id="wanPickTargets" hidden><span class="hide" data-i18n="wan.source">WAN</span><select id="wanSelectTargets" class="chart-select" data-i18n-attr="aria-label:wan.source"></select></label><a class="btn" id="exportLink" href="/api/export/targets.csv?range=3600">CSV ↓</a></div></div>
           <div class="table-wrap"><table class="table"><thead><tr><th data-i18n="th.target">Цель / измеренный IP</th><th data-i18n="th.last">Последний замер</th><th data-i18n="th.period">За период</th><th data-i18n="th.state">Состояние</th></tr></thead><tbody id="targetsBody"><tr><td colspan="4" class="muted">…</td></tr></tbody></table></div>
           <div id="targetsStatus" class="section-status" role="status"></div>
           <div class="info-note" id="historyNote"></div>
@@ -557,10 +560,10 @@
       <div class="stack">
         <section class="card" id="dnsCard"><div class="card-head"><div><h2 data-i18n="dns.title">DNS-серверы</h2><div class="card-sub" data-i18n="dns.sub">Ответ на DNS-запросы</div></div></div><div id="dnsList"><p class="muted">…</p></div></section>
         <section class="card" id="eventsCard"><div class="card-head"><div><h2 data-i18n="events.title">События</h2><div class="card-sub" data-i18n="events.sub">Подтверждённые изменения состояния</div></div></div><div class="events" id="eventList"><p class="muted">…</p></div><div id="eventsStatus" class="section-status"></div><div class="info-note" data-i18n="events.note">Предупреждения и восстановление передаются через штатные уведомления Unraid.</div></section>
-        <section class="card" id="settingsCard"><details id="alertSettings" style="margin:0;padding:0;border:0"><summary data-i18n="set.title">Пороги уведомлений</summary><p class="card-sub" data-i18n="set.note">Изменение подтверждается последовательными замерами. Короткий сбой между пробами может остаться незамеченным.</p><form id="settingsForm"><fieldset id="settingsFields" disabled style="border:0;padding:0;margin:0"><label class="check"><input type="checkbox" id="enabled"> <span data-i18n="set.enabled">Уведомления включены</span></label><div class="turbo-row"><label class="check"><input type="checkbox" id="turbo"> <span data-i18n="set.turbo">⚡ Turbo-режим: ловить короткие обрывы</span></label><button type="button" class="info-btn" id="turboInfo" aria-haspopup="dialog" aria-controls="turboDialog" data-i18n-attr="aria-label:turbo.about;title:turbo.about">ⓘ</button></div><p class="card-sub" id="turboUnavailable" hidden data-i18n="turbo.unavailable"></p><div class="setting-grid" style="margin-top:12px"><label><span data-i18n="set.loss">Потеря пакетов, %</span><input id="loss_pct" type="number" min="0" max="100" step="any" required></label><label><span>RTT, ms</span><input id="latency_ms" type="number" min="0" max="60000" step="any" required></label><label><span data-i18n="set.jitter">Джиттер, ms</span><input id="jitter_ms" type="number" min="0" max="60000" step="any" required></label><label><span>DNS, ms</span><input id="dns_ms" type="number" min="0" max="60000" step="any" required></label><label><span data-i18n="set.confirm">Замеров для тревоги</span><input id="confirm_samples" type="number" min="1" max="20" step="1" required></label><label><span data-i18n="set.recovery">Замеров для восстановления</span><input id="recovery_samples" type="number" min="1" max="20" step="1" required></label></div><div class="settings-actions"><button class="btn" type="submit" data-i18n="set.save">Сохранить</button><span class="card-sub" id="settingsMessage" role="status"></span></div></fieldset></form><div id="settingsStatus" class="section-status"></div><div class="info-note" id="storageInfo"></div><div class="pref-row"><label class="check"><input type="checkbox" id="show_public_ip" disabled> <span data-i18n="ip.label">Показывать мой внешний IP</span></label><p class="card-sub" data-i18n="ip.note" style="margin:6px 0 0"></p><span class="card-sub" id="ipMessage" role="status"></span></div>
+        <section class="card" id="settingsCard"><details id="alertSettings" style="margin:0;padding:0;border:0"><summary data-i18n="set.title">Пороги уведомлений</summary><p class="card-sub" data-i18n="set.note">Изменение подтверждается последовательными замерами. Короткий сбой между пробами может остаться незамеченным.</p><form id="settingsForm"><fieldset id="settingsFields" disabled style="border:0;padding:0;margin:0"><label class="check"><input type="checkbox" id="enabled"> <span data-i18n="set.enabled">Уведомления включены</span></label><div class="turbo-row"><label class="check"><input type="checkbox" id="turbo"> <span data-i18n="set.turbo">⚡ Turbo-режим: ловить короткие обрывы</span></label><button type="button" class="info-btn" id="turboInfo" aria-haspopup="dialog" aria-controls="turboDialog" data-i18n-attr="aria-label:turbo.about;title:turbo.about">ⓘ</button></div><p class="card-sub" id="turboUnavailable" hidden data-i18n="turbo.unavailable"></p><div class="setting-grid" style="margin-top:12px"><label><span data-i18n="set.loss">Потеря пакетов, %</span><input id="loss_pct" type="number" min="0" max="100" step="any" required></label><label><span>RTT, ms</span><input id="latency_ms" type="number" min="0" max="60000" step="any" required></label><label><span data-i18n="set.jitter">Джиттер, ms</span><input id="jitter_ms" type="number" min="0" max="60000" step="any" required></label><label><span>DNS, ms</span><input id="dns_ms" type="number" min="0" max="60000" step="any" required></label><label><span data-i18n="set.confirm">Замеров для тревоги</span><input id="confirm_samples" type="number" min="1" max="20" step="1" required></label><label><span data-i18n="set.recovery">Замеров для восстановления</span><input id="recovery_samples" type="number" min="1" max="20" step="1" required></label></div><div class="settings-actions"><button class="btn" type="submit" data-i18n="set.save">Сохранить</button><span class="card-sub" id="settingsMessage" role="status"></span></div></fieldset></form><div id="settingsStatus" class="section-status"></div><div class="info-note" id="storageInfo"></div><div class="pref-row"><label class="check"><input type="checkbox" id="show_public_ip" disabled> <span data-i18n="ip.label">Показывать мой внешний IP</span></label><p class="card-sub" data-i18n="ip.note" style="margin:6px 0 0"></p><label class="check"><input type="checkbox" id="wan_notify" disabled> <span data-i18n="wan.notify">Присылать уведомление при смене внешнего IP</span></label><span class="card-sub" id="ipMessage" role="status"></span></div>
           <div class="pref-row" id="retBox"><strong data-i18n="hist.title">История данных</strong>
             <div class="form-line"><label><span data-i18n="hist.keep">Хранить историю</span><select id="retKeep" disabled><option value="0" data-i18n="hist.forever"></option><option value="7" data-i18n="hist.r7"></option><option value="30" data-i18n="hist.r30"></option><option value="90" data-i18n="hist.r90"></option><option value="180" data-i18n="hist.r180"></option><option value="365" data-i18n="hist.r365"></option></select></label><label><span data-i18n="hist.clean">Удалить сейчас данные старше</span><select id="retDays" disabled><option value="7" data-i18n="hist.r7"></option><option value="30" data-i18n="hist.r30"></option><option value="90" data-i18n="hist.r90" selected></option><option value="180" data-i18n="hist.r180"></option><option value="365" data-i18n="hist.r365"></option></select></label></div>
-            <div class="settings-actions"><button type="button" class="btn" id="retPreview" disabled data-i18n="hist.preview">Показать, сколько</button><button type="button" class="btn danger" id="retDelete" disabled data-i18n="hist.delete">Удалить…</button></div>
+            <div class="settings-actions"><button type="button" class="btn" id="retPreview" disabled data-i18n="hist.preview">Показать, сколько</button><button type="button" class="btn danger" id="retDelete" disabled data-i18n="hist.delete">Удалить…</button><button type="button" class="btn" id="wanForget" disabled data-i18n="wan.forget">Забыть адреса WAN…</button></div>
             <p class="card-sub" id="retNote" style="margin:8px 0 0"></p><p class="card-sub" id="retLast" style="margin:4px 0 0"></p><span class="card-sub" id="retMsg" role="status"></span></div></details></section>
         <section class="card" id="diagCard"><div class="card-head"><div><h2 data-i18n="diag.title">Диагностика</h2><div class="card-sub" data-i18n="diag.sub">Логи и активные настройки NetProbe</div></div></div><details id="detailsLog"><summary data-i18n="diag.logs">Логи приложения</summary><pre class="log-box" id="logOutput"></pre><div class="section-status" id="logStatus" role="status"></div></details><details><summary data-i18n="diag.config">Конфигурация (без секретов)</summary><pre class="log-box" id="configOutput">…</pre></details></section>
       </div>
@@ -630,7 +633,9 @@
       'sched.container':'Как задано в контейнере: {state}','sched.cEvery':'каждые {h} ч','sched.cOff':'выключено','sched.noteContainer':'Расписание задают переменные контейнера SPEEDTEST_ENABLED и SPEEDTEST_INTERVAL ({state}). Выберите другой вариант, чтобы управлять им здесь.','sched.noteOff':'Автоматические тесты выключены; ручной запуск работает.','sched.noteNext':'Следующий тест: {when} · часовой пояс {tz}','sched.noteApply':'Сохраните, чтобы применить расписание.',
       'sched.invalidInterval':'Интервал — целое число часов от 1 до 168.','sched.invalidTimes':'Время — от 1 до 4 разных значений ЧЧ:ММ, например 03:00, 15:30.','sched.saving':'Сохранение…','sched.saved':'Расписание сохранено.','sched.notSaved':'Не сохранено: {e}','sched.unavailable':'Настройки расписания сейчас недоступны.',
       'set.title':'Пороги уведомлений','set.note':'Изменение подтверждается последовательными замерами. Короткий сбой между пробами может остаться незамеченным.','set.enabled':'Уведомления включены','set.loss':'Потеря пакетов, %','set.jitter':'Джиттер, ms','set.confirm':'Замеров для тревоги','set.recovery':'Замеров для восстановления','set.save':'Сохранить',
-      'ip.label':'Показывать мой внешний IP и провайдера (карточка WAN / провайдер)','ip.note':'Включает запрос к ipwho.is (запасные: api.ipify.org, icanhazip.com) из контейнера не чаще раза в 5 минут; сервис видит адрес, с которого идёт запрос. Пока галка снята, наружу ничего не отправляется.','wan.title':'WAN / провайдер','wan.ip':'Внешний IP','wan.isp':'Провайдер','wan.pending':'Определяется…','wan.unknown':'не указан','wan.meta':'Проверено {when} · источник {source} · обновляется раз в 5 минут','wan.fail':'Не удалось определить адрес: {e}','ip.saveFail':'Не удалось сохранить: {e}',
+      'ip.label':'Показывать мой внешний IP и провайдера (карточка WAN / провайдер)','ip.note':'Контейнер раз в минуту спрашивает api.ipify.org, какой у вас адрес, а при смене адреса (и раз в сутки) — ipwho.is, какой это провайдер; сервисы видят адрес, с которого идёт запрос. Адрес и провайдер записываются с каждым замером, чтобы сравнивать каналы (селектор «WAN-источник»). Пока галка снята, наружу ничего не отправляется и ничего не записывается.','wan.title':'WAN / провайдер','wan.ip':'Внешний IP','wan.isp':'Провайдер','wan.pending':'Определяется…','wan.unknown':'не указан','wan.meta':'Проверено {when} · источник {source} · обновляется раз в 5 минут','wan.fail':'Не удалось определить адрес: {e}','ip.saveFail':'Не удалось сохранить: {e}',
+      'wan.notify':'Присылать уведомление при смене внешнего IP или провайдера (например, при переключении на резервный канал)',
+      'wan.source':'WAN-источник','wan.all':'Все WAN-источники','wan.current':'Текущий WAN','wan.unknownIsp':'провайдер не указан','wan.none':'WAN не записан (до включения)','wan.samplesN':'{n} замеров','wan.noQuality':'Оценка качества относится ко всей сети и не строится для отдельного WAN','wan.bySource':'WAN','wan.forget':'Забыть адреса WAN…','wan.forgetConfirm':'Стереть записанные IP-адреса и провайдеров из всей истории? Сами измерения останутся. Это нельзя отменить.','wan.forgotten':'Адреса стёрты из {n} записей.',
       'hist.title':'История данных','hist.keep':'Хранить историю','hist.forever':'Всегда (не удалять)','hist.r7':'7 дней','hist.r30':'30 дней','hist.r90':'90 дней','hist.r180':'180 дней','hist.r365':'1 год','hist.clean':'Удалить сейчас данные старше','hist.preview':'Показать, сколько','hist.delete':'Удалить…',
       'hist.noteOff':'Сейчас история не удаляется. Выберите срок: данные старше него будут удаляться раз в сутки ночью (проверки целей, DNS, события, Speedtest). Это необратимо — перед первым включением полезна копия базы.','hist.noteOn':'Данные старше {range} удаляются раз в сутки ночью. Следующая очистка: {when}.','hist.last':'Последняя очистка: {when} — удалено записей: {n}; база {from} → {to}.','hist.never':'Очисток ещё не было.',
       'hist.confirmKeep':'Срок хранения: {range}. Данные старше него будут необратимо удаляться раз в сутки ночью. Включить?','hist.previewResult':'Будет удалено записей: {n} (старше {range}).','hist.nothing':'Нечего удалять: записей старше {range} нет.','hist.confirmDelete':'Удалить {n} записей старше {range}? Это нельзя отменить.','hist.deleted':'Удалено записей: {n}; база {from} → {to}.','hist.fail':'Не удалось: {e}','hist.saved':'Срок хранения сохранён.',
@@ -693,7 +698,9 @@
       'sched.title':'Schedule and notifications','sched.mode':'Automatic tests','sched.off':'Off','sched.interval':'Every N hours','sched.daily':'Every day at set times','sched.every':'Every, hours (1–168)','sched.times':'Times, up to 4 (comma separated)','sched.notify':'Send an Unraid notification after every automatic test (and when one fails)',
       'sched.container':'As set in the container: {state}','sched.cEvery':'every {h} h','sched.cOff':'off','sched.noteContainer':'The schedule comes from the container variables SPEEDTEST_ENABLED and SPEEDTEST_INTERVAL ({state}). Pick another option to manage it here.','sched.noteOff':'Automatic tests are off; manual runs still work.','sched.noteNext':'Next test: {when} · time zone {tz}','sched.noteApply':'Save to apply the schedule.',
       'sched.invalidInterval':'The interval is a whole number of hours from 1 to 168.','sched.invalidTimes':'Times are 1 to 4 different HH:MM values, for example 03:00, 15:30.','sched.saving':'Saving…','sched.saved':'Schedule saved.','sched.notSaved':'Not saved: {e}','sched.unavailable':'Schedule settings are unavailable right now.',
-      'ip.label':'Show my external IP and provider (WAN / ISP card)','ip.note':'Makes the container ask ipwho.is (fallbacks: api.ipify.org, icanhazip.com) at most once every 5 minutes; the service sees the address the request comes from. While the box is unticked nothing is sent anywhere.','wan.title':'WAN / ISP','wan.ip':'Public IP','wan.isp':'ISP','wan.pending':'Looking up…','wan.unknown':'not reported','wan.meta':'Checked {when} · source {source} · refreshed every 5 minutes','wan.fail':'The address could not be determined: {e}','ip.saveFail':'Could not save: {e}',
+      'ip.label':'Show my external IP and provider (WAN / ISP card)','ip.note':'Once a minute the container asks api.ipify.org for your address, and when it changes (and once a day) ipwho.is for the provider; the services see the address the request comes from. The address and provider are recorded with every measurement so channels can be compared (the “WAN source” selector). While the box is unticked nothing is sent anywhere and nothing is recorded.','wan.title':'WAN / ISP','wan.ip':'Public IP','wan.isp':'ISP','wan.pending':'Looking up…','wan.unknown':'not reported','wan.meta':'Checked {when} · source {source} · refreshed every 5 minutes','wan.fail':'The address could not be determined: {e}','ip.saveFail':'Could not save: {e}',
+      'wan.notify':'Send a notification when the external IP or provider changes (for example when the router switches to a backup link)',
+      'wan.source':'WAN source','wan.all':'All WAN sources','wan.current':'Current WAN','wan.unknownIsp':'provider not reported','wan.none':'No WAN recorded (before it was switched on)','wan.samplesN':'{n} samples','wan.noQuality':'The quality score belongs to the whole network and is not drawn for a single WAN','wan.bySource':'WAN','wan.forget':'Forget WAN addresses…','wan.forgetConfirm':'Erase the recorded IP addresses and providers from the whole history? The measurements themselves stay. This cannot be undone.','wan.forgotten':'Addresses erased from {n} records.',
       'hist.title':'History','hist.keep':'Keep history','hist.forever':'Forever (never delete)','hist.r7':'7 days','hist.r30':'30 days','hist.r90':'90 days','hist.r180':'180 days','hist.r365':'1 year','hist.clean':'Delete now what is older than','hist.preview':'Show how many','hist.delete':'Delete…',
       'hist.noteOff':'History is not deleted now. Pick a period: data older than it is deleted once a day at night (target checks, DNS, events, Speedtests). This cannot be undone — a copy of the database before the first use is a good idea.','hist.noteOn':'Data older than {range} is deleted once a day at night. Next cleanup: {when}.','hist.last':'Last cleanup: {when} — {n} records deleted; database {from} → {to}.','hist.never':'No cleanup has run yet.',
       'hist.confirmKeep':'Keep history for {range}. Older data will be deleted irreversibly once a day at night. Turn it on?','hist.previewResult':'{n} records would be deleted (older than {range}).','hist.nothing':'Nothing to delete: no records are older than {range}.','hist.confirmDelete':'Delete {n} records older than {range}? This cannot be undone.','hist.deleted':'{n} records deleted; database {from} → {to}.','hist.fail':'Failed: {e}','hist.saved':'Retention saved.',
@@ -774,7 +781,10 @@
   const periodSeconds = () => state.win ? state.win.to - state.win.from : state.range;
   const live = () => state.win ? state.liveTargets : state.targets;  // banner and path always show the live state, even while a past window is charted
   const staleRow = ts => state.win ? false : stale(ts);
-  const chartKey = () => JSON.stringify([state.target, state.address, rangeKey()]);
+  /* WAN filter: state.wanSel is null (all sources) or [address, provider]; address '' = samples recorded without a known WAN */
+  const wanKey = () => state.wanSel ? state.wanSel.join('|') : '';
+  const wanParam = () => state.wanSel ? `&wan_ip=${encodeURIComponent(state.wanSel[0])}&wan_isp=${encodeURIComponent(state.wanSel[1] || '')}` : '';
+  const chartKey = () => JSON.stringify([state.target, state.address, rangeKey(), wanKey()]);
   function statusLabel(name, id) {
     $(id).textContent = state.errors[name] ? t('err.apiDown', {kept: state.loaded.has(name) ? t('err.kept') : '', e: state.errors[name]}) : '';
   }
@@ -823,10 +833,15 @@
     $('nodeRouterName').textContent = routerName(); $('linkUnraid').title = t('path.link1', {r: routerName()});
     $('pathNote').textContent = t('path.note');
   }
+  const wanLabel = (ip, isp) => ip ? `${isp || t('wan.unknownIsp')} · ${ip}` : t('wan.none');
+  function wanBreakdown(x) {
+    const list = Array.isArray(x.wan_sources) ? x.wan_sources : [];
+    return list.length > 1 ? list.map(w => `<span class="wan-src">${escape(wanLabel(w.wan_ip, w.wan_isp))}: RTT ${fmt(w.avg_latency)} / max ${fmt(w.max_latency)} ms · ${t('targets.lossShort')} ${fmt(w.avg_loss)}% · ${t('wan.samplesN', {n: w.samples})}</span>`).join('') : '';
+  }
   function renderTargets() {
     const ping = state.targets.filter(x => x.kind !== 'dns');
     const pill = s => `<span class="pill ${['OK','DOWN','DEGRADED'].includes(s) ? s : ''}">${escape(stateLabel(s))}</span>`;
-    $('targetsBody').innerHTML = ping.length ? ping.map(x => `<tr class="${state.target === x.target ? 'selected' : ''}"><td><button class="target-button host" data-target="${escape(x.target)}">${escape(x.target)}</button><div class="sub">${escape(x.address || t('targets.ipUnknown'))}</div></td><td>${fmt(x.loss)}% ${t('targets.loss')}<div class="sub">RTT ${fmt(x.latency)} · jitter ${fmt(x.jitter)} ms</div><div class="sub">${escape(when(x.ts))}${staleRow(x.ts) ? ' · ' + t('targets.stale') : ''}</div></td><td>RTT ${fmt(x.avg_latency)} / max ${fmt(x.max_latency)} ms<div class="sub">${t('targets.lossShort')} ${fmt(x.avg_loss)}% · ${t('targets.samples', {n: numeric(x.samples) ? x.samples : '—'})}</div></td><td>${pill(x.state)}</td></tr>${Array.isArray(x.addresses) && x.addresses.length > 1 ? `<tr><td colspan="4"><details style="margin:0;border:0;padding:0"><summary>${t('targets.ipPeriod', {n: x.addresses.length})}</summary>${x.addresses.map(a => `<div class="dns-row">${a.address ? `<button class="target-button" data-target="${escape(x.target)}" data-address="${escape(a.address)}">${escape(a.address)}</button>` : `<span class="muted">${t('targets.ipUnknown')}</span>`}<span class="sub">${t('targets.samples', {n: a.samples})} · RTT ${fmt(a.avg_latency)} / max ${fmt(a.max_latency)} ms · ${t('targets.loss')} ${fmt(a.avg_loss)}% / max ${fmt(a.max_loss)}%</span></div>`).join('')}</details></td></tr>` : ''}`).join('') : `<tr><td colspan="4" class="muted">${state.loaded.has('targets') ? t('targets.none') : t('targets.unavailable')}</td></tr>`;
+    $('targetsBody').innerHTML = ping.length ? ping.map(x => `<tr class="${state.target === x.target ? 'selected' : ''}"><td><button class="target-button host" data-target="${escape(x.target)}">${escape(x.target)}</button><div class="sub">${escape(x.address || t('targets.ipUnknown'))}</div></td><td>${fmt(x.loss)}% ${t('targets.loss')}<div class="sub">RTT ${fmt(x.latency)} · jitter ${fmt(x.jitter)} ms</div><div class="sub">${escape(when(x.ts))}${staleRow(x.ts) ? ' · ' + t('targets.stale') : ''}</div></td><td>RTT ${fmt(x.avg_latency)} / max ${fmt(x.max_latency)} ms<div class="sub">${t('targets.lossShort')} ${fmt(x.avg_loss)}% · ${t('targets.samples', {n: numeric(x.samples) ? x.samples : '—'})}</div>${wanBreakdown(x)}</td><td>${pill(x.state)}</td></tr>${Array.isArray(x.addresses) && x.addresses.length > 1 ? `<tr><td colspan="4"><details style="margin:0;border:0;padding:0"><summary>${t('targets.ipPeriod', {n: x.addresses.length})}</summary>${x.addresses.map(a => `<div class="dns-row">${a.address ? `<button class="target-button" data-target="${escape(x.target)}" data-address="${escape(a.address)}">${escape(a.address)}</button>` : `<span class="muted">${t('targets.ipUnknown')}</span>`}<span class="sub">${t('targets.samples', {n: a.samples})} · RTT ${fmt(a.avg_latency)} / max ${fmt(a.max_latency)} ms · ${t('targets.loss')} ${fmt(a.avg_loss)}% / max ${fmt(a.max_loss)}%</span></div>`).join('')}</details></td></tr>` : ''}`).join('') : `<tr><td colspan="4" class="muted">${state.loaded.has('targets') ? t('targets.none') : t('targets.unavailable')}</td></tr>`;
     $('chartTarget').innerHTML = `<option value="">${escape(t('chart.all'))}</option>` + state.targets.map(x => `<option value="${escape(x.target)}">${escape(x.target)}${x.kind === 'dns' ? ' · DNS' : ''}</option>`).join('');
     // A target may have no samples in the newly selected period. Keep the selection explicit.
     if (state.target && !state.targets.some(x => x.target === state.target)) $('chartTarget').insertAdjacentHTML('beforeend', `<option value="${escape(state.target)}">${escape(state.target)}</option>`);
@@ -883,7 +898,7 @@
   /* ---------- compare mode ---------- */
   const unitOf = {avg_loss_pct:'%', avg_latency_ms:'ms', avg_jitter_ms:'ms', avg_dns_latency_ms:'ms', score:''};
   const MAX_SERIES = 10;
-  const cmpData = source => source === '' ? state.summary : state.charts.get(JSON.stringify([source, '', rangeKey()]))?.data;
+  const cmpData = source => source === '' ? state.summary : state.charts.get(JSON.stringify([source, '', rangeKey(), wanKey()]))?.data;
   function cmpBuild() {
     const out = [];
     for (const source of state.cmp.sources) for (const metric of state.cmp.metrics) {
@@ -904,16 +919,16 @@
     $('cmpSummary').textContent = picked.length <= 2 ? picked.join(', ') : t('cmp.selected', {n: picked.length});
   }
   async function loadCompare() {
-    const rk = rangeKey(), query = rq(), wanted = [...state.cmp.sources].filter(x => x !== '');
+    const rk = rangeKey(), query = rq() + wanParam(), key = wanKey(), wanted = [...state.cmp.sources].filter(x => x !== '');
     await Promise.allSettled(wanted.map(async target => {
       try {
         const result = await api(`/api/targets/history?target=${encodeURIComponent(target)}&${query}`);
         if (!Array.isArray(result.data)) throw new Error(t('err.badHistory'));
-        state.charts.set(JSON.stringify([target, '', rk]), {data: result.data.slice().sort((a, b) => a.ts - b.ts)});
+        state.charts.set(JSON.stringify([target, '', rk, key]), {data: result.data.slice().sort((a, b) => a.ts - b.ts)});
         delete state.errors.chart;
       } catch (e) { state.errors.chart = errorText(e); }
     }));
-    if (state.cmp.on && rk === rangeKey()) { renderChart(); renderStatus(); }
+    if (state.cmp.on && rk === rangeKey() && key === wanKey()) { renderChart(); renderStatus(); }
   }
   function setCompare(on) {
     state.cmp.on = on; $('diagnostics').dataset.compare = on ? '1' : '0'; $('compareToggle').setAttribute('aria-pressed', on ? 'true' : 'false');
@@ -929,7 +944,7 @@
     $('chartTitle').textContent = t('cmp.title', {n: series.length}); $('chartSubtitle').textContent = t('cmp.sub'); $('seriesLabel').textContent = series.map(x => x.label).slice(0, 3).join(' · ') + (series.length > 3 ? ' …' : '');
     const pointsTotal = series.reduce((a, x) => a + x.points.length, 0);
     $('periodInfo').textContent = t('chart.points', {n: pointsTotal}) + (all.length > MAX_SERIES ? ' · ' + t('cmp.capped', {n: MAX_SERIES}) : '');
-    const loadedAll = [...state.cmp.sources].every(x => x === '' || state.charts.has(JSON.stringify([x, '', rangeKey()])));
+    const loadedAll = [...state.cmp.sources].every(x => x === '' || state.charts.has(JSON.stringify([x, '', rangeKey(), wanKey()])));
     $('chartStatus').textContent = state.errors.chart ? t('chart.errPrefix', {kept: '', err: state.errors.chart}) : !loadedAll ? t('chart.loading') : '';
     const width = Math.max(300, svg.clientWidth || 900); svg.setAttribute('viewBox', `0 0 ${width} 250`); svg.dataset.metric = '';
     const vals = series.flatMap(x => x.points.map(p => p.v)).filter(numeric);
@@ -1130,9 +1145,9 @@
   }
   let drawQueued = false;
   const scheduleDraw = () => { if (drawQueued) return; drawQueued = true; requestAnimationFrame(() => { drawQueued = false; draw(); }); };  // show each answer as it arrives
-  const draw = () => { renderLoss(); renderUnifi(); renderStatus(); renderPath(); renderTargets(); renderChart(); renderEvents(); renderSpeed(); renderSchedule(); renderPublicIp(); renderHistory(); renderSettings(); renderConfig(); renderMsgs(); if (!state.logs.length) $('logOutput').textContent = state.logRead && $('detailsLog').open ? t('diag.noLines') : t('diag.logHint'); };
+  const draw = () => { renderLoss(); renderUnifi(); renderStatus(); renderPath(); renderTargets(); renderChart(); renderEvents(); renderSpeed(); renderSchedule(); renderPublicIp(); renderHistory(); renderWanPickers(); renderSettings(); renderConfig(); renderMsgs(); if (!state.logs.length) $('logOutput').textContent = state.logRead && $('detailsLog').open ? t('diag.noLines') : t('diag.logHint'); };
   async function loadChart() {
-    const request = ++state.chartRequest, key = chartKey(), target = state.target, query = rq(), address = state.address;
+    const request = ++state.chartRequest, key = chartKey(), target = state.target, query = rq() + wanParam(), address = state.address;
     try {
       const result = await api(target ? `/api/targets/history?target=${encodeURIComponent(target)}&${query}${address ? '&address=' + encodeURIComponent(address) : ''}` : `/api/history?${query}`);
       if (!Array.isArray(result.data)) throw new Error(t('err.badHistory'));
@@ -1148,8 +1163,8 @@
     const tasks = [
       ['config', '/api/config', r => { state.config = r; if (!state.speedInitialized) { $('secure').checked = r.speedtest_secure !== false; $('serverId').value = r.speedtest_csv ? '' : r.speedtest_server || ''; state.speedInitialized = true; } }],
       ['latest', '/api/score/latest', r => { if (!Object.prototype.hasOwnProperty.call(r, 'data')) throw bad(); state.latest = r.data; }],
-      ['targets', '/api/targets/recent?' + query, r => { if (!Array.isArray(r.data)) throw bad(); state.targets = r.data; state.startedAt = r.started_at ?? state.startedAt; }],
-      ['summary', '/api/history?' + query, r => { if (!Array.isArray(r.data)) throw bad(); state.summary = r.data; }],
+      ['targets', '/api/targets/recent?' + query + wanParam(), r => { if (!Array.isArray(r.data)) throw bad(); state.targets = r.data; state.startedAt = r.started_at ?? state.startedAt; }],
+      ['summary', '/api/history?' + query + wanParam(), r => { if (!Array.isArray(r.data)) throw bad(); state.summary = r.data; }],
       ['events', '/api/events?' + query, r => { if (!Array.isArray(r.data)) throw bad(); state.events = r.data; }],
       ['loss', '/api/loss?' + query + (state.lossTarget ? '&target=' + encodeURIComponent(state.lossTarget) : ''), r => { if (!r.data || !Array.isArray(r.data.targets) || !Array.isArray(r.data.episodes)) throw bad(); state.loss = r.data; state.lossTruncated = Boolean(r.truncated); state.lossRowsCapped = r.data.rows_capped === true; }],
       ...(state.win ? [['live', '/api/targets/recent?range=300', r => { if (!Array.isArray(r.data)) throw bad(); state.liveTargets = r.data; }]] : []),
@@ -1158,7 +1173,7 @@
       ['speedHistory', '/api/speedtest/history?limit=10', r => { if (!Array.isArray(r.tests)) throw bad(); state.speedHistory = r.tests; }]
     ];
     resumeSpeedWatch();
-    loadPrefs().then(loadPublicIp); // optional extras never hold the dashboard back (a slow lookup service must not delay the data)
+    loadPrefs().then(() => { loadPublicIp(); loadWanSources(); }); // optional extras never hold the dashboard back (a slow lookup service must not delay the data)
     await Promise.allSettled([state.cmp.on ? loadCompare() : loadChart(), ...tasks.map(async ([name, url, apply]) => { try { const result = await api(url); if ((name === 'targets' || name === 'events' || name === 'summary' || name === 'loss' || name === 'live') && rk !== rangeKey()) return; apply(result); delete state.errors[name]; state.loaded.add(name); scheduleDraw(); } catch (e) { state.errors[name] = errorText(e); } })]);
     state.refreshing = false; $('refreshBtn').disabled = false; draw();
     if (state.refreshQueued) { state.refreshQueued = false; refresh(); }
@@ -1194,6 +1209,47 @@
     } catch (e) { state.prefsError = errorText(e); }
     renderSchedule(); renderHistory();
   }
+  /* ---------- WAN sources: one selector state shared by the chart and the targets table ---------- */
+  const wanSources = () => state.wanData?.sources || [];
+  const wanSame = (a, b) => a[0] === b[0] && (a[1] || '') === (b[1] || '');
+  async function loadWanSources() {
+    if (state.prefs?.show_public_ip !== true) { state.wanData = null; if (state.wanSel) { state.wanSel = null; state.charts.clear(); } renderWanPickers(); return; }
+    try { const r = await api('/api/wan/sources?' + rq()); if (Array.isArray(r.sources)) state.wanData = r; } catch (e) { /* optional */ }
+    renderWanPickers();
+  }
+  function renderWanPickers() {
+    const known = wanSources().filter(x => x.wan_ip), cur = state.wanData?.current;
+    const show = state.prefs?.show_public_ip === true && (known.length > 0 || state.wanSel);
+    for (const id of ['wanPickChart', 'wanPickTargets']) $(id).hidden = !show;
+    const options = [`<option value="all">${escape(t('wan.all'))}</option>`];
+    const rows = wanSources().map(x => [x.wan_ip || '', x.wan_isp || '', x.samples]);
+    if (state.wanSel && !rows.some(r => wanSame([r[0], r[1]], state.wanSel))) rows.push([state.wanSel[0], state.wanSel[1] || '', 0]);
+    rows.forEach((r, i) => {
+      const isCurrent = cur && r[0] === cur.wan_ip && (r[1] || '') === (cur.wan_isp || '');
+      options.push(`<option value="${i}">${escape((isCurrent ? t('wan.current') + ': ' : '') + wanLabel(r[0], r[1]) + (r[2] ? ' · ' + t('wan.samplesN', {n: r[2]}) : ''))}</option>`);
+    });
+    state.wanRows = rows;
+    const index = state.wanSel ? rows.findIndex(r => wanSame([r[0], r[1]], state.wanSel)) : -1;
+    for (const id of ['wanSelectChart', 'wanSelectTargets']) { $(id).innerHTML = options.join(''); $(id).value = index >= 0 ? String(index) : 'all'; }
+    // the native quality score belongs to the whole network: it is not drawn for a single WAN
+    const score = document.querySelector('#metricTabs [data-metric="score"]');
+    if (score) { score.disabled = Boolean(state.wanSel); score.title = state.wanSel ? t('wan.noQuality') : ''; }
+    if (state.wanSel && state.metric === 'score') state.metric = 'avg_loss_pct';
+  }
+  function chooseWan(value) {
+    const row = value === 'all' ? null : state.wanRows?.[Number(value)];
+    state.wanSel = row ? [row[0], row[1]] : null;
+    state.charts.clear(); renderWanPickers(); refresh();
+  }
+  async function forgetWan() {
+    if (!window.confirm(t('wan.forgetConfirm'))) return;
+    state.historyBusy = true; renderHistory(); say('retMsg', null);
+    try {
+      const done = await api('/api/wan/forget', {method:'POST', headers:{'Content-Type':'application/json', 'X-NetProbe-Request':'settings'}, body:JSON.stringify({confirm:true})});
+      state.wanSel = null; state.charts.clear(); say('retMsg', 'wan.forgotten', {n: num(done.forgotten)}); refresh();
+    } catch (e) { say('retMsg', 'hist.fail', {e: errorText(e)}); }
+    finally { state.historyBusy = false; await loadPrefs(); }
+  }
   async function loadPublicIp() {
     clearTimeout(state.ipTimer);
     try { state.publicIp = await api('/api/public-ip'); } catch (e) { state.publicIp = null; }
@@ -1204,7 +1260,8 @@
   function renderPublicIp() {
     const r = state.publicIp, card = $('wanCard');
     $('show_public_ip').disabled = !state.prefs;
-    if (state.prefs) $('show_public_ip').checked = state.prefs.show_public_ip === true;
+    if (state.prefs) { $('show_public_ip').checked = state.prefs.show_public_ip === true; $('wan_notify').checked = state.prefs.wan_notify === true; }
+    $('wan_notify').disabled = !state.prefs || state.prefs.show_public_ip !== true;
     card.hidden = !r || r.enabled !== true;
     if (card.hidden) return;
     $('wanIp').textContent = r.pending ? t('wan.pending') : r.ip || '—';
@@ -1217,7 +1274,7 @@
   const num = n => Number(n).toLocaleString(locale());
   function renderHistory() {
     const p = state.prefs, h = state.history, days = p?.history_retention_days || 0;
-    for (const id of ['retKeep', 'retDays', 'retPreview', 'retDelete']) $(id).disabled = !p || state.historyBusy === true;
+    for (const id of ['retKeep', 'retDays', 'retPreview', 'retDelete', 'wanForget']) $(id).disabled = !p || state.historyBusy === true;
     if (p && !state.historyEditing) $('retKeep').value = String(days);
     $('retNote').textContent = !p ? '' : days ? t('hist.noteOn', {range: rangeText(days), when: () => h?.next_ts ? whenIn(h.next_ts, state.schedule?.timezone) : '—'}) : t('hist.noteOff');
     $('retLast').textContent = !p ? '' : h?.last ? t('hist.last', {when: () => when(h.last.ts), n: num(h.last.total), from: mib(h.last.bytes_before), to: mib(h.last.bytes_after)}) : t('hist.never');
@@ -1248,6 +1305,15 @@
       state.prefs = result.prefs; state.history = result.history || state.history; say('retMsg', 'hist.saved');
     } catch (e) { say('retMsg', 'hist.fail', {e: errorText(e)}); }
     finally { state.historyBusy = false; state.historyEditing = false; renderHistory(); }
+  }
+  async function saveWanNotify() {
+    const on = $('wan_notify').checked;
+    $('wan_notify').disabled = true;
+    try {
+      const result = await api('/api/prefs', {method:'POST', headers:{'Content-Type':'application/json', 'X-NetProbe-Request':'settings'}, body:JSON.stringify({wan_notify: on})});
+      state.prefs = result.prefs; say('ipMessage', null);
+    } catch (e) { $('wan_notify').checked = !on; say('ipMessage', 'ip.saveFail', {e: errorText(e)}); }
+    finally { renderPublicIp(); }
   }
   async function savePublicIp() {
     const on = $('show_public_ip').checked;
@@ -1388,7 +1454,7 @@
   $('goSettings').addEventListener('click', () => { openTab('settings'); $('unifiTabs').scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block:'start'}); });
   $('tilesRow').addEventListener('click', event => { const b = event.target.closest('[data-target]'); if (b) { selectTarget(b.dataset.target); $('diagnostics').scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block:'start'}); } });
   $('chartTarget').addEventListener('change', () => selectTarget($('chartTarget').value));
-  $('refreshBtn').addEventListener('click', refresh); $('speedBtn').addEventListener('click', runSpeed); $('speedBackend').addEventListener('change', saveService); $('schedForm').addEventListener('submit', saveSchedule); $('show_public_ip').addEventListener('change', savePublicIp); $('retKeep').addEventListener('focus', () => { state.historyEditing = true; }); $('retKeep').addEventListener('change', saveRetention); $('retKeep').addEventListener('blur', () => { state.historyEditing = false; }); $('retPreview').addEventListener('click', () => previewHistory(false)); $('retDelete').addEventListener('click', () => previewHistory(true)); $('schedMode').addEventListener('change', renderSchedule); $('forceAuto').addEventListener('change', updateSpeedControls);
+  $('refreshBtn').addEventListener('click', refresh); $('speedBtn').addEventListener('click', runSpeed); $('speedBackend').addEventListener('change', saveService); $('schedForm').addEventListener('submit', saveSchedule); $('show_public_ip').addEventListener('change', savePublicIp); $('wan_notify').addEventListener('change', saveWanNotify); $('retKeep').addEventListener('focus', () => { state.historyEditing = true; }); $('retKeep').addEventListener('change', saveRetention); $('retKeep').addEventListener('blur', () => { state.historyEditing = false; }); $('wanSelectChart').addEventListener('change', event => chooseWan(event.target.value)); $('wanSelectTargets').addEventListener('change', event => chooseWan(event.target.value)); $('wanForget').addEventListener('click', forgetWan); $('retPreview').addEventListener('click', () => previewHistory(false)); $('retDelete').addEventListener('click', () => previewHistory(true)); $('schedMode').addEventListener('change', renderSchedule); $('forceAuto').addEventListener('change', updateSpeedControls);
   $('settingsForm').addEventListener('submit', saveSettings); $('settingsForm').addEventListener('input', () => { state.settingsDirty = true; say('settingsMessage', 'set.dirty'); });
   $('detailsLog').addEventListener('toggle', loadLogs);
   $('turboInfo').addEventListener('click', () => $('turboDialog').showModal());

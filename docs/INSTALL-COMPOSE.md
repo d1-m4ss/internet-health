@@ -144,8 +144,10 @@ All of this is set in the web UI and needs no restart (stored in `$D/netprobe-pr
   previews, *Delete…* deletes on demand after a confirmation. Deletion cannot be undone — copy `$D/netprobe.sqlite`
   first if the history matters.
 - Settings → **Show my external IP and provider**: off by default; when ticked, the container asks `ipwho.is` for
-  your address and provider name (at most every 5 minutes) and shows them in the *WAN / ISP* card under the status
-  banner.
+  your address once a minute (and `ipwho.is` for the provider name when it changes) and shows them in the *WAN / ISP* card
+  under the status banner. Every measurement is then stored with the address and provider that carried it (the *WAN
+  source* selectors above the chart and the targets table); tick *Send a notification when the external IP or provider
+  changes* to be told about a failover. *Forget WAN addresses…* (History) erases what was recorded.
 
 ## 7. Tuning later (all in the data folder)
 

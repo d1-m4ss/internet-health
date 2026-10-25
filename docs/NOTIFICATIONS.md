@@ -133,6 +133,25 @@ The *Speedtest* tab (*Schedule and notifications*) can run the test automaticall
 Time: 03:02, 10.03.2026 EET
 ```
 
+## WAN change
+
+With *Show my external IP and provider* on, NetProbe remembers the last WAN (`/data/wan-state.json`). *Send a notification
+when the external IP or provider changes* sends one message when the address changes — useful when the router fails over to
+a backup link. The new address must be seen by two checks in a row (a minute apart), so one odd answer is not a change; a
+provider name that only changed its spelling with the same address is ignored; at most 6 messages per hour. The level is
+`warning` when the provider changed and `normal` when only the address did.
+
+```text
+🌐 WAN changed: Beta Cable
+
+• Before: Alpha Net · 203.0.113.10 (since 14:03, 24.10)
+• Now: Beta Cable · 198.51.100.20
+
+The router may have switched to another link, or the provider assigned a new address.
+
+Time: 14:05, 25.10.2026 CET
+```
+
 Delivery is at-least-once: a message stays queued until the bridge acknowledges it, and a failing `notify` never
 loses messages. The bridge (`src/netprobe-unraid-notify.sh`) also reports its own health: two stale polls in a row
 produce *monitoring is not working*, two fresh ones *monitoring is working again*.
