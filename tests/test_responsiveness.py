@@ -116,7 +116,7 @@ class BackgroundSpeedtestTests(AppTestCase):
             self.assertTrue(self.wait_done()["success"])
 
     def test_real_run_through_the_job_stores_the_result(self):
-        fast = {"ping_ms": 11.5, "download_mbps": 321.5, "upload_mbps": None, "server": {"id": None, "name": "Netflix, Brasov", "host": "oca", "country": "RO"},
+        fast = {"ping_ms": 11.5, "download_mbps": 321.5, "upload_mbps": None, "server": {"id": None, "name": "Netflix, Example City", "host": "oca", "country": "RO"},
                 "jitter_ms": 1.0, "packet_loss_pct": None, "isp": None, "result_url": None, "protocol": "https", "secure": True}
         with patch.object(self.module.custom_extension, "run_fast_speedtest", return_value=fast):
             self.client.post("/api/speedtest/run", json={"backend": "fast", "async": True})

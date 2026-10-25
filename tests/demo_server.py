@@ -91,6 +91,12 @@ def main():
                          "requested_server_id,backend) VALUES (?,?,?,?,?,?,?,?,?,?)",
                          (now - int(hours_ago * 3600), ping, down, up, "10001", "Example City", "speedtest.example.net:8080", "Exampleland", None, "python"))
 
+    # the extension features shown in the screenshots; nothing here touches the network: the lookup is replaced by invented values
+    ext = module.custom_extension
+    ext.ip_fetch = lambda url, timeout=None: ("198.51.100.23", "Example Broadband Ltd")  # documentation address, invented provider
+    ext.update_prefs({"show_public_ip": True, "speedtest_service": "python", "speedtest_schedule": "daily",
+                      "speedtest_times": ["03:00"], "speedtest_notify": True})
+
     def keep_probing():  # new probe every STEP seconds so the dashboard stays LIVE
         index = total
         while True:

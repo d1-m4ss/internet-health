@@ -26,6 +26,7 @@ function startDemo(port, extra = []) {
     await page.addInitScript(s => { try { localStorage.setItem('netprobe.style', s); localStorage.setItem('netprobe.lang', 'en'); } catch (e) {} }, style);
     await page.goto('http://127.0.0.1:' + port + '/');
     await page.waitForFunction(() => /^LIVE/.test(document.getElementById('sourceTag').textContent), null, {timeout: 30000});
+    await page.waitForFunction(() => document.getElementById('wanCard').hidden || !/Looking/.test(document.getElementById('wanIp').textContent), null, {timeout: 30000});
     await page.waitForTimeout(1200);
     return {ctx, page};
   }
@@ -39,6 +40,25 @@ function startDemo(port, extra = []) {
     {
       const {ctx, page} = await open(8799, 'unifi', 'light', 390, 844);
       await page.screenshot({path: `${out}/mobile-unifi-light.png`});
+      await ctx.close();
+    }
+    {
+      const {ctx, page} = await open(8799, 'unifi', 'light', 390, 844);
+      await page.evaluate(() => window.scrollTo(0, 1400));
+      await page.waitForTimeout(300);
+      await page.screenshot({path: `${out}/mobile-menu-pinned.png`});
+      await ctx.close();
+    }
+    {
+      const {ctx, page} = await open(8799, 'unifi', 'light', 1440, 1000);
+      await page.locator('#unifiTabs [data-tab="speedtest"]').click();
+      await page.locator('#schedBox summary').click();
+      await page.waitForTimeout(500);
+      await page.locator('#speedtest').screenshot({path: `${out}/speedtest-schedule.png`});
+      await page.locator('#unifiTabs [data-tab="settings"]').click();
+      await page.locator('#alertSettings').evaluate(e => e.open = true);
+      await page.waitForTimeout(500);
+      await page.locator('#settingsCard').screenshot({path: `${out}/settings-history.png`});
       await ctx.close();
     }
     {

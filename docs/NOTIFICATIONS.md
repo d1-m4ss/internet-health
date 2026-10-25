@@ -127,7 +127,7 @@ The *Speedtest* tab (*Schedule and notifications*) can run the test automaticall
 • Download: 482.3 Mbps
 • Upload: 91.0 Mbps
 • Ping: 12.0 ms
-• Server: Netflix, Brasov, RO
+• Server: Netflix, Example City, RO
 • Previous: ↓ 470 / ↑ 88 Mbps (03:01, 09.03)
 
 Time: 03:02, 10.03.2026 EET

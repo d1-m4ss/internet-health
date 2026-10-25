@@ -56,7 +56,7 @@ class FakeFast(ThreadingHTTPServer):
             elif self.path.startswith("/netflix/speedtest/v2"):
                 assert "token=FAKETOKEN12345" in self.path
                 targets = [{"name": "t%d" % i, "url": "%s/speedtest?c=ro&t=k%d" % (self.server.base, i),
-                            "location": {"city": "Brasov", "country": "RO"}} for i in range(opts["targets"])]
+                            "location": {"city": "Example City", "country": "RO"}} for i in range(opts["targets"])]
                 self.reply(200, json.dumps({"client": {"ip": "203.0.113.9", "isp": "ExampleNet"}, "targets": targets}).encode(), "application/json")
             elif self.path.startswith("/speedtest/range/0-"):
                 size = int(self.path.split("/range/0-")[1].split("?")[0])
@@ -100,7 +100,7 @@ class FastClientTests(unittest.TestCase):
         self.assertGreater(result["download_mbps"], 1)
         self.assertGreater(result["upload_mbps"], 1)
         self.assertGreaterEqual(result["ping_ms"], 0)
-        self.assertEqual(result["server"], {"id": None, "name": "Netflix, Brasov", "host": "127.0.0.1", "country": "RO"})
+        self.assertEqual(result["server"], {"id": None, "name": "Netflix, Example City", "host": "127.0.0.1", "country": "RO"})
         self.assertEqual((result["isp"], result["protocol"], result["secure"]), ("ExampleNet", "https", True))
         self.assertNotIn("203.0.113.9", json.dumps(result), "the client address is not part of a stored result")
         methods = {m for m, _ in self.server.hits}
@@ -221,7 +221,7 @@ class AppWiringTests(unittest.TestCase):
             spec.loader.exec_module(self.module)
         self.client = self.module.app.test_client()
         self.fast_result = {"ping_ms": 11.5, "download_mbps": 321.5, "upload_mbps": None,
-                            "server": {"id": None, "name": "Netflix, Brasov", "host": "oca.example", "country": "RO"},
+                            "server": {"id": None, "name": "Netflix, Example City", "host": "oca.example", "country": "RO"},
                             "jitter_ms": 1.0, "packet_loss_pct": None, "isp": "ExampleNet", "result_url": None,
                             "protocol": "https", "secure": True}
 
@@ -253,7 +253,7 @@ class AppWiringTests(unittest.TestCase):
                          ("fast", 321.5, None))
         latest = self.client.get("/api/speedtest/latest").get_json()["result"]
         self.assertEqual((latest["backend"], latest["download_mbps"], latest["upload_mbps"], latest["ping_ms"]), ("fast", 321.5, None, 11.5))
-        self.assertEqual(latest["server"]["name"], "Netflix, Brasov")
+        self.assertEqual(latest["server"]["name"], "Netflix, Example City")
         row = sqlite3.connect(self.db).execute("SELECT backend, upload_mbps FROM speedtests ORDER BY ts DESC LIMIT 1").fetchone()
         self.assertEqual(row, ("fast", None))
 

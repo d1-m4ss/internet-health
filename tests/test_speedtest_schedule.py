@@ -17,12 +17,12 @@ sys.path.insert(0, str(ROOT / "tests"))
 from fixture_db import make_database  # noqa: E402
 import netprobe_extensions as npx  # noqa: E402
 
-BUCHAREST = ZoneInfo("Europe/Bucharest")
+BERLIN = ZoneInfo("Europe/Berlin")
 HEADERS = {"X-NetProbe-Request": "settings"}
 
 
 def local(year, month, day, hour, minute=0):
-    return datetime(year, month, day, hour, minute, tzinfo=BUCHAREST).timestamp()
+    return datetime(year, month, day, hour, minute, tzinfo=BERLIN).timestamp()
 
 
 class Base(unittest.TestCase):
@@ -37,7 +37,7 @@ class Base(unittest.TestCase):
         self.addCleanup(self.conn.close)
         self.conn.execute("DELETE FROM speedtests")
         self.conn.commit()
-        env = patch.dict(os.environ, {"APP_TIMEZONE": "Europe/Bucharest"})
+        env = patch.dict(os.environ, {"APP_TIMEZONE": "Europe/Berlin"})
         env.start()
         self.addCleanup(env.stop)
         self.now = now
@@ -51,7 +51,7 @@ class Base(unittest.TestCase):
 
     def add_test(self, ts, down=400.0, up=90.0, ping=12.0, backend="fast"):
         self.conn.execute("INSERT INTO speedtests(ts,ping_ms,download_mbps,upload_mbps,backend,server_name,server_country) VALUES (?,?,?,?,?,?,?)",
-                          (int(ts), ping, down, up, backend, "Netflix, Brasov", "RO"))
+                          (int(ts), ping, down, up, backend, "Netflix, Example City", "RO"))
         self.conn.commit()
 
 
@@ -131,19 +131,20 @@ class ScheduleTests(Base):
         self.assertFalse(self.ext.speedtest_due(self.now))
 
     def test_times_use_the_container_timezone(self):
-        now_utc = datetime(2026, 3, 10, 3, 10, tzinfo=timezone.utc).timestamp()
-        self.assertFalse(self.ext.speedtest_due(now_utc), "03:10 UTC is 05:10 in Bucharest: the 03:00 slot is past its catch-up window")
+        now_utc = datetime(2026, 3, 10, 2, 10, tzinfo=timezone.utc).timestamp()  # 03:10 in Berlin, 02:10 in UTC
+        self.assertTrue(self.ext.speedtest_due(now_utc), "03:10 in the configured zone: the 03:00 slot has just passed")
         with patch.dict(os.environ, {"APP_TIMEZONE": "UTC"}):
-            self.assertTrue(self.ext.speedtest_due(now_utc), "the same instant is 03:10 in UTC")
+            self.assertFalse(self.ext.speedtest_due(now_utc), "the same instant is 02:10 in UTC: the 03:00 slot is still ahead")
         with patch.dict(os.environ, {"APP_TIMEZONE": "Nowhere/Land"}):
             self.assertEqual(str(self.ext.tz), "UTC", "an unknown zone falls back to UTC instead of failing")
 
     def test_clocks_going_back_do_not_run_the_slot_twice(self):
-        # 2026-10-25: Bucharest goes from 04:00 EEST back to 03:00 EET, so 03:xx happens twice
-        self.now = local(2026, 10, 25, 3, 10)
+        # 2026-10-25: Berlin goes from 03:00 CEST back to 02:00 CET, so 02:xx happens twice
+        self.prefs(speedtest_times=["02:30"])
+        self.now = local(2026, 10, 25, 2, 40)
         self.assertTrue(self.ext.speedtest_due(self.now))
         self.add_test(self.now)
-        self.now += 3600  # the repeated 03:10
+        self.now += 3600  # the repeated 02:40
         self.assertFalse(self.ext.speedtest_due(self.now))
 
     def test_next_test_is_reported(self):
@@ -153,11 +154,11 @@ class ScheduleTests(Base):
         self.prefs(speedtest_schedule="off")
         self.assertIsNone(self.ext.next_speedtest(self.now))
         data = self.client.get("/api/prefs").get_json()
-        self.assertEqual((data["schedule"]["next_ts"], data["schedule"]["timezone"]), (None, "Europe/Bucharest"))
+        self.assertEqual((data["schedule"]["next_ts"], data["schedule"]["timezone"]), (None, "Europe/Berlin"))
 
     def test_api_shows_the_next_daily_test(self):
         data = self.client.get("/api/prefs").get_json()
-        self.assertEqual(data["schedule"], {"next_ts": local(2026, 3, 11, 3, 0), "timezone": "Europe/Bucharest"})
+        self.assertEqual(data["schedule"], {"next_ts": local(2026, 3, 11, 3, 0), "timezone": "Europe/Berlin"})
 
 
 class IntervalTests(Base):
@@ -186,7 +187,7 @@ class NotificationTests(Base):
     def setUp(self):
         self.make_ext(local(2026, 3, 10, 3, 10))
         self.result = {"download_mbps": 482.34, "upload_mbps": 91.0, "ping_ms": 12.04, "backend": "fast",
-                       "server": {"name": "Netflix, Brasov", "country": "RO"}}
+                       "server": {"name": "Netflix, Example City", "country": "RO"}}
 
     def queued(self):
         return self.conn.execute("SELECT level,subject,description,message FROM np_notifications ORDER BY id").fetchall()
@@ -209,7 +210,7 @@ class NotificationTests(Base):
         self.assertIn("• Download: 482.3 Mbps", lines)
         self.assertIn("• Upload: 91.0 Mbps", lines)
         self.assertIn("• Ping: 12.0 ms", lines)
-        self.assertIn("• Server: Netflix, Brasov, RO", lines)
+        self.assertIn("• Server: Netflix, Example City, RO", lines)
         self.assertEqual([l for l in lines if l.startswith("• Previous")], ["• Previous: ↓ 470 / ↑ 88 Mbps (03:01, 09.03)"])
         self.assertTrue(re.fullmatch(r"Time: \d\d:\d\d, 10\.03\.2026 .+", lines[-1]), lines[-1])
         self.assertNotRegex(message.replace("\\n", ""), r"[\x00-\x1f\\]")
