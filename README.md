@@ -62,6 +62,9 @@ bind-mounted read-only over it. Removing the mounts brings the stock NetProbe ba
 - **A message when the WAN changes.** Optional (*Send a notification when the external IP or provider changes*): one
   Unraid message with before and now — a warning when the provider changed (typically a switch to a backup link), an
   information message when only the address changed — confirmed by two checks in a row, at most 6 per hour.
+- **Database backups from the page.** Settings → *History* → *Back up now* writes a complete, consistent copy of the database while
+  monitoring keeps running (`/data/db-backups`, the 5 newest are kept); each copy can be downloaded or deleted there. Deleting history
+  by hand makes a copy first and stops if it cannot. Restoring: [docs/INSTALL-UNRAID.md → Restoring a backup](docs/INSTALL-UNRAID.md#restoring-a-backup).
 - **History retention (off by default).** The database grows without limit unless you say otherwise. In the settings
   choose to keep history for 7 / 30 / 90 / 180 days or 1 year: older records (target checks, DNS, events, Speedtests,
   delivered notifications) are then deleted once a night, in small batches, and the file is compacted. You can also

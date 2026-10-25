@@ -11,7 +11,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
   try {
     const now = Math.floor(Date.now() / 1000);
     const api = {
-      prefs: {speedtest_service: '', speedtest_schedule: 'container', speedtest_interval_h: 6, speedtest_times: ['03:00'], speedtest_notify: false, show_public_ip: false, wan_check_min: 15, wan_notify: false, history_retention_days: 0, notify_unraid: true}, history: {last: null, next_ts: null, db_bytes: 5320000, oldest_ts: now - 86400 * 40}, cleanupTotal: 1234, cleanupError: null, publicIp: {enabled: false}, targets: [], wanData: {sources: [], current: null}, publicIpDelay: 0, series: [], tg: {enabled: false, configured: false, token_set: false, chat_id: '', source: null, last_ok_ts: null, last_error: null, last_error_ts: null}, tgFail: null, delays: {}, statusSeq: [], status: {running: false, success: null, error: null, result: null}, runStatus: 202, prefsFail: false, prefsReadFail: false, speedRun: null, calls: [],
+      prefs: {speedtest_service: '', speedtest_schedule: 'container', speedtest_interval_h: 6, speedtest_times: ['03:00'], speedtest_notify: false, show_public_ip: false, wan_check_min: 15, wan_notify: false, history_retention_days: 0, notify_unraid: true}, history: {last: null, next_ts: null, db_bytes: 5320000, oldest_ts: now - 86400 * 40}, cleanupTotal: 1234, cleanupError: null, publicIp: {enabled: false}, targets: [], wanData: {sources: [], current: null}, publicIpDelay: 0, series: [], backups: [], backupFail: null, tg: {enabled: false, configured: false, token_set: false, chat_id: '', source: null, last_ok_ts: null, last_error: null, last_error_ts: null}, tgFail: null, delays: {}, statusSeq: [], status: {running: false, success: null, error: null, result: null}, runStatus: 202, prefsFail: false, prefsReadFail: false, speedRun: null, calls: [],
       latest: {ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server: {id: '1', name: 'Example City', country: 'EX'}, backend: 'python'},
       history: [{ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server_id: '1', server_name: 'Example City', backend: 'python'}],
     };
@@ -26,6 +26,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
         const body = request.method() === 'POST' ? request.postDataJSON() : undefined;
         api.calls.push({path: url.pathname, query: url.search, method: request.method(), headers: request.headers(), body});
         if (api.delays[url.pathname]) await new Promise(r => setTimeout(r, api.delays[url.pathname]));
+        if (/^\/api\/backups\/[^/]+\/delete$/.test(url.pathname)) { const name = url.pathname.split('/')[3]; api.backups = api.backups.filter(b => b.name !== name); return route.fulfill({json: {running: false, error: null, backups: api.backups, keep: 5, db_bytes: 5320000, free_bytes: 90e9}}); }
         switch (url.pathname) {
           case '/api/config': return route.fulfill({json: {probe_interval: 30, ping_count: 4, sites: ['edge.example'], speedtest_backend: 'python', speedtest_secure: true, speedtest_enabled: true, speedtest_interval: 14400,
             speedtest_backends_available: {python: true, ookla: false, fast: true}, speedtest_ookla_accept_license: false}});
@@ -68,6 +69,13 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
           }
           case '/api/public-ip': if (api.publicIpDelay) await new Promise(r => setTimeout(r, api.publicIpDelay)); return route.fulfill({json: api.publicIp});
           case '/api/speedtest/latest': return route.fulfill({json: {result: api.latest}});
+          case '/api/backups':
+            if (request.method() === 'POST') {
+              if (api.backupFail) return route.fulfill({status: 507, json: {error: api.backupFail}});
+              api.backups.unshift({name: 'netprobe-20261026-0' + (10 + api.backups.length) + '000.sqlite', ts: now, bytes: 5300000});
+              api.backups = api.backups.slice(0, 5);
+            }
+            return route.fulfill({status: request.method() === 'POST' ? 202 : 200, json: {running: false, started_at: now, finished_at: now, error: null, name: api.backups[0]?.name ?? null, backups: api.backups, keep: 5, db_bytes: 5320000, free_bytes: 90e9}});
           case '/api/speedtest/series': return route.fulfill({json: {tests: api.series.filter(r => r.ts >= now - Number(url.searchParams.get('range'))), range: Number(url.searchParams.get('range'))}});
           case '/api/speedtest/history': return route.fulfill({json: {tests: api.history}});
           case '/api/speedtest/run': return route.fulfill(api.runStatus === 202 ? {status: 202, json: {success: true, started: true}} : {status: api.runStatus, json: {success: false, error: 'A Speedtest is already running. Wait for it to finish and try again.'}});
@@ -314,6 +322,40 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       await page.locator('#spRange').selectOption('604800');
       await page.waitForFunction(() => /measured by Fast\.com only/.test(document.getElementById('speedChartNote').textContent));
       assert.deepEqual(await legend(), ['Idle ping, ms']);
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+
+    // --- database backups: make, list, download link, delete ---
+    {
+      api.backups = [];
+      const {page, errors} = await open('netprobe', 'en');
+      await page.locator('#alertSettings').evaluate(e => e.open = true);
+      await page.waitForFunction(() => document.getElementById('bkList').textContent.includes('No backups yet.'));
+      assert.match(await page.locator('#bkMessage').textContent(), /^Free disk space: .+; database: 5\.07 MiB\.$/);
+      assert.match(await page.locator('#bkBox .card-sub').first().textContent(), /the 5 newest stay/);
+      await page.locator('#bkCreate').click();
+      await page.waitForFunction(() => /^Backup created: netprobe-/.test(document.getElementById('bkMessage').textContent));
+      assert.equal(await page.locator('#bkList tr').count(), 1);
+      assert.equal(await page.locator('#bkList a').getAttribute('href'), '/api/backups/netprobe-20261026-010000.sqlite');
+      assert.equal(await page.locator('#bkList a').getAttribute('download') !== null, true);
+      assert.match(await page.locator('#bkList td').nth(1).textContent(), /5\.05 MiB/);
+      // a refusal is said plainly
+      api.backupFail = 'Not enough free space for a backup: 3 MiB free, about 14 MiB needed';
+      await page.locator('#bkCreate').click();
+      await page.waitForFunction(() => /The backup failed: Not enough free space/.test(document.getElementById('bkMessage').textContent));
+      assert.equal(await page.locator('#bkList tr').count(), 1);
+      api.backupFail = null;
+      // delete asks first
+      let asked = '';
+      page.once('dialog', async d => { asked = d.message(); await d.dismiss(); });
+      await page.locator('#bkList [data-bk-del]').click();
+      await page.waitForTimeout(200);
+      assert.match(asked, /Delete the backup netprobe-20261026-010000\.sqlite\?/);
+      assert.equal(api.backups.length, 1);
+      page.once('dialog', d => d.accept());
+      await page.locator('#bkList [data-bk-del]').click();
+      await page.waitForFunction(() => document.getElementById('bkList').textContent.includes('No backups yet.'));
       assert.deepEqual(errors, []);
       await page.close();
     }
@@ -816,9 +858,19 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       assert.match(dialogs.pop(), /Delete 1,234 records older than 180 days\? This cannot be undone\./);
       assert.equal(cleanups().filter(c => c.body.confirm).length, 0, 'refused: nothing was deleted');
       answer = true;
+      // a failing backup stops the deletion
+      api.backupFail = 'Not enough free space for a backup: 3 MiB free, about 14 MiB needed';
+      await page.locator('#retDelete').click();
+      await page.waitForFunction(() => /Nothing was deleted: the backup could not be made \(Not enough free space/.test(document.getElementById('retMsg').textContent));
+      assert.equal(cleanups().filter(c => c.body.confirm).length, 0, 'no copy, no deletion');
+      api.backupFail = null;
+      api.calls.length = 0;
       await page.locator('#retDelete').click();
       await page.waitForFunction(() => /1,234 records deleted; database 5\.07 MiB → 2\.00 MiB/.test(document.getElementById('retMsg').textContent));
       assert.deepEqual(cleanups().filter(c => c.body.confirm).pop().body, {days: 180, confirm: true});
+      const order = api.calls.filter(c => c.method === 'POST').map(c => c.path);
+      assert(order.indexOf('/api/backups') >= 0 && order.indexOf('/api/backups') < order.indexOf('/api/history/cleanup', order.indexOf('/api/backups')), 'the copy is made before the deletion: ' + order.join(' '));
+      assert.equal(api.backups.length, 1);
       await page.waitForFunction(() => /Last cleanup: .+ — 1,234 records deleted; database 5\.07 MiB → 2\.00 MiB/.test(document.getElementById('retLast').textContent));
 
       // nothing older: no question at all; a busy server is reported

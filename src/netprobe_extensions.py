@@ -15,6 +15,7 @@ import os
 import re
 from pathlib import Path
 import secrets
+import shutil
 import sqlite3
 import ssl
 import statistics
@@ -67,6 +68,9 @@ SPEEDTEST_SERVICES = ("", "python", "ookla", "fast")
 SPEEDTEST_SCHEDULES = ("container", "off", "interval", "daily")
 SPEEDTEST_CATCHUP = 7200  # a daily test missed by up to two hours (container was restarting) still runs
 SPEEDTEST_TIMES_MAX = 4
+BACKUP_DIR = "db-backups"      # inside the data folder
+BACKUP_KEEP = 5                # the newest copies kept; older ones are deleted after a new one succeeded
+BACKUP_NAME = re.compile(r"^netprobe-\d{8}-\d{6}\.sqlite$")
 SPEED_ICON = "📶"
 SPEED_DROP_CHOICES = (0, 20, 30, 50)  # percent below the 7-day median that counts as a drop; 0 = off
 SPEED_DROP_WINDOW = 7 * 86400
@@ -444,6 +448,8 @@ class Extension:
         self.wan_pending = None   # (address, provider) seen once; a change is reported when the next check sees it again
         self.wan_checked_at = None  # when the watcher last checked (its interval is counted from here)
         self.cleanup_lock = threading.Lock()
+        self.backup_lock = threading.Lock()
+        self.backup_job = dict(running=False, started_at=None, finished_at=None, error=None, name=None)
         if not self.settings_path.exists():
             self._write_settings(DEFAULTS)
         self.token = self._load_token(self.data_dir / "notify-token")
@@ -678,6 +684,88 @@ class Extension:
 
     def db_bytes(self):
         return sum(p.stat().st_size for p in [Path(self.db_path), Path(self.db_path + "-wal")] if p.exists())
+
+    # ---- database backups (a consistent copy while the monitor keeps writing: VACUUM INTO) -------------
+    @property
+    def backup_path(self):
+        return self.data_dir / BACKUP_DIR
+
+    def backups(self):
+        """[{name, ts, bytes}] newest first."""
+        found = []
+        for entry in (self.backup_path.iterdir() if self.backup_path.is_dir() else []):
+            if BACKUP_NAME.match(entry.name) and entry.is_file() and not entry.is_symlink():
+                stat = entry.stat()
+                found.append(dict(name=entry.name, ts=int(stat.st_mtime), bytes=stat.st_size))
+        return sorted(found, key=lambda b: b["name"], reverse=True)
+
+    def backup_status(self):
+        with self.lock:
+            job = dict(self.backup_job)
+        return dict(job, backups=self.backups(), keep=BACKUP_KEEP, db_bytes=self.db_bytes(), free_bytes=self._free_bytes())
+
+    def _free_bytes(self):
+        try:
+            return shutil.disk_usage(self.data_dir).free
+        except OSError:
+            return None
+
+    def start_backup(self, wait=False):
+        """Make a copy in the background; -> False when one is already running. ValueError when the disk is too full."""
+        free, need = self._free_bytes(), int(self.db_bytes() * 1.2) + 8 * 1024 * 1024
+        if free is not None and free < need:
+            raise ValueError("Not enough free space for a backup: %.0f MiB free, about %.0f MiB needed" % (free / 1048576, need / 1048576))
+        if not self.backup_lock.acquire(blocking=False):
+            return False
+        with self.lock:
+            self.backup_job.update(running=True, started_at=int(self.clock()), finished_at=None, error=None, name=None)
+
+        def run():
+            error, name = None, None
+            try:
+                name = self._make_backup()
+            except Exception as exc:
+                logger.exception("Database backup failed")
+                error = " ".join(CONTROL_CHARS.sub(" ", str(exc) or type(exc).__name__).split())[:300]
+            finally:
+                with self.lock:
+                    self.backup_job.update(running=False, finished_at=int(self.clock()), error=error, name=name)
+                self.backup_lock.release()
+        thread = threading.Thread(target=run, name="netprobe-backup", daemon=True)
+        thread.start()
+        if wait:
+            thread.join()
+        return True
+
+    def _make_backup(self):
+        folder = self.backup_path
+        folder.mkdir(mode=0o700, exist_ok=True)
+        stamp = datetime.fromtimestamp(self.clock(), self.tz).strftime("%Y%m%d-%H%M%S")
+        name, partial = "netprobe-%s.sqlite" % stamp, folder / (".partial-%s" % stamp)
+        target = folder / name
+        if target.exists():  # two backups within a second: the second one waits for the next free name
+            raise RuntimeError("A backup with this time already exists; try again in a second")
+        conn = sqlite3.connect(self.db_path, timeout=60, isolation_level=None)
+        try:
+            conn.execute("VACUUM INTO ?", (str(partial),))
+        finally:
+            conn.close()
+        os.chmod(partial, 0o600)
+        os.replace(partial, target)
+        for old in self.backups()[BACKUP_KEEP:]:
+            try:
+                (folder / old["name"]).unlink()
+            except OSError:
+                logger.warning("Old backup %s could not be deleted", old["name"])
+        return name
+
+    def delete_backup(self, name):
+        if not BACKUP_NAME.match(name or ""):
+            raise ValueError("Not a backup name")
+        path = self.backup_path / name
+        if not path.is_file() or path.is_symlink():
+            raise FileNotFoundError(name)
+        path.unlink()
 
     def cleanup(self, days, dry_run=False):
         """Delete records older than `days` days from every history table; with dry_run only count them.
@@ -2135,6 +2223,46 @@ def install_routes(app, ext):
     @app.get("/api/about")
     def np_about():
         return jsonify(name="Internet Health", version=VERSION)
+
+    @app.get("/api/backups")
+    def np_backups():
+        response = jsonify(ext.backup_status())
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    @app.post("/api/backups")
+    def np_backup_create():
+        if not same_origin_request():
+            return jsonify(error="Same-origin settings request required"), 403
+        try:
+            started = ext.start_backup()
+        except ValueError as exc:
+            return jsonify(error=str(exc)), 507
+        if not started:
+            return jsonify(error="A backup is already running"), 409
+        return jsonify(ext.backup_status()), 202
+
+    @app.get("/api/backups/<name>")
+    def np_backup_download(name):
+        if not BACKUP_NAME.match(name):
+            return jsonify(error="Not a backup name"), 400
+        path = ext.backup_path / name
+        if not path.is_file() or path.is_symlink():
+            return jsonify(error="No such backup"), 404
+        from flask import send_file
+        return send_file(path, mimetype="application/vnd.sqlite3", as_attachment=True, download_name=name, max_age=0)
+
+    @app.post("/api/backups/<name>/delete")
+    def np_backup_delete(name):
+        if not same_origin_request():
+            return jsonify(error="Same-origin settings request required"), 403
+        try:
+            ext.delete_backup(name)
+        except ValueError as exc:
+            return jsonify(error=str(exc)), 400
+        except FileNotFoundError:
+            return jsonify(error="No such backup"), 404
+        return jsonify(ext.backup_status())
 
     @app.get("/api/telegram")
     def np_telegram():

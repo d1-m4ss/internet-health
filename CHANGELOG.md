@@ -5,6 +5,10 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+- **Database backups from the page** (Settings → *History*): *Back up now* makes a complete, consistent copy while monitoring keeps running
+  (`VACUUM INTO`, a background job, refused when the disk is too full) in `/data/db-backups`, keeps the 5 newest, and lists them with
+  *Download* and *Delete*. Deleting history by hand makes a copy first and stops if that fails. `GET/POST /api/backups`,
+  `GET /api/backups/<name>`, `POST /api/backups/<name>/delete`; restoring is described in INSTALL-UNRAID.
 - **Speedtest, extended.**
   - A **chart** in the *Speedtest* tab: speed (download, upload) or delay (idle ping, ping while downloading / uploading, jitter) over 24 h,
     7 or 30 days (the choice is remembered); an unmeasured value is a gap. `GET /api/speedtest/series`.

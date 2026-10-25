@@ -8,6 +8,7 @@
   `GET /api/telegram` and every other endpoint report only whether it is set, and error texts have it removed. Because the web UI has no
   authentication (see above), anyone who can open the page on your LAN can switch Telegram on or off, replace the token and the chat
   or press *Send test* — keep the port private. Only `api.telegram.org` is contacted, with a fixed URL built from the token you gave.
+- **Backups** (`/data/db-backups`, mode 600) are complete copies of the database; like the database itself they are served to anyone who can open the page (`GET /api/backups/<name>`), so keep the port private. Only file names of the exact backup form are served or deleted.
 - The extension adds no privileges to the container: no Docker socket, no host root, no extra capabilities.
 - Outbound requests happen only on request: Speedtest runs (manual or scheduled) and, when *Show my external IP and
   provider* is ticked, a public-IP check (`api.ipify.org` every 15 minutes by default, every minute or only when you press *Refresh* in the card; `ipwho.is` for the provider name only when the address changes and once a day). With it on, the address and provider are stored with every measurement; *Forget WAN addresses…* erases them. Preference changes (`POST /api/prefs`) and history

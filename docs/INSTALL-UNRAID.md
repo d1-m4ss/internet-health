@@ -159,6 +159,22 @@ Open `http://<unraid>:8788`, pick a style and language in the header. No notific
 installation; the first real event goes through the same path the simulator exercises
 (`python tests/simulate_network.py -v`).
 
+## Restoring a backup
+
+Backups are made on the page (*Settings → History → Back up now*) into `$D/db-backups/` (the 5 newest are kept) and can be downloaded
+there. A copy is a complete SQLite file. To go back to one:
+
+```sh
+docker stop NetProbe
+cp -p $D/netprobe.sqlite $D/netprobe.sqlite.before-restore          # keep what is there now
+rm -f $D/netprobe.sqlite-wal $D/netprobe.sqlite-shm                 # leftovers of the old file must not be applied to the new one
+cp -p $D/db-backups/netprobe-<date>-<time>.sqlite $D/netprobe.sqlite
+docker start NetProbe
+```
+
+A copy taken on another machine goes to the same place (`$D/netprobe.sqlite`). The copy contains all history and the Speedtest data, so
+treat it like the database itself (the web UI has no authentication either).
+
 ## Rollback
 
 ```sh
