@@ -3,7 +3,7 @@
 # Most people want examples/docker-compose.image.yml instead.
 #
 # Before the first `docker compose up`, put the three files from this repository's src/ folder into
-# /mnt/user/appdata/netprobe_database/custom/ — otherwise Docker creates EMPTY DIRECTORIES with those names
+# /mnt/user/appdata/internet-health/custom/ — otherwise Docker creates EMPTY DIRECTORIES with those names
 # and the container will not start.
 services:
   netprobe:
@@ -41,8 +41,8 @@ services:
       SPEEDTEST_ENABLED: "false"             # "true" runs a real Speedtest every SPEEDTEST_INTERVAL seconds. You can also pick the
                                              # service (Speedtest.net / Fast.com) and a nightly schedule in the UI (Speedtest tab)
     volumes:
-      - /mnt/user/appdata/netprobe_database:/data
+      - /mnt/user/appdata/internet-health:/data
       # The extension: three files, read-only, over the stock ones.
-      - /mnt/user/appdata/netprobe_database/custom/app.py:/app/app.py:ro
-      - /mnt/user/appdata/netprobe_database/custom/netprobe_extensions.py:/app/netprobe_extensions.py:ro
-      - /mnt/user/appdata/netprobe_database/custom/index.html:/app/templates/index.html:ro
+      - /mnt/user/appdata/internet-health/custom/app.py:/app/app.py:ro
+      - /mnt/user/appdata/internet-health/custom/netprobe_extensions.py:/app/netprobe_extensions.py:ro
+      - /mnt/user/appdata/internet-health/custom/index.html:/app/templates/index.html:ro

@@ -20,4 +20,4 @@ services:
       # TELEGRAM_BOT_TOKEN: "123456789:AAH..."
       # TELEGRAM_CHAT_ID: "-1001234567890"
     volumes:
-      - /mnt/user/appdata/netprobe_database:/data
+      - /mnt/user/appdata/internet-health:/data

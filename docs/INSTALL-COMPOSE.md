@@ -9,7 +9,7 @@ web page. Nothing to copy or mount besides the data folder. (On Unraid you can a
 What ends up where:
 
 ```
-/mnt/user/appdata/netprobe_database/         ← the container's /data (change the path for your host)
+/mnt/user/appdata/internet-health/         ← the container's /data (change the path for your host)
 ├── netprobe.sqlite                          ← the database, created by the container
 ├── alert-settings.json                      ← alert thresholds, created on first start
 ├── netprobe-prefs.json                      ← created when you change a Speedtest / external-IP / history / integrations setting in the UI
@@ -59,7 +59,7 @@ Open `http://<host>:8788`. The first probe cycle takes about a minute to appear;
 - **Telegram**: needs nothing on the host — enter the bot token and the chat ID, *Send test*, Save. See [NOTIFICATIONS.md](NOTIFICATIONS.md#integrations-unraid-and-telegram).
 - **Unraid**: only on an Unraid host, through the small bridge script (it calls Unraid's own `notify`, so email and every configured agent work). Install it as
   described under *Notifications* in [INSTALL-UNRAID.md](INSTALL-UNRAID.md#notifications) (two `wget`s and `update_cron`), with the data folder mounted at
-  `/mnt/user/appdata/netprobe_database` or the paths given to the bridge through environment variables in its cron line.
+  `/mnt/user/appdata/internet-health` or the paths given to the bridge through environment variables in its cron line.
 
 **Testing the alerts:** unplug the router's internet cable for **at least 3 minutes**. A change needs two bad probe cycles in a row; a cycle takes about 50 s
 (about 100 s while the internet is down), so an interruption shorter than about 1.5 minutes is never reported and one of about 2.5 minutes always is — by

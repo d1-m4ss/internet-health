@@ -9,11 +9,11 @@ as `1.1.0`). It is the NetProbe image, pinned by digest, with the Internet Healt
 Variables used below (adjust to your setup):
 
 ```sh
-D=/mnt/user/appdata/netprobe_database      # host folder mounted as /data in the container (database, settings, backups)
+D=/mnt/user/appdata/internet-health      # host folder mounted as /data in the container (database, settings, backups)
 ```
 
 - [New install](#new-install) · [Notifications](#notifications) · [Verify](#verify) · [Updating](#updating) ·
-  [Switching from a NetProbe + files install](#switching-from-a-netprobe--files-install) · [Restoring a backup](#restoring-a-backup) ·
+  [Moving the data folder](#moving-the-data-folder) · [Switching from a NetProbe + files install](#switching-from-a-netprobe--files-install) · [Restoring a backup](#restoring-a-backup) ·
   [Rollback](#rollback) · [Troubleshooting](#troubleshooting) · [Appendix: the file-mount way](#appendix-the-file-mount-way)
 
 ## New install
@@ -30,7 +30,7 @@ wget -O /boot/config/plugins/dockerMan/templates-user/my-InternetHealth.xml \
 | Field | Value |
 |---|---|
 | Web UI port | `8788` (or any free port) |
-| Data | `/mnt/user/appdata/netprobe_database` — keep this default if you will use the Unraid notification bridge |
+| Data | `/mnt/user/appdata/internet-health` — the bridge looks there first (and in `netprobe_database`, the name earlier versions used, if that is what exists) |
 | Router IP / name | your router, e.g. `192.168.1.1` / `Router` — it becomes the first node of the path view |
 | Sites to ping | `fast.com,google.com,youtube.com,1.1.1.1,8.8.8.8` — keep **two IP addresses** next to the names: they tell "DNS is down" from "the internet is down" |
 | Time zone / schedule time zone | for example `Europe/Berlin` (the daily Speedtest times use the second one) |
@@ -97,6 +97,20 @@ switch it on in the UI. Before a big step make a copy: *Settings → History →
 After the update reload the page with Ctrl+F5 (the browser may keep the old one) and run the [checks above](#verify).
 
 To go back, set the repository to the previous version tag (for example `:1.0.1`); the database stays valid for the older version.
+
+## Moving the data folder
+
+Earlier versions suggested `/mnt/user/appdata/netprobe_database`; it keeps working and the bridge finds it. To rename it to the current default, stop
+the container, move the folder, change the *Data* path in the container's settings (or the template file) and start it again:
+
+```sh
+docker stop InternetHealth
+mv /mnt/user/appdata/netprobe_database /mnt/user/appdata/internet-health
+# edit the Data path of the container (Docker → InternetHealth → Edit → Apply), which recreates it; then start it if it is stopped
+```
+
+If the bridge has its own paths in the cron line (`NETPROBE_NOTIFY_TOKEN_FILE`, `NETPROBE_SETTINGS_FILE`, `NETPROBE_STATE_FILE`, or `NETPROBE_DATA_DIR` for the
+folder as a whole), change them too and run `update_cron`; without them it follows the folder by itself. The variable `D` in this guide is that folder.
 
 ## Switching from a NetProbe + files install
 

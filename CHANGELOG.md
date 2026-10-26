@@ -5,6 +5,10 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+- **The default data folder is `/mnt/user/appdata/internet-health`** in the Unraid template, the compose examples and the guides. Existing
+  installations keep working with `netprobe_database` (nothing is moved by an update); the bridge script looks in `internet-health` first, then in
+  `netprobe_database`, and takes the whole folder from `NETPROBE_DATA_DIR` when set. INSTALL-UNRAID describes moving the folder.
+
 - **Telegram, when the link is down.** The queue and its retries already existed (stored in the database, 30 s … 15 min pauses, a day); now a
   message that waited more than two minutes ends with `⏱ Delivered N min late: the event happened at HH:MM`, so a late alert is not taken for a
   current one, and the note is kept even when the text has to be cut to Telegram's 4096 characters. *Settings → Integrations* shows how many

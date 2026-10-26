@@ -120,6 +120,20 @@ class NotifyBridgeTests(unittest.TestCase):
         self.assertEqual(args[args.index("-e") + 1], "NetProbe")
         self.assertNotIn("-l", args)
 
+    def test_the_data_folder_alone_locates_the_token_the_settings_and_the_state(self):
+        folder = self.root / "data-folder"
+        folder.mkdir()
+        shutil.copy(self.token, folder / "notify-token")
+        shutil.copy(self.settings, folder / "alert-settings.json")
+        for name in ("NETPROBE_NOTIFY_TOKEN_FILE", "NETPROBE_SETTINGS_FILE", "NETPROBE_STATE_FILE"):
+            del self.env[name]
+        self.env["NETPROBE_DATA_DIR"] = str(folder)
+        self.records = [self.record()]
+        result = self.run_bridge()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.requests, [("/api/notifications/pending", TOKEN)])
+        self.assertTrue((folder / "notify-bridge-state.json").exists(), "the state is kept in the same folder")
+
     def test_explicit_web_link_is_literal_and_rejects_non_http_or_controls(self):
         self.env["NETPROBE_WEB_URL"] = "http://192.168.1.4:8788/"
         self.records = [self.record()]

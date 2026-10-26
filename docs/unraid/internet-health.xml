@@ -22,7 +22,7 @@
   <DonateLink/>
   <Requires/>
   <Config Name="Web UI port" Target="8080" Default="8788" Mode="tcp" Description="Port of the web interface (no authentication: LAN only)." Type="Port" Display="always" Required="true" Mask="false">8788</Config>
-  <Config Name="Data" Target="/data" Default="/mnt/user/appdata/netprobe_database" Mode="rw" Description="Database, settings and the Telegram token. Keep the default if you use the Unraid notification bridge." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/netprobe_database</Config>
+  <Config Name="Data" Target="/data" Default="/mnt/user/appdata/internet-health" Mode="rw" Description="Database, settings and the Telegram token. Keep the default if you use the Unraid notification bridge." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/internet-health</Config>
   <Config Name="Router IP" Target="ROUTER_IP" Default="192.168.1.1" Mode="" Description="Your router (first hop of the path)." Type="Variable" Display="always" Required="true" Mask="false">192.168.1.1</Config>
   <Config Name="Router name" Target="ROUTER_NAME" Default="Router" Mode="" Description="Shown in the path view." Type="Variable" Display="always" Required="false" Mask="false">Router</Config>
   <Config Name="Sites to ping" Target="SITES" Default="fast.com,google.com,youtube.com,1.1.1.1,8.8.8.8" Mode="" Description="Comma separated. Keep two IP addresses in the list: they tell 'DNS is down' from 'the internet is down'." Type="Variable" Display="always" Required="true" Mask="false">fast.com,google.com,youtube.com,1.1.1.1,8.8.8.8</Config>

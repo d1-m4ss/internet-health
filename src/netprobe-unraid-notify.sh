@@ -7,9 +7,14 @@ umask 077
 
 API_BASE="${NETPROBE_API_BASE:-http://127.0.0.1:8788}"
 NOTIFY="${UNRAID_NOTIFY:-/usr/local/emhttp/webGui/scripts/notify}"
-TOKEN_FILE="${NETPROBE_NOTIFY_TOKEN_FILE:-/mnt/user/appdata/netprobe_database/notify-token}"
-SETTINGS_FILE="${NETPROBE_SETTINGS_FILE:-/mnt/user/appdata/netprobe_database/alert-settings.json}"
-STATE_FILE="${NETPROBE_STATE_FILE:-/mnt/user/appdata/netprobe_database/notify-bridge-state.json}"
+# The container's data folder: internet-health, or netprobe_database where an older install still uses it.
+DATA_DIR="${NETPROBE_DATA_DIR:-/mnt/user/appdata/internet-health}"
+if [[ -z "${NETPROBE_DATA_DIR:-}" && ! -d "$DATA_DIR" && -d /mnt/user/appdata/netprobe_database ]]; then
+    DATA_DIR=/mnt/user/appdata/netprobe_database
+fi
+TOKEN_FILE="${NETPROBE_NOTIFY_TOKEN_FILE:-$DATA_DIR/notify-token}"
+SETTINGS_FILE="${NETPROBE_SETTINGS_FILE:-$DATA_DIR/alert-settings.json}"
+STATE_FILE="${NETPROBE_STATE_FILE:-$DATA_DIR/notify-bridge-state.json}"
 WEB_URL="${NETPROBE_WEB_URL:-}"
 # Lock lives in RAM (not on the /mnt/user FUSE share, where flock is not guaranteed).
 LOCK_FILE="${NETPROBE_LOCK_FILE:-/var/run/netprobe-notify.lock}"
