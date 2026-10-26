@@ -5,6 +5,8 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+## 1.2.0 — 2026-10-26
+
 - **The default data folder is `/mnt/user/appdata/internet-health`** in the Unraid template, the compose examples and the guides. Existing
   installations keep working with `netprobe_database` (nothing is moved by an update); the bridge script looks in `internet-health` first, then in
   `netprobe_database`, and takes the whole folder from `NETPROBE_DATA_DIR` when set. INSTALL-UNRAID describes moving the folder.
