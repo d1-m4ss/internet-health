@@ -406,9 +406,9 @@
     .lg { display:inline-flex;align-items:center;gap:6px;color:var(--text2);min-width:0;overflow-wrap:anywhere } .lg b { color:var(--text);font-variant-numeric:tabular-nums } .lg small { color:var(--mute);font-size:11px }
     .sw { width:12px;height:3px;border-radius:2px;display:inline-block;flex:none;background:var(--mute) }
     .axis-note { color:var(--mute);font-size:11px;min-height:1em;margin-top:2px }
-    .chart-tip { position:absolute;z-index:7;pointer-events:none;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;box-shadow:0 6px 18px #0005;max-width:260px }
+    .chart-tip { position:absolute;z-index:7;pointer-events:none;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;box-shadow:0 6px 18px #0005;width:max-content;max-width:min(380px,calc(100% - 8px)) }
     .chart-tip[hidden] { display:none }
-    .chart-tip .when { color:var(--mute);margin-bottom:4px } .chart-tip .row { display:flex;align-items:center;gap:6px;white-space:nowrap } .chart-tip .row b { margin-left:auto;padding-left:12px;font-variant-numeric:tabular-nums }
+    .chart-tip .when { color:var(--mute);margin-bottom:4px } .chart-tip .row { display:flex;align-items:center;gap:6px } .chart-tip .row .lb { min-width:0;overflow-wrap:anywhere } .chart-tip .row .sw { flex:none } .chart-tip .row b { margin-left:auto;padding-left:12px;white-space:nowrap;flex:none;font-variant-numeric:tabular-nums }
     .c-cursor { stroke:var(--mute);stroke-dasharray:3 3;stroke-width:1 }
     .c-series { fill:none;stroke-width:2;stroke-linejoin:round } .c-sdot { stroke:none }
     path.s1,.sw.s1 { stroke:var(--s1) } .sw.s1 { background:var(--s1) } circle.s1 { fill:var(--s1) }
@@ -1068,7 +1068,7 @@
     if (!rows.length) return off();
     const at = rows.reduce((a, r) => Math.abs(r.best.ts - target) < Math.abs(a - target) ? r.best.ts : a, rows[0].best.ts);
     const shown = rows.filter(r => Math.abs(r.best.ts - at) <= tol), note = shown.find(r => r.best.ts === at && r.best.note)?.best.note;
-    tip.innerHTML = `<div class="when">${escape(when(at))}</div>` + shown.map(r => `<div class="row"><i class="sw ${r.s.cls || ''}"${r.s.color ? ` style="background:${r.s.color}"` : ''}></i>${escape(r.s.label)}<b>${escape(r.s.fmt(r.best.v))}</b></div>`).join('') + (note ? `<div class="when" style="margin:4px 0 0">${escape(note)}</div>` : '');
+    tip.innerHTML = `<div class="when">${escape(when(at))}</div>` + shown.map(r => `<div class="row"><i class="sw ${r.s.cls || ''}"${r.s.color ? ` style="background:${r.s.color}"` : ''}></i><span class="lb">${escape(r.s.label)}</span><b>${escape(r.s.fmt(r.best.v))}</b></div>`).join('') + (note ? `<div class="when" style="margin:4px 0 0">${escape(note)}</div>` : '');
     tip.hidden = false;
     const cxv = v.last === v.first ? v.L + v.w / 2 : v.L + (at - v.first) / spanT * v.w, cx = cxv * box.width / vbW;
     const host = (tip.offsetParent || svg.parentElement).getBoundingClientRect();   // the popup is positioned inside the chart's container

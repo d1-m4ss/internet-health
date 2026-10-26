@@ -342,6 +342,9 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       p = await pointOf(0);
       await page.mouse.move(p.x, p.y);
       await page.waitForFunction(() => /· Fast\.com/.test(document.getElementById('speedTip').textContent));
+      // long names wrap inside the popup instead of sticking out of it
+      const fit = await page.locator('#speedTip').evaluate(t => { const b = t.getBoundingClientRect(); return [...t.querySelectorAll('.row, .row *')].every(e => { const r = e.getBoundingClientRect(); return r.right <= b.right + 0.5 && r.left >= b.left - 0.5; }); });
+      assert.equal(fit, true, 'every row stays inside the popup');
       await page.mouse.move(2, 2);
       await page.locator('#spService').selectOption('fast');
       assert.match(await page.locator('#speedExtra').textContent(), /^Jitter 3 ms · delay under load: ↓ 55 ms \/ ↑ 110 ms · loss 0\.5 %$/);

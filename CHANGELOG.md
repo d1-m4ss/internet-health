@@ -5,6 +5,8 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+- Fixed: long line names in a chart popup (e.g. “Download ↓ (download) · Fast.com”) stuck out of the popup; they now wrap inside it.
+
 ## 1.2.2 — 2026-10-26
 
 - **Speedtest chart: speed, delay and loss together.** The Speed / Delay tabs are gone: speed (Mbps), delay (ms) and packet loss (%) are three
