@@ -5,6 +5,8 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+## 1.2.1 — 2026-10-26
+
 - **The Speedtest chart, rebuilt.** Speed, delay and (when measured) packet-loss views; every line has a button to show or hide it (remembered);
   one service is drawn at a time (the newest test's by default, or *All services*), so Fast.com and Speedtest.net results no longer tangle into
   one zig-zag; clear names (*Download ↓*, *Upload ↑*, idle ping, ping while downloading / uploading, jitter, packet loss) and the unit on the axis;
