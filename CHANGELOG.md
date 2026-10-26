@@ -5,6 +5,8 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+## 1.2.3 — 2026-10-26
+
 - Fixed: long line names in a chart popup (e.g. “Download ↓ (download) · Fast.com”) stuck out of the popup; they now wrap inside it.
 
 ## 1.2.2 — 2026-10-26
