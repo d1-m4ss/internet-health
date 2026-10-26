@@ -60,10 +60,11 @@ TURBO_LOOKBACK = 120  # a regular alert stamped up to this long before the outag
 TURBO_EXPIRE = 3600   # a recovered outage not decided within an hour (turbo off, no watcher) is never sent
 TURBO_OUTAGES = 100   # outages returned by /api/loss
 TURBO_ICON = "⚡"
-# Speedtest service: "" keeps what the container variable SPEEDTEST_BACKEND says (Fast.com by default), ookla = the
-# official Ookla CLI (a binary the user installs), fast = fast.com (Netflix). The speedtest-cli engine ("python",
-# Speedtest.net servers) was removed in 1.3.0; old rows in the history keep that name, and a saved choice of it means Fast.com.
-SPEEDTEST_SERVICES = ("", "ookla", "fast")
+# Speedtest service: "" keeps what the container variable SPEEDTEST_BACKEND says (Fast.com by default), fast = fast.com
+# (Netflix), cloudflare = Cloudflare's speed test. The speedtest-cli engine ("python", Speedtest.net servers) was removed in
+# 1.3.0 and the Ookla CLI in 1.4.0; a saved choice of either means Fast.com (old speedtest-cli rows keep their name).
+SPEEDTEST_SERVICES = ("", "fast", "cloudflare")
+LEGACY_SERVICES = ("python", "ookla")
 # Speedtest schedule: container = the container variables SPEEDTEST_ENABLED / SPEEDTEST_INTERVAL decide (the default),
 # off = no automatic tests, interval = every N hours since the last test, daily = at fixed local times.
 SPEEDTEST_SCHEDULES = ("container", "off", "interval", "daily")
@@ -76,7 +77,7 @@ SPEED_ICON = "📶"
 SPEED_DROP_CHOICES = (0, 20, 30, 50)  # percent below the 7-day median that counts as a drop; 0 = off
 SPEED_DROP_WINDOW = 7 * 86400
 SPEED_DROP_MIN_TESTS = 3              # earlier tests of the same service needed before a "typical" speed exists
-SPEED_NAMES = {"python": "Speedtest.net", "ookla": "Ookla CLI", "fast": "Fast.com"}
+SPEED_NAMES = {"python": "Speedtest.net", "fast": "Fast.com", "cloudflare": "Cloudflare"}
 TIME_OF_DAY = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 # History retention: 0 keeps everything (the default). A positive value deletes records older than that many days
 # once a day in the quiet hours (CLEANUP_HOURS of the APP_TIMEZONE day); the same ranges can be cleaned on demand.
@@ -137,6 +138,8 @@ FAST_WARMUP = 2
 FAST_CHUNK = 25_000_000  # bytes asked per download request (fast.com uses up to 26 MB)
 FAST_UPLOAD_BODY = 1_000_000
 FAST_TIMEOUT = 12
+# Cloudflare's speed test: the public endpoints of speed.cloudflare.com (the same the page uses), no account or key.
+CLOUDFLARE_URL = "https://speed.cloudflare.com/__down"   # GET ?bytes=N sends N bytes; the sibling /__up takes a POST
 logger = logging.getLogger(__name__)
 CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f\\]+")  # also drops backslashes: Unraid agents expand \\n escapes
 NEWLINE = "\\n"  # Unraid email/Telegram agents split the message on the two characters backslash + n
@@ -180,7 +183,12 @@ class CleanupBusy(RuntimeError):
 
 
 class FastTestError(RuntimeError):
-    """A fast.com measurement could not be completed; the message is shown in the UI."""
+    """A fast.com / Cloudflare measurement could not be completed; the message is shown in the UI."""
+
+
+def _label(url):
+    """Name of the service behind a test URL, for the messages."""
+    return "Cloudflare" if urlsplit(url).path.endswith(("/__down", "/__up")) else "fast.com"
 
 
 def _fast_get(url, timeout=FAST_TIMEOUT, limit=4_000_000):
@@ -246,10 +254,14 @@ def _fast_connect(url):
     return http.client.HTTPConnection(parts.hostname, parts.port, timeout=FAST_TIMEOUT)
 
 
-def _fast_path(url, size=None):
-    """Request path of a target; size adds fast.com's "/range/0-<size>" so the server sends that many bytes."""
+def _fast_path(url, size=None, upload=False):
+    """Request path of a target; size adds fast.com's "/range/0-<size>" so the server sends that many bytes.
+    Cloudflare: /__down?bytes=<size> to download (size 0 = the shortest answer), /__up to upload."""
     parts = urlsplit(url)
     path = parts.path
+    if path.endswith("/__down") or path.endswith("/__up"):
+        base = path.rsplit("/", 1)[0]
+        return base + "/__up" if upload else base + "/__down?bytes=%d" % (size or 0)
     if size is not None:
         path = path.replace("/speedtest", "/speedtest/range/0-%d" % size, 1) if "/range/" not in path else path.replace("/range/", "/range/0-%d" % size, 1)
     return path + ("?" + parts.query if parts.query else "")
@@ -266,7 +278,7 @@ def fast_latency(url, rounds=6):
             response = conn.getresponse()
             response.read()
             if response.status >= 400:
-                raise FastTestError("fast.com server answered HTTP %d" % response.status)
+                raise FastTestError("%s server answered HTTP %d" % (_label(url), response.status))
             times.append((time.perf_counter() - start) * 1000.0)
     finally:
         conn.close()
@@ -283,7 +295,7 @@ class _Counter:
             self.total += n
 
 
-def _fast_run(workers, seconds, warmup, clock=time.monotonic):
+def _fast_run(workers, seconds, warmup, clock=time.monotonic, label="fast.com"):
     """Run workers(deadline, counter) in threads; -> Mbit/s counted after the warm-up (decimal, like fast.com)."""
     counter, errors, start = _Counter(), [], clock()
     deadline = start + seconds
@@ -305,7 +317,7 @@ def _fast_run(workers, seconds, warmup, clock=time.monotonic):
     if end_time <= mark_time or end_bytes <= mark_bytes:  # too short for a warm-up: use the whole run
         mark_bytes, mark_time = 0, start
     if end_bytes <= mark_bytes:
-        raise FastTestError(("fast.com transfer failed: %s" % errors[0]) if errors else "fast.com transfer failed: no data")
+        raise FastTestError(("%s transfer failed: %s" % (label, errors[0])) if errors else "%s transfer failed: no data" % label)
     return (end_bytes - mark_bytes) * 8 / (end_time - mark_time) / 1e6
 
 
@@ -348,7 +360,7 @@ def fast_download(urls, seconds=FAST_DOWN_SECONDS, warmup=FAST_WARMUP, connectio
                     conn.request("GET", _fast_path(url, FAST_CHUNK), headers={"User-Agent": "Internet-Health"})
                     response = conn.getresponse()
                     if response.status >= 400:
-                        raise FastTestError("fast.com server answered HTTP %d" % response.status)
+                        raise FastTestError("%s server answered HTTP %d" % (_label(url), response.status))
                     while time.monotonic() < deadline:
                         chunk = response.read(65536)
                         if not chunk:
@@ -360,7 +372,7 @@ def fast_download(urls, seconds=FAST_DOWN_SECONDS, warmup=FAST_WARMUP, connectio
     workers = [worker(urls[i % len(urls)]) for i in range(connections)]
     if loaded is not None:
         workers.append(_fast_loaded_probe(urls[0], warmup, loaded))
-    return _fast_run(workers, seconds, warmup)
+    return _fast_run(workers, seconds, warmup, label=_label(urls[0]))
 
 
 def fast_upload(urls, seconds=FAST_UP_SECONDS, warmup=FAST_WARMUP, connections=FAST_UP_CONNECTIONS, loaded=None):
@@ -371,12 +383,12 @@ def fast_upload(urls, seconds=FAST_UP_SECONDS, warmup=FAST_WARMUP, connections=F
             conn = _fast_connect(url)
             try:
                 while time.monotonic() < deadline:
-                    conn.request("POST", _fast_path(url), body=body, headers={
+                    conn.request("POST", _fast_path(url, upload=True), body=body, headers={
                         "User-Agent": "Internet-Health", "Content-Type": "application/octet-stream"})
                     response = conn.getresponse()
                     response.read()
                     if response.status >= 400:
-                        raise FastTestError("fast.com server answered HTTP %d" % response.status)
+                        raise FastTestError("%s server answered HTTP %d" % (_label(url), response.status))
                     counter.add(len(body))
             finally:
                 conn.close()
@@ -384,7 +396,7 @@ def fast_upload(urls, seconds=FAST_UP_SECONDS, warmup=FAST_WARMUP, connections=F
     workers = [worker(urls[i % len(urls)]) for i in range(connections)]
     if loaded is not None:
         workers.append(_fast_loaded_probe(urls[0], warmup, loaded))
-    return _fast_run(workers, seconds, warmup)
+    return _fast_run(workers, seconds, warmup, label=_label(urls[0]))
 
 
 def run_fast_test(page=FAST_PAGE, api=FAST_API, down_seconds=FAST_DOWN_SECONDS, up_seconds=FAST_UP_SECONDS, warmup=FAST_WARMUP):
@@ -405,6 +417,46 @@ def run_fast_test(page=FAST_PAGE, api=FAST_API, down_seconds=FAST_DOWN_SECONDS, 
             "server": {"id": None, "name": "Netflix, " + where["city"] if where.get("city") else "Netflix", "host": host,
                        "country": where.get("country")},
             "jitter_ms": jitter, "packet_loss_pct": None, "isp": client.get("isp"), "result_url": None,
+            "loaded_ping_ms": _median_or_none(loaded_down), "loaded_up_ping_ms": _median_or_none(loaded_up),
+            "protocol": "https", "secure": True}
+
+
+def cloudflare_colo(url=CLOUDFLARE_URL):
+    """Code of the Cloudflare data centre that answers (an airport code such as OTP), or None."""
+    try:
+        conn = _fast_connect(url)
+        try:
+            conn.request("GET", _fast_path(url, 0), headers={"User-Agent": "Internet-Health"})
+            response = conn.getresponse()
+            response.read()
+            colo = response.getheader("colo") or ""
+        finally:
+            conn.close()
+    except (OSError, http.client.HTTPException):
+        return None
+    return colo if re.fullmatch(r"[A-Za-z]{3,4}", colo) else None
+
+
+def run_cloudflare_test(url=CLOUDFLARE_URL, down_seconds=FAST_DOWN_SECONDS, up_seconds=FAST_UP_SECONDS, warmup=FAST_WARMUP):
+    """One Cloudflare measurement shaped like the others: latency and its spread, download and upload, and the latency under load."""
+    try:
+        ping, jitter = fast_latency(url)
+        loaded_down, loaded_up = [], []
+        download = fast_download([url], down_seconds, min(warmup, down_seconds / 2), connections=FAST_DOWN_CONNECTIONS, loaded=loaded_down)
+    except FastTestError:
+        raise
+    except (OSError, http.client.HTTPException) as exc:
+        raise FastTestError("Cloudflare is not reachable: %s" % (str(exc) or type(exc).__name__)) from exc
+    try:
+        upload = fast_upload([url], up_seconds, min(warmup, up_seconds / 2), loaded=loaded_up)
+    except (FastTestError, OSError, http.client.HTTPException) as exc:  # download is still a real result; upload stays unknown
+        logger.warning("Cloudflare upload failed: %s", exc)
+        upload = None
+    colo = cloudflare_colo(url)
+    return {"ping_ms": ping, "download_mbps": download, "upload_mbps": upload,
+            "server": {"id": None, "name": colo or "Cloudflare", "host": urlsplit(url).hostname,
+                       "country": None},
+            "jitter_ms": jitter, "packet_loss_pct": None, "isp": None, "result_url": None,
             "loaded_ping_ms": _median_or_none(loaded_down), "loaded_up_ping_ms": _median_or_none(loaded_up),
             "protocol": "https", "secure": True}
 
@@ -650,7 +702,7 @@ class Extension:
             values = json.loads(self.prefs_path.read_text())
         except FileNotFoundError:
             return dict(PREFS_DEFAULTS)
-        if isinstance(values, dict) and values.get("speedtest_service") == "python":
+        if isinstance(values, dict) and values.get("speedtest_service") in LEGACY_SERVICES:
             values["speedtest_service"] = "fast"  # the engine is gone; written back with the next save
         self.validate_prefs(values)
         return dict(PREFS_DEFAULTS, **values)
@@ -1422,6 +1474,9 @@ class Extension:
 
     def run_fast_speedtest(self):
         return run_fast_test()
+
+    def run_cloudflare_speedtest(self):
+        return run_cloudflare_test()
 
     def save_speedtest_extra(self, ts, result):
         """Keep what a finished test measured besides the native columns (jitter, packet loss, delay under load), by test time."""

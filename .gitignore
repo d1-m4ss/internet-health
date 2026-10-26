@@ -15,7 +15,6 @@ notify-bridge-state.json
 *.sqlite-wal
 *.sqlite-shm
 *.db
-ookla-eula-accepted.txt
 container-inspect.json
 my-NetProbe.xml
 backups/

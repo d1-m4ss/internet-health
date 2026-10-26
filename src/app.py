@@ -7,11 +7,8 @@
 # Since 1.3.0 this file is the project's own source (it is no longer patched on top of the upstream image):
 # upstream/app.py is the original it started from. Removed: the speedtest-cli engine (archived upstream),
 # the Postgres mode.
-import json
 import logging
 import os
-import re
-import shutil
 import sqlite3
 import statistics
 import subprocess
@@ -119,41 +116,27 @@ def parse_bool_env(name, default=False):
     return value.strip().lower() in ("1", "true", "yes", "on")
 
 
-def parse_optional_bool(value, variable_name):
-    """Parse an optional bool supplied by JSON, form data, or environment-like text."""
-    if value is None:
-        return None
-    if isinstance(value, bool):
-        return value
-
-    normalized = str(value).strip().lower()
-    if normalized in ("1", "true", "yes", "on"):
-        return True
-    if normalized in ("0", "false", "no", "off"):
-        return False
-
-    raise ValueError(f"{variable_name} must be true or false")
-
-
 def normalize_speedtest_backend(value, variable_name="SPEEDTEST_BACKEND"):
-    """Normalize a Speedtest backend name to ``ookla`` or ``fast`` (fast.com).
+    """Normalize a Speedtest backend name to ``fast`` (Fast.com) or ``cloudflare``.
 
-    The speedtest-cli engine (``python``) was removed in 1.3.0; the old names still start and mean Fast.com.
+    The speedtest-cli engine (``python``) and the Ookla CLI (``ookla``) were removed; their old names still start and mean Fast.com.
     """
     normalized = str(value or "fast").strip().lower()
     aliases = {
+        "fast": "fast",
+        "fast.com": "fast",
+        "cloudflare": "cloudflare",
+        "cf": "cloudflare",
         "python": "fast",
         "legacy": "fast",
         "speedtest-cli": "fast",
-        "ookla": "ookla",
-        "official": "ookla",
-        "speedtest": "ookla",
-        "fast": "fast",
-        "fast.com": "fast",
+        "ookla": "fast",
+        "official": "fast",
+        "speedtest": "fast",
     }
     if normalized not in aliases:
         raise ValueError(
-            f"{variable_name} must be 'ookla' or 'fast'"
+            f"{variable_name} must be 'fast' or 'cloudflare'"
         )
     return aliases[normalized]
 
@@ -167,46 +150,6 @@ def parse_csv_env(name, default=""):
     """
     raw = os.getenv(name, default)
     return [item.strip() for item in raw.split(",") if item.strip()]
-
-
-def parse_speedtest_server_list(raw_value, variable_name, allow_count_prefix=False):
-    """
-    Parse a comma-separated list of numeric Speedtest server IDs.
-
-    ``SPEEDTEST_CSV_SERVERS`` also accepts the counted format requested for
-    Docker/Unraid templates. For example, ``2,12345,23456`` declares two
-    server IDs. A plain list such as ``12345,23456`` remains valid as well.
-
-    Duplicate IDs are removed while preserving the configured order.
-    """
-    if raw_value is None:
-        return []
-
-    raw_items = [item.strip() for item in str(raw_value).split(",") if item.strip()]
-    if not raw_items:
-        return []
-
-    for item in raw_items:
-        if not item.isdigit():
-            raise ValueError(
-                f"{variable_name} must contain only comma-separated numeric server IDs"
-            )
-
-    server_ids = raw_items
-    if allow_count_prefix and len(raw_items) >= 2:
-        declared_count = int(raw_items[0])
-        if declared_count == len(raw_items) - 1:
-            server_ids = raw_items[1:]
-
-    unique_ids = []
-    seen = set()
-    for server_id in server_ids:
-        normalized = str(int(server_id))
-        if normalized not in seen:
-            seen.add(normalized)
-            unique_ids.append(normalized)
-
-    return unique_ids
 
 
 # -------------------------
@@ -296,83 +239,12 @@ SPEEDTEST_INTERVAL = int(os.getenv("SPEEDTEST_INTERVAL", "14400"))
 
 # Backend selector (the UI choice on the Speedtest tab wins over it):
 # - fast: Fast.com (Netflix), the default.
-# - ookla: the official Ookla CLI, which the user installs and accepts the terms of (see the docs).
+# - cloudflare: Cloudflare's speed test (speed.cloudflare.com).
 SPEEDTEST_BACKEND = normalize_speedtest_backend(
     os.getenv("SPEEDTEST_BACKEND", "fast")
 )
-
-# Official Ookla CLI settings. The end-user acknowledgement is evaluated at
-# runtime, never during the Docker image build. Administrators can either set
-# SPEEDTEST_OOKLA_ACCEPT_LICENSE=I_ACCEPT (True/Yes remain accepted for the
-# unreleased compatibility path) or run the interactive helper, which writes a
-# marker into the persistent /data volume. The helper (internet-health-ookla install) also puts the official binary
-# into /data/ookla, so it survives updates and a recreated container.
-DATA_DIR = os.path.dirname(DB_PATH) or "/data"
-SPEEDTEST_OOKLA_PATH = os.getenv(
-    "SPEEDTEST_OOKLA_PATH", ""
-).strip() or os.path.join(DATA_DIR, "ookla", "speedtest")
-SPEEDTEST_OOKLA_ACCEPT_LICENSE_RAW = os.getenv(
-    "SPEEDTEST_OOKLA_ACCEPT_LICENSE", ""
-).strip()
-SPEEDTEST_OOKLA_ACCEPTANCE_FILE = os.getenv(
-    "SPEEDTEST_OOKLA_ACCEPTANCE_FILE", ""
-).strip() or os.path.join(DATA_DIR, "ookla-eula-accepted.txt")
-OOKLA_EULA_URL = "https://www.speedtest.net/about/eula"
-OOKLA_TERMS_URL = "https://www.speedtest.net/about/terms"
-OOKLA_PRIVACY_URL = "https://www.speedtest.net/about/privacy"
-
-
-def ookla_acceptance_status():
-    """Return ``(accepted, source)`` for the optional Ookla backend."""
-    env_value = SPEEDTEST_OOKLA_ACCEPT_LICENSE_RAW.strip()
-    normalized = env_value.lower()
-    if env_value.upper() in {"I_ACCEPT", "I ACCEPT"} or normalized in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }:
-        return True, "environment"
-
-    try:
-        with open(SPEEDTEST_OOKLA_ACCEPTANCE_FILE, "r", encoding="utf-8") as handle:
-            first_line = handle.readline().strip()
-        if first_line == "I_ACCEPT":
-            return True, "persistent-file"
-    except (FileNotFoundError, PermissionError, OSError):
-        pass
-
-    return False, None
-try:
-    SPEEDTEST_OOKLA_TIMEOUT = max(
-        30, int(os.getenv("SPEEDTEST_OOKLA_TIMEOUT", "180"))
-    )
-except (TypeError, ValueError):
-    SPEEDTEST_OOKLA_TIMEOUT = 180
-
-# Optional preferred speedtest server.
-# Empty / unset means automatic server selection.
-SPEEDTEST_SERVER = os.getenv("SPEEDTEST_SERVER", "").strip()
-
-# Optional multi-server pool. When enabled, this takes precedence over the
-# legacy SPEEDTEST_SERVER value. SPEEDTEST_CSV_SERVERS accepts either a plain
-# list (12345,23456) or a counted list (2,12345,23456).
-SPEEDTEST_CSV = parse_bool_env("SPEEDTEST_CSV", default=False)
-SPEEDTEST_CSV_SERVERS_RAW = os.getenv("SPEEDTEST_CSV_SERVERS", "").strip()
-SPEEDTEST_CSV_SERVERS = parse_speedtest_server_list(
-    SPEEDTEST_CSV_SERVERS_RAW,
-    "SPEEDTEST_CSV_SERVERS",
-    allow_count_prefix=True,
-)
-
-# Global exclusion list applied to automatic, single-server, CSV-pool, and
-# one-off manual tests. Only the Ookla backend can choose servers (Fast.com picks its own).
-# The Ookla backend selects an allowed server from the official --servers list.
-SPEEDTEST_EXCLUDE_RAW = os.getenv("SPEEDTEST_EXCLUDE", "").strip()
-SPEEDTEST_EXCLUDE = parse_speedtest_server_list(
-    SPEEDTEST_EXCLUDE_RAW,
-    "SPEEDTEST_EXCLUDE",
-)
+if os.getenv("SPEEDTEST_BACKEND", "").strip().lower() in ("python", "legacy", "speedtest-cli", "ookla", "official", "speedtest"):
+    logging.getLogger("netprobe").warning("SPEEDTEST_BACKEND=%s no longer exists; Fast.com is used", os.getenv("SPEEDTEST_BACKEND"))
 
 # Browser log-tail polling interval. This only affects the UI refresh cadence.
 # Invalid or missing values fall back to 2 seconds.
@@ -395,40 +267,6 @@ logger.info(
     ", ".join(DNS_TEST_SITES) or "(none)",
 )
 logger.info("Speedtest backend: %s", SPEEDTEST_BACKEND)
-if SPEEDTEST_BACKEND == "ookla":
-    ookla_accepted, ookla_acceptance_source = ookla_acceptance_status()
-    logger.info(
-        "Official Ookla CLI: path=%s installed=%s terms_accepted=%s acceptance_source=%s",
-        SPEEDTEST_OOKLA_PATH,
-        bool(
-            shutil.which(SPEEDTEST_OOKLA_PATH)
-            or (
-                os.path.isfile(SPEEDTEST_OOKLA_PATH)
-                and os.access(SPEEDTEST_OOKLA_PATH, os.X_OK)
-            )
-        ),
-        ookla_accepted,
-        ookla_acceptance_source or "none",
-    )
-    if not ookla_accepted:
-        logger.warning(
-            "Ookla backend is locked until the end user sets "
-            "SPEEDTEST_OOKLA_ACCEPT_LICENSE=I_ACCEPT or runs "
-            "internet-health-ookla install."
-        )
-if SPEEDTEST_CSV:
-    logger.info(
-        "Preferred speedtest selection: CSV pool (%s)",
-        ", ".join(SPEEDTEST_CSV_SERVERS) or "empty",
-    )
-elif SPEEDTEST_SERVER:
-    logger.info("Preferred speedtest selection: server ID %s", SPEEDTEST_SERVER)
-else:
-    logger.info("Preferred speedtest selection: auto")
-logger.info(
-    "Excluded speedtest server IDs: %s",
-    ", ".join(SPEEDTEST_EXCLUDE) or "none",
-)
 logger.info("Live log poll interval: %ss", LIVE_LOG_POLL_SECONDS)
 
 
@@ -913,77 +751,6 @@ def compute_score(avg_loss, avg_latency, avg_jitter, avg_dns):
     return raw * 100.0
 
 
-def parse_speedtest_server_id(raw_value):
-    """
-    Normalize an optional speedtest server ID.
-
-    The env or request value may come in as an int-like string. Empty values
-    return None so the default automatic server selection is used.
-    """
-    if raw_value is None:
-        return None
-    value = str(raw_value).strip()
-    if not value:
-        return None
-    if not value.isdigit():
-        raise ValueError("speedtest server ID must be numeric")
-    return str(int(value))
-
-
-def resolve_speedtest_selection(requested_server_id=None, force_auto=False):
-    """
-    Resolve the effective Speedtest server selection.
-
-    Priority:
-    1. A one-off API/manual force-auto request.
-    2. A non-empty one-off API/manual server ID.
-    3. SPEEDTEST_CSV=true with SPEEDTEST_CSV_SERVERS.
-    4. Legacy SPEEDTEST_SERVER.
-    5. Automatic server selection.
-
-    SPEEDTEST_EXCLUDE is global and applies to every mode.
-    """
-    force_auto = bool(force_auto)
-    manual_server_id = parse_speedtest_server_id(requested_server_id)
-
-    if force_auto:
-        mode = "auto"
-        server_ids = []
-    elif manual_server_id:
-        mode = "manual"
-        server_ids = [manual_server_id]
-    elif SPEEDTEST_CSV:
-        if not SPEEDTEST_CSV_SERVERS:
-            raise ValueError(
-                "SPEEDTEST_CSV is true but SPEEDTEST_CSV_SERVERS is empty"
-            )
-        mode = "csv"
-        server_ids = list(SPEEDTEST_CSV_SERVERS)
-    else:
-        configured_server_id = parse_speedtest_server_id(SPEEDTEST_SERVER)
-        if configured_server_id:
-            mode = "single"
-            server_ids = [configured_server_id]
-        else:
-            mode = "auto"
-            server_ids = []
-
-    excluded_ids = list(SPEEDTEST_EXCLUDE)
-    conflicts = sorted(set(server_ids).intersection(excluded_ids), key=int)
-    if conflicts:
-        raise ValueError(
-            "Speedtest server ID(s) are both selected and excluded: "
-            + ",".join(conflicts)
-        )
-
-    return {
-        "mode": mode,
-        "server_ids": server_ids,
-        "excluded_ids": excluded_ids,
-        "forced_auto": force_auto,
-    }
-
-
 class SpeedtestRunError(RuntimeError):
     """A Speedtest failure rewritten into a useful message for the UI/API."""
 
@@ -997,293 +764,6 @@ def resolve_speedtest_backend(requested_backend=None):
     return normalize_speedtest_backend(requested_backend, "backend")
 
 
-def ookla_binary_available():
-    return bool(
-        shutil.which(SPEEDTEST_OOKLA_PATH)
-        or (
-            os.path.isfile(SPEEDTEST_OOKLA_PATH)
-            and os.access(SPEEDTEST_OOKLA_PATH, os.X_OK)
-        )
-    )
-
-
-def require_ookla_ready():
-    if not ookla_binary_available():
-        raise SpeedtestRunError(
-            f"The official Ookla Speedtest CLI was not found at "
-            f"{SPEEDTEST_OOKLA_PATH}. After reviewing Ookla's terms, run "
-            "'docker exec -it <container> internet-health-ookla install' to "
-            "accept them and install it, or select Fast.com."
-        )
-
-    accepted, _source = ookla_acceptance_status()
-    if not accepted:
-        raise SpeedtestRunError(
-            "The Ookla backend is locked until the end user reviews and "
-            "accepts Ookla's EULA, Terms of Use, and Privacy Policy. Set "
-            "SPEEDTEST_OOKLA_ACCEPT_LICENSE=I_ACCEPT when launching the "
-            "container, or run 'docker exec -it <container> "
-            "internet-health-ookla install'."
-        )
-
-
-def extract_json_object(output):
-    """Extract the first complete JSON object/list from CLI output."""
-    cleaned = str(output or "").strip()
-    if not cleaned:
-        raise ValueError("Ookla Speedtest returned no JSON output")
-
-    try:
-        return json.loads(cleaned)
-    except json.JSONDecodeError:
-        pass
-
-    starts = [idx for idx in (cleaned.find("{"), cleaned.find("[")) if idx >= 0]
-    if not starts:
-        raise ValueError("Ookla Speedtest did not return JSON output")
-    start_index = min(starts)
-    end_index = max(cleaned.rfind("}"), cleaned.rfind("]"))
-    if end_index < start_index:
-        raise ValueError("Ookla Speedtest returned incomplete JSON output")
-    return json.loads(cleaned[start_index : end_index + 1])
-
-
-def run_ookla_process(extra_args, timeout=None):
-    require_ookla_ready()
-    command = [
-        SPEEDTEST_OOKLA_PATH,
-        "--accept-license",
-        "--accept-gdpr",
-        "--progress=no",
-    ] + list(extra_args)
-
-    logger.info("Ookla CLI command: %s", " ".join(command))
-    try:
-        completed = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            timeout=timeout or SPEEDTEST_OOKLA_TIMEOUT,
-            check=False,
-        )
-    except subprocess.TimeoutExpired as exc:
-        raise SpeedtestRunError(
-            f"Official Ookla Speedtest timed out after "
-            f"{timeout or SPEEDTEST_OOKLA_TIMEOUT} seconds"
-        ) from exc
-    except OSError as exc:
-        raise SpeedtestRunError(f"Unable to execute Ookla Speedtest: {exc}") from exc
-
-    stdout = (completed.stdout or "").strip()
-    stderr = (completed.stderr or "").strip()
-    if completed.returncode != 0:
-        detail = stderr or stdout or f"exit code {completed.returncode}"
-        raise SpeedtestRunError(f"Official Ookla Speedtest failed: {detail}")
-    return stdout
-
-
-def parse_ookla_server_listing(output):
-    """Parse IDs from Ookla ``--servers`` JSON or human-readable output."""
-    servers = []
-    cleaned = str(output or "").strip()
-    if not cleaned:
-        return servers
-
-    try:
-        payload = extract_json_object(cleaned)
-    except (ValueError, json.JSONDecodeError):
-        payload = None
-
-    candidates = []
-    if isinstance(payload, list):
-        candidates = payload
-    elif isinstance(payload, dict):
-        for key in ("servers", "data", "results"):
-            value = payload.get(key)
-            if isinstance(value, list):
-                candidates = value
-                break
-        if not candidates and payload.get("id") is not None:
-            candidates = [payload]
-
-    for item in candidates:
-        if not isinstance(item, dict) or item.get("id") is None:
-            continue
-        server_id = str(item.get("id")).strip()
-        if server_id.isdigit():
-            normalized = dict(item)
-            normalized["id"] = str(int(server_id))
-            servers.append(normalized)
-
-    if servers:
-        return servers
-
-    # Some CLI builds may emit one JSON object per line for machine-readable
-    # listings. Accept that form before falling back to the human table.
-    for line in cleaned.splitlines():
-        try:
-            item = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(item, dict) and item.get("id") is not None:
-            server_id = str(item.get("id")).strip()
-            if server_id.isdigit():
-                normalized = dict(item)
-                normalized["id"] = str(int(server_id))
-                if not any(server.get("id") == normalized["id"] for server in servers):
-                    servers.append(normalized)
-
-    if servers:
-        return servers
-
-    # Human output starts each server row with a numeric ID. Metadata columns
-    # vary by CLI version, so only the stable ID is required for selection.
-    for line in cleaned.splitlines():
-        match = re.match(r"^\s*(\d+)\s+", line)
-        if match:
-            server_id = str(int(match.group(1)))
-            if not any(server.get("id") == server_id for server in servers):
-                servers.append({"id": server_id, "display": line.strip()})
-    return servers
-
-
-def list_ookla_servers():
-    # Current releases generally accept --format=json with --servers. Fall back
-    # to the traditional table because older builds may reject that combination.
-    try:
-        output = run_ookla_process(["--servers", "--format=json"])
-    except SpeedtestRunError as json_error:
-        logger.info(
-            "Ookla JSON server listing unavailable; retrying text output: %s",
-            json_error,
-        )
-        output = run_ookla_process(["--servers"])
-
-    servers = parse_ookla_server_listing(output)
-    if not servers:
-        raise SpeedtestRunError(
-            "The official Ookla CLI returned no selectable servers from --servers"
-        )
-    return servers
-
-
-def normalize_ookla_result(payload):
-    if not isinstance(payload, dict):
-        raise SpeedtestRunError("Official Ookla Speedtest returned invalid JSON")
-
-    ping = payload.get("ping") or {}
-    download = payload.get("download") or {}
-    upload = payload.get("upload") or {}
-    raw_server = payload.get("server") or {}
-    raw_result = payload.get("result") or {}
-
-    try:
-        ping_ms = float(ping.get("latency"))
-        download_mbps = float(download.get("bandwidth")) * 8 / 1_000_000
-        upload_mbps = float(upload.get("bandwidth")) * 8 / 1_000_000
-    except (TypeError, ValueError) as exc:
-        raise SpeedtestRunError(
-            "Official Ookla Speedtest JSON was missing ping or bandwidth data"
-        ) from exc
-
-    host = raw_server.get("host")
-    port = raw_server.get("port")
-    host_display = host
-    if host and port and f":{port}" not in str(host):
-        host_display = f"{host}:{port}"
-
-    server = {
-        "id": str(raw_server.get("id")) if raw_server.get("id") is not None else None,
-        "name": raw_server.get("name") or raw_server.get("sponsor"),
-        "host": host_display,
-        "country": raw_server.get("country"),
-        "location": raw_server.get("location"),
-        "ip": raw_server.get("ip"),
-        "port": port,
-    }
-
-    return {
-        "ping_ms": ping_ms,
-        "download_mbps": download_mbps,
-        "upload_mbps": upload_mbps,
-        "server": server,
-        "jitter_ms": ping.get("jitter"),
-        "packet_loss_pct": payload.get("packetLoss"),
-        "isp": payload.get("isp"),
-        "result_url": raw_result.get("url"),
-    }
-
-
-def execute_ookla_test(server_id=None):
-    args = ["--format=json"]
-    if server_id:
-        args.append(f"--server-id={server_id}")
-    output = run_ookla_process(args)
-    try:
-        payload = extract_json_object(output)
-    except (ValueError, json.JSONDecodeError) as exc:
-        raise SpeedtestRunError(f"Unable to parse Ookla Speedtest JSON: {exc}") from exc
-    return normalize_ookla_result(payload)
-
-
-def build_ookla_candidate_order(selection):
-    """Return server IDs to try for Ookla filtered modes."""
-    requested_ids = list(selection["server_ids"])
-    excluded = set(selection["excluded_ids"])
-    mode = selection["mode"]
-
-    if mode in ("manual", "single"):
-        return requested_ids
-
-    if mode == "csv":
-        # Prefer candidate IDs in the order returned by the official nearest
-        # server list, then retain configured IDs as fallbacks.
-        listed_ids = [server["id"] for server in list_ookla_servers()]
-        ordered = [server_id for server_id in listed_ids if server_id in requested_ids]
-        ordered.extend(server_id for server_id in requested_ids if server_id not in ordered)
-        return ordered
-
-    if mode == "auto" and excluded:
-        return [
-            server["id"]
-            for server in list_ookla_servers()
-            if server["id"] not in excluded
-        ]
-
-    return []
-
-
-def run_ookla_speedtest(selection):
-    candidate_ids = build_ookla_candidate_order(selection)
-
-    if selection["mode"] == "auto" and selection["excluded_ids"] and not candidate_ids:
-        raise SpeedtestRunError(
-            "No allowed Ookla servers remained after applying SPEEDTEST_EXCLUDE"
-        )
-
-    # Unfiltered automatic mode lets the official CLI choose directly.
-    if selection["mode"] == "auto" and not selection["excluded_ids"]:
-        result = execute_ookla_test()
-        result.update(protocol="ookla", secure=None)
-        return result
-
-    failures = []
-    for server_id in candidate_ids:
-        try:
-            result = execute_ookla_test(server_id)
-            result.update(protocol="ookla", secure=None)
-            return result
-        except SpeedtestRunError as exc:
-            failures.append(f"{server_id}: {exc}")
-            logger.warning("Ookla candidate %s failed: %s", server_id, exc)
-
-    requested = ",".join(candidate_ids or selection["server_ids"]) or "automatic"
-    detail = "; ".join(failures[-3:]) or "no candidates were available"
-    raise SpeedtestRunError(
-        f"Official Ookla Speedtest could not complete using {requested}: {detail}"
-    )
-
-
 # -------------------------
 # Probe & speedtest loops
 # -------------------------
@@ -1293,24 +773,9 @@ last_speedtest_lock = threading.Lock()
 speedtest_run_lock = threading.Lock()
 
 
-def run_speedtest_internal(
-    requested_server_id=None,
-    force_auto=False,
-    backend=None,
-):
+def run_speedtest_internal(backend=None):
     """Run a speedtest with the configured or one-off selected backend."""
     selected_backend = resolve_speedtest_backend(backend)
-    force_auto_value = parse_optional_bool(force_auto, "force_auto")
-    force_auto_mode = bool(force_auto_value) if force_auto_value is not None else False
-
-    selection = resolve_speedtest_selection(
-        requested_server_id,
-        force_auto=force_auto_mode,
-    )
-    selection_mode = selection["mode"]
-    requested_server_ids = selection["server_ids"]
-    excluded_server_ids = selection["excluded_ids"]
-    requested_server_value = ",".join(requested_server_ids) or None
 
     if not speedtest_run_lock.acquire(blocking=False):
         raise SpeedtestRunError(
@@ -1318,23 +783,15 @@ def run_speedtest_internal(
         )
 
     try:
-        logger.info("Starting speedtest run...")
-        logger.info(
-            "Speedtest selection: backend=%s mode=%s requested=%s excluded=%s forced_auto=%s",
-            selected_backend,
-            selection_mode,
-            requested_server_value or "auto",
-            ",".join(excluded_server_ids) or "none",
-            selection["forced_auto"],
-        )
+        logger.info("Starting speedtest run (backend=%s)...", selected_backend)
 
-        if selected_backend == "fast":
-            try:
+        try:
+            if selected_backend == "cloudflare":
+                normalized = custom_extension.run_cloudflare_speedtest()
+            else:
                 normalized = custom_extension.run_fast_speedtest()
-            except Exception as exc:
-                raise SpeedtestRunError(str(exc).strip() or type(exc).__name__) from exc
-        else:
-            normalized = run_ookla_speedtest(selection)
+        except Exception as exc:
+            raise SpeedtestRunError(str(exc).strip() or type(exc).__name__) from exc
 
         ping_ms = normalized["ping_ms"]
         download_mbps = normalized["download_mbps"]
@@ -1348,7 +805,6 @@ def run_speedtest_internal(
             download_mbps,
             upload_mbps,
             server,
-            requested_server_id=requested_server_value,
             backend=selected_backend,
         )
         if custom_extension is not None:  # jitter, packet loss and the delay under load have no column in the native table
@@ -1358,17 +814,13 @@ def run_speedtest_internal(
                 logger.exception("Speedtest extras could not be stored")
 
         logger.info(
-            "Speedtest: backend=%s ping=%sms down=%sMbps up=%sMbps server=%s protocol=%s selection_mode=%s requested_server_ids=%s excluded_server_ids=%s forced_auto=%s",
+            "Speedtest: backend=%s ping=%sms down=%sMbps up=%sMbps server=%s protocol=%s",
             selected_backend,
             ping_ms,
             None if download_mbps is None else round(download_mbps, 2),
             None if upload_mbps is None else round(upload_mbps, 2),
             server.get("name"),
             normalized["protocol"],
-            selection_mode,
-            requested_server_value or "auto",
-            ",".join(excluded_server_ids) or "none",
-            selection["forced_auto"],
         )
 
         return {
@@ -1377,14 +829,9 @@ def run_speedtest_internal(
             "download_mbps": download_mbps,
             "upload_mbps": upload_mbps,
             "server": server,
-            "requested_server_id": requested_server_value,
-            "requested_server_ids": requested_server_ids,
-            "selection_mode": selection_mode,
-            "excluded_server_ids": excluded_server_ids,
             "backend": selected_backend,
             "protocol": normalized["protocol"],
             "secure": normalized["secure"],
-            "forced_auto": selection["forced_auto"],
             "jitter_ms": normalized.get("jitter_ms"),
             "loaded_ping_ms": normalized.get("loaded_ping_ms"),
             "loaded_up_ping_ms": normalized.get("loaded_up_ping_ms"),
@@ -1674,27 +1121,9 @@ def api_config():
         speedtest_interval=SPEEDTEST_INTERVAL,
         speedtest_backend=SPEEDTEST_BACKEND,
         speedtest_backends_available={
-            "ookla": ookla_binary_available(),
             "fast": custom_extension is not None,
+            "cloudflare": custom_extension is not None,
         },
-        speedtest_ookla_path=SPEEDTEST_OOKLA_PATH,
-        speedtest_ookla_installed=ookla_binary_available(),
-        speedtest_ookla_accept_license=ookla_acceptance_status()[0],
-        speedtest_ookla_acceptance_source=ookla_acceptance_status()[1],
-        speedtest_ookla_acceptance_file=SPEEDTEST_OOKLA_ACCEPTANCE_FILE,
-        speedtest_ookla_terms={
-            "eula": OOKLA_EULA_URL,
-            "terms": OOKLA_TERMS_URL,
-            "privacy": OOKLA_PRIVACY_URL,
-        },
-        speedtest_ookla_timeout=SPEEDTEST_OOKLA_TIMEOUT,
-        speedtest_server=SPEEDTEST_SERVER or None,
-        speedtest_csv=SPEEDTEST_CSV,
-        speedtest_csv_servers=SPEEDTEST_CSV_SERVERS,
-        speedtest_exclude=SPEEDTEST_EXCLUDE,
-        speedtest_selection_mode=(
-            "csv" if SPEEDTEST_CSV else "single" if SPEEDTEST_SERVER else "auto"
-        ),
         live_log_poll_seconds=LIVE_LOG_POLL_SECONDS,
         db_engine=DB_ENGINE,
     )
@@ -1719,8 +1148,6 @@ def api_speedtest_history():
             "server_name": row[5],
             "server_host": row[6],
             "server_country": row[7],
-            "requested_server_id": row[8],
-            "requested_server_ids": row[8].split(",") if row[8] else [],
             "backend": row[9] or "python",
         }
         for row in rows
@@ -1746,8 +1173,6 @@ def api_speedtest_latest():
             "host": row[6],
             "country": row[7],
         },
-        "requested_server_id": row[8],
-        "requested_server_ids": row[8].split(",") if row[8] else [],
         "backend": row[9] or "python",
     }
     return jsonify(result=data)
@@ -1757,20 +1182,13 @@ def api_speedtest_latest():
 def api_speedtest_run():
     try:
         payload = request.get_json(silent=True) or {}
-        requested_server_id = payload.get("server_id")
-        force_auto = payload.get("force_auto", False)
         backend = payload.get("backend")
         if payload.get("async") is True:  # the UI: answer at once, poll /api/speedtest/status for the outcome
-            started = start_speedtest_job(dict(
-                requested_server_id=requested_server_id, force_auto=force_auto, backend=backend))
+            started = start_speedtest_job(dict(backend=backend))
             if not started:
                 return jsonify(success=False, error="A Speedtest is already running. Wait for it to finish and try again."), 409
             return jsonify(success=True, started=True), 202
-        result = run_speedtest_internal(
-            requested_server_id=requested_server_id,
-            force_auto=force_auto,
-            backend=backend,
-        )
+        result = run_speedtest_internal(backend=backend)
         return jsonify(success=True, result=result)
     except Exception as exc:
         error_message = str(exc).strip() or type(exc).__name__

@@ -1,4 +1,4 @@
-# Internet Health: monitoring with a web page, Speedtest (Fast.com, optionally the Ookla CLI) and Telegram alerts.
+# Internet Health: monitoring with a web page, Speedtest (Fast.com, Cloudflare) and Telegram alerts.
 # It started as a fork of NetProbe_Python (MIT, see THIRD_PARTY_NOTICES.md) and is built from source on a pinned base image.
 # The base (Debian 13, Python 3.14) is pinned by digest; Dependabot proposes newer digests and package versions.
 FROM python:3.14-slim@sha256:35caba83af2fe6da9a5d922f9b0156f21d1246a48278c58a08bd253303ba42e8
@@ -19,8 +19,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/app.py /app/app.py
 COPY src/netprobe_extensions.py /app/netprobe_extensions.py
 COPY src/index.html /app/templates/index.html
-# the optional installer of the Ookla CLI (the binary is not in the image; see docs)
-COPY --chmod=755 src/internet-health-ookla /usr/local/bin/internet-health-ookla
 # starts as root only to hand /data to PUID:PGID (default 99:100), then runs the app as that user
 COPY --chmod=755 src/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 

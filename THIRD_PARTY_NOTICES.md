@@ -35,8 +35,7 @@ This repository does not use the upstream Docker image: the Internet Health imag
 ## Dependencies that are used but not bundled
 
 - **speedtest-cli** — used by the upstream application and removed from this project in 1.3.0 (the project was archived in April 2026).
-- **Ookla Speedtest CLI** (optional service) — proprietary, **not** covered by this
-  repository's license and **not** in the image: `internet-health-ookla install` downloads it from Ookla after the user accepts Ookla's terms.
+- **Ookla Speedtest CLI** — an optional backend of the upstream application; removed from this project in 1.4.0 (it is proprietary).
 - **Flask**, **dnspython** — BSD-3-Clause / ISC, installed in the upstream image and via `requirements.txt` for tests.
 - **Playwright** (dev only, browser tests) — Apache-2.0.
 

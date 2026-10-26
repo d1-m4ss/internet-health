@@ -33,8 +33,6 @@ curl -fsS -m 5 "http://127.0.0.1:$port/api/telegram" | grep -q '"token_set":fals
 docker exec "$NAME" sh -c "[ -f /data/netprobe-prefs.json ] || [ -f /data/alert-settings.json ]" || fail "no settings were written to /data"
 curl -fsS -m 5 "http://127.0.0.1:$port/api/health" | grep -q '"status":"ok"' || fail "/api/health does not report ok"
 [[ "$(docker inspect --format '{{.Config.Healthcheck.Test}}' "$NAME")" == *"/api/health"* ]] || fail "the health check does not use /api/health"
-ookla=$(docker exec "$NAME" internet-health-ookla status 2>&1 || true)   # exit code 1 = not installed
-grep -q "not installed" <<< "$ookla" || fail "the Ookla installer helper is missing"
 docker exec "$NAME" python -c "import psycopg2" 2>/dev/null && fail "psycopg2 is still in the image"
 docker exec "$NAME" python -c "import speedtest" 2>/dev/null && fail "speedtest-cli is still in the image"
 curl -fsS -m 5 -H 'Accept-Encoding: gzip' -o /dev/null -w '%{http_code}\n' "http://127.0.0.1:$port/" | grep -q 200 || fail "page request failed"

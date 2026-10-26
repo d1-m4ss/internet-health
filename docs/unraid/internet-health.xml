@@ -9,7 +9,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/d1-m4ss/internet-health/issues</Support>
   <Project>https://github.com/d1-m4ss/internet-health</Project>
-  <Overview>Internet monitoring for Unraid: per-target history, WAN / ISP card, packet-loss report, Speedtest (Fast.com, optionally Ookla) with a schedule, and alerts to Telegram or through Unraid notifications. Built on NetProbe (MIT). The web UI has no authentication: keep the port on your LAN.</Overview>
+  <Overview>Internet monitoring for Unraid: per-target history, WAN / ISP card, packet-loss report, Speedtest (Fast.com or Cloudflare) with a schedule, and alerts to Telegram or through Unraid notifications. Built on NetProbe (MIT). The web UI has no authentication: keep the port on your LAN.</Overview>
   <Category>Network:Other Tools:</Category>
   <WebUI>http://[IP]:[PORT:8080]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/d1-m4ss/internet-health/main/docs/unraid/internet-health.xml</TemplateURL>

@@ -204,7 +204,7 @@ class PrefsTests(unittest.TestCase):
         self.assertEqual(self.ext.speedtest_service(), "")
 
     def test_each_service_is_saved_and_survives_a_restart(self):
-        for service in ("ookla", "fast", ""):
+        for service in ("cloudflare", "fast", ""):
             response = self.client.post("/api/prefs", json={"speedtest_service": service}, headers=self.headers)
             self.assertEqual(response.get_json()["prefs"], dict(npx.PREFS_DEFAULTS, speedtest_service=service))
             fresh = npx.Extension(str(self.root / "netprobe.sqlite"), str(self.root))
@@ -289,11 +289,11 @@ class AppWiringTests(unittest.TestCase):
 
     def test_chosen_service_decides_when_the_request_names_none(self):
         self.assertEqual(self.module.resolve_speedtest_backend(), "fast", "Fast.com is the default")
-        self.choose("ookla")
-        self.assertEqual(self.module.resolve_speedtest_backend(), "ookla")
+        self.choose("cloudflare")
+        self.assertEqual(self.module.resolve_speedtest_backend(), "cloudflare")
         self.choose("fast")
         self.assertEqual(self.module.resolve_speedtest_backend(), "fast")
-        self.assertEqual(self.module.resolve_speedtest_backend("ookla"), "ookla", "an explicit request wins")
+        self.assertEqual(self.module.resolve_speedtest_backend("cloudflare"), "cloudflare", "an explicit request wins")
         self.choose("")
         self.assertEqual(self.module.resolve_speedtest_backend(), "fast")
 

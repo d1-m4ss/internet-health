@@ -5,6 +5,16 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+- **Cloudflare replaces the Ookla CLI as the second Speedtest service.** Internet Health measures against the nearest Cloudflare data
+  centre itself (speed.cloudflare.com, the endpoints its page uses): download, upload, latency, jitter and the latency under load, with no
+  program to install and no licence to accept. The history and the chart show it as *Cloudflare* with the data centre (e.g. `OTP`); with
+  *All services* its lines are darker and dotted with ▲ markers. Like Fast.com, Cloudflare publishes no API guarantee for these endpoints:
+  if they change, its tests fail with a readable message and Fast.com keeps working.
+- **The Ookla CLI is removed** with everything around it: `internet-health-ookla`, the terms acceptance, `SPEEDTEST_OOKLA_*`, the server
+  choice of manual tests (`SPEEDTEST_SERVER`, `SPEEDTEST_CSV*`, `SPEEDTEST_EXCLUDE`, `server_id` / `force_auto` of `POST /api/speedtest/run`)
+  and the `speedtest_ookla_*` / `speedtest_server*` fields of `/api/config`. A saved choice of Ookla or `SPEEDTEST_BACKEND=ookla` means Fast.com.
+  `requested_server_id(s)` left the speedtest history answers. A downloaded binary in `<data>/ookla` is not used any more and can be deleted.
+
 - **The app no longer runs as root.** The container starts as root only to hand the data folder to `PUID:PGID` (default `99:100`, Unraid's nobody:users;
   files created by root in older versions are converted on the first start) and then drops the privileges for good. `PUID=0` keeps the old behaviour.
   `internet-health-ookla install` (run by `docker exec` as root) gives what it creates to the owner of the data folder. The smoke test of the image

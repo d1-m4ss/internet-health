@@ -164,7 +164,13 @@ class CompressionTests(AppTestCase):
             raw = self.client.get(path).data
             body = gzip.decompress(response.data) if response.headers.get("Content-Encoding") == "gzip" else response.data
             self.assertEqual(body, raw, path)
-        self.assertEqual(self.client.get("/api/config", headers={"Accept-Encoding": "gzip"}).headers.get("Content-Encoding"), "gzip")
+        # the fixture's answers are small: lower the limit to see the compression itself
+        import netprobe_extensions
+        with patch.object(netprobe_extensions, "GZIP_MIN", 20):
+            for path in ("/api/export/targets.csv?range=86400", "/api/config"):
+                response = self.client.get(path, headers={"Accept-Encoding": "gzip"})
+                self.assertEqual(response.headers.get("Content-Encoding"), "gzip", path)
+                self.assertEqual(gzip.decompress(response.data), self.client.get(path).data, path)
 
     def test_small_answers_and_other_methods_are_left_alone(self):
         small = self.client.get("/api/events?range=3600", headers={"Accept-Encoding": "gzip"})
