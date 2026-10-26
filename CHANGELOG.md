@@ -5,6 +5,8 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+## 1.1.0 — 2026-10-26
+
 - **Documentation for the image-first install.** README (EN/RU), INSTALL-UNRAID and INSTALL-COMPOSE now start from the ready image and the Unraid
   template (Telegram needs nothing on the host; the Unraid bridge is optional), with updating by tags, switching from the earlier "image + three
   files" install, restoring a backup and troubleshooting; the file-mount way moved to an appendix. ARCHITECTURE, NOTIFICATIONS, SECURITY, API and
