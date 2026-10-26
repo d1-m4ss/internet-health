@@ -2,12 +2,17 @@
 
 ## Components
 
+Internet Health is the NetProbe container image with these files added (the `Dockerfile` copies `src/app.py`, `src/netprobe_extensions.py` and
+`src/index.html` over the originals; the base is pinned by digest and CI checks it). `.github/workflows/ci.yml` runs the tests and builds/starts the
+image; a version tag runs `release.yml` (checks, tests, build, smoke test, publish to GHCR, GitHub Release). The same three files can instead be
+bind-mounted over the stock image (the file-mount way, see INSTALL-UNRAID).
+
 | File | Runs | Role |
 |---|---|---|
-| `src/app.py` | in the container (replaces `/app/app.py`) | the upstream app plus three small hooks: record every probe cycle into the extension, track which DNS servers really answered, expose `ROUTER_NAME`. See `src/app.py.patch` for the exact diff against `upstream/app.py`. The extension is imported defensively: if it fails to start, the stock monitoring keeps running. |
+| `src/app.py` | in the container (replaces `/app/app.py` in the image) | the upstream app plus three small hooks: record every probe cycle into the extension, track which DNS servers really answered, expose `ROUTER_NAME`. See `src/app.py.patch` for the exact diff against `upstream/app.py`. The extension is imported defensively: if it fails to start, the stock monitoring keeps running. |
 | `src/netprobe_extensions.py` | in the container | storage, state machine, flood control, message composition, HTTP routes |
 | `src/index.html` | served by Flask | the single-file UI (two styles, two languages, no external assets) |
-| `src/netprobe-unraid-notify.sh` | on the Unraid host (cron, every minute) | drains the queue through Unraid's `notify`, acknowledges what was delivered |
+| `src/netprobe-unraid-notify.sh` | on the Unraid host (cron, every minute), optional | the Unraid integration: drains the queue through Unraid's `notify` (email and the Unraid agents), acknowledges what was delivered. Telegram does not need it: the container sends to Telegram itself |
 
 ## Data
 

@@ -1,5 +1,5 @@
 # Internet Health from the ready-made image (nothing to copy, nothing to mount besides the data folder).
-# Full guide: docs/INSTALL-UNRAID.md ("Install the ready image"). The web UI has no authentication: keep it on your LAN.
+# Guide: docs/INSTALL-COMPOSE.md (Unraid template and updating: docs/INSTALL-UNRAID.md). The web UI has no authentication: keep it on your LAN.
 services:
   internet-health:
     image: ghcr.io/d1-m4ss/internet-health:latest   # or a version tag such as :1.0.0

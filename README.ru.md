@@ -2,12 +2,14 @@
 
 # Internet Health
 
-Расширение для [NetProbe](https://github.com/bmartino1/NetProbe_Python) на Unraid: история по каждой цели, отчёт о
-потерях пакетов и **понятные уведомления Unraid** (email / Telegram) для Docker-контейнера NetProbe, плюс современный дашборд в двух стилях
-(тёмный *NetProbe* и светлый/тёмный *UniFi*) с переключением русский/английский.
+Мониторинг интернета для Unraid (и любого Docker-хоста) на основе [NetProbe](https://github.com/bmartino1/NetProbe_Python): история по
+каждой цели, отчёт о потерях пакетов, WAN / провайдер, Speedtest с графиком и **понятные уведомления** в Telegram и/или Unraid (почта и
+все агенты Unraid), плюс современный дашборд в двух стилях (тёмный *NetProbe* и светлый/тёмный *UniFi*) с переключением русский/английский.
 
-Это **расширение, а не форк контейнера**: оригинальный образ не меняется, поверх него монтируются три файла
-только для чтения. Уберёте монтирования — вернётся штатный NetProbe.
+Поставляется **готовым образом контейнера** `ghcr.io/d1-m4ss/internet-health`: образ NetProbe (закреплён по дайджесту) с файлами этого
+проекта внутри. Ставится из шаблона Unraid или compose-файла — копировать и монтировать ничего не нужно, кроме папки данных, — а всё
+настраивается в веб-интерфейсе. Проект добавляет свои таблицы (`np_*`) рядом с таблицами NetProbe и их не трогает, поэтому штатное приложение
+работает на тех же данных.
 
 > Internet Health — независимый проект, не связанный с автором NetProbe и не одобренный им. На скриншотах вымышленные
 > данные (условный роутер ASUS, 192.168.1.1), их создаёт [`tests/demo_server.py`](tests/demo_server.py).
@@ -79,40 +81,41 @@
 - **Безопасно:** сообщения идут только через штатный `notify` Unraid и, если вы настроили, в ваш Telegram-чат. Остальные
   внешние запросы — только те, которые вы включили: запускаемый или плановый Speedtest (серверы speedtest.net, Ookla или fast.com / Netflix — по
   выбранному сервису) и, только с галкой, определение публичного IP. Контейнеру не нужны привилегии, Docker-сокет и
-  монтирование хоста.
+  монтирование хоста, кроме папки данных.
 
 ## Требования
 
-Unraid с контейнером **NetProbe** из Community Applications (`bmmbmm01/netprobe`, SQLite), настроенные уведомления
-Unraid (email и/или Telegram), на хосте `curl`, `jq`, `flock`. Проверено на образе
-`bmmbmm01/netprobe@sha256:386bdc2c177b11aef4a1223dfd91ae47fe2f9804c5449c5f4c2caae1d048c155`.
+Docker-хост (главная цель — Unraid; образ `linux/amd64`). Для веб-интерфейса, истории, Speedtest и Telegram больше ничего на хосте не нужно.
+**Уведомления Unraid** (почта и любые агенты Unraid) дополнительно требуют небольшой скрипт-мост на хосте Unraid (`curl`, `jq`, `flock`,
+`bash` — всё есть в Unraid) и настроенных агентов в *Settings → Notification Settings*; он необязателен, Telegram не требует настройки хоста.
+Образ собран на `bmmbmm01/netprobe@sha256:386bdc2c177b11aef4a1223dfd91ae47fe2f9804c5449c5f4c2caae1d048c155`, CI проверяет эту основу при каждой сборке.
 
 ## Установка
 
-**Проще всего — готовый образ** (с первого релиза): *Add Container* в Unraid по шаблону
-[`docs/unraid/internet-health.xml`](docs/unraid/internet-health.xml) (образ `ghcr.io/d1-m4ss/internet-health`) или
-[`examples/docker-compose.image.yml`](examples/docker-compose.image.yml). Ничего копировать и монтировать не нужно; переезд с
-текущей установки сохраняет данные — см. **[docs/INSTALL-UNRAID.md → Install the ready image](docs/INSTALL-UNRAID.md#install-the-ready-image-recommended)**
-(на английском). Дальше в разделе — способ с монтированием файлов.
+**Unraid** — один шаблон, дальше всё в веб-интерфейсе:
 
-Установка с нуля (пример `docker-compose.yml`, затем три файла в папке данных): **[docs/INSTALL-COMPOSE.md](docs/INSTALL-COMPOSE.md)**.
-Подробное руководство для уже работающего контейнера (проверки, откат, обновление образа): **[docs/INSTALL-UNRAID.md](docs/INSTALL-UNRAID.md)**. Оба на английском.
-Коротко: резервная копия → закрепить образ по дайджесту → скопировать `src/app.py`, `src/netprobe_extensions.py`,
-`src/index.html` в `/mnt/user/appdata/netprobe_database/custom/` и примонтировать их **только на чтение** в
-`/app/app.py`, `/app/netprobe_extensions.py`, `/app/templates/index.html` → поставить мост уведомлений
-(`src/netprobe-unraid-notify.sh` + строка cron из `scripts/netprobe-notify.cron`).
+```sh
+wget -O /boot/config/plugins/dockerMan/templates-user/my-InternetHealth.xml \
+  https://raw.githubusercontent.com/d1-m4ss/internet-health/main/docs/unraid/internet-health.xml
+```
 
-Рекомендуемые переменные контейнера: `ROUTER_IP`, `ROUTER_NAME` (подпись роутера, например `ASUS RT-AX86U`) и **две IP-цели в
-`SITES`** (например `fast.com,google.com,youtube.com,1.1.1.1,8.8.8.8`): пинг по имени зависит от DNS, а цели по IP
-позволяют отличить «упал DNS» от «нет интернета».
+*Docker → Add Container → Template: InternetHealth* → укажите адрес роутера, цели для пинга (оставьте **два IP-адреса** рядом с именами: они
+позволяют отличить «упал DNS» от «нет интернета»), часовой пояс → *Apply* → откройте `http://<unraid>:8788`. Затем *Настройки → Интеграции*:
+подключите Telegram и/или поставьте мост Unraid. Пошагово, с проверками: **[docs/INSTALL-UNRAID.md](docs/INSTALL-UNRAID.md)** (на английском).
 
-## Обновление с предыдущей версии
+**Docker compose** — [`examples/docker-compose.image.yml`](examples/docker-compose.image.yml), руководство **[docs/INSTALL-COMPOSE.md](docs/INSTALL-COMPOSE.md)**.
 
-Новый релиз меняет только три файла контейнера. База, `alert-settings.json`, `notify-token`, скрипт моста и строка cron
-остаются как есть, миграция не нужна (новые таблицы и файлы создаются при первом использовании). Сохраните старые
-файлы, скопируйте новые в `…/custom/` и перезапустите контейнер — команды, проверка и откат в
-**[docs/INSTALL-UNRAID.md → Updating Internet Health](docs/INSTALL-UNRAID.md#updating-internet-health)** (на английском).
-Что менялось в каждой версии: [CHANGELOG.md](CHANGELOG.md).
+**Уже стоит NetProbe или прежняя установка «с тремя файлами»?** Смените репозиторий контейнера на образ и уберите монтирование файлов; данные
+сохраняются (**[docs/INSTALL-UNRAID.md → Switching](docs/INSTALL-UNRAID.md#switching-from-a-netprobe--files-install)**). Старый способ с монтированием
+файлов остаётся рабочим, чтобы запускать невыпущенную версию (приложение в том же руководстве).
+
+## Обновление
+
+Версии нумеруются ([semver](https://semver.org)), у каждой есть заметки на [странице релизов](https://github.com/d1-m4ss/internet-health/releases) и в
+[CHANGELOG.md](CHANGELOG.md); номер виден в подвале страницы и в `GET /api/about`. В Unraid — *Check for updates → Update* (шаблон следует за
+`:latest`; чтобы остаться на версии, укажите тег, например `:1.1.0`), в compose — `docker compose pull && docker compose up -d`. Папка данных не
+затрагивается, новая функция остаётся выключенной, пока вы её не включите. Перед обновлением можно сделать копию: *Настройки → История → Создать
+копию*; откат — предыдущий тег. Подробно: [docs/INSTALL-UNRAID.md → Updating](docs/INSTALL-UNRAID.md#updating).
 
 ## Тесты и проверка сбоев без отправки чего-либо
 
@@ -143,7 +146,7 @@ Fast.com не имеет документированного публичног
 сообщение (одного потерянного эха или одного молчащего адреса недостаточно). Сообщение Turbo ждёт окончания цикла
 обычных проверок, шедшего в момент восстановления (до ~1,5 мин), чтобы один обрыв не пришёл дважды. Если полностью недоступны и интернет, и сеть, Unraid не сможет отправить
 письмо/Telegram. Реальная доставка через агентов Unraid проверится вашим первым настоящим событием; автотесты используют
-фиктивный `notify`. Workflow GitHub Actions ещё не запускался.
+фиктивный `notify`. Прямой Telegram можно проверить кнопкой «Отправить тест».
 
 ## Лицензия
 

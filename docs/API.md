@@ -1,6 +1,6 @@
 # HTTP API
 
-All endpoints are served by the NetProbe container (default `http://<unraid>:8788`). The extension **adds**
+All endpoints are served by the Internet Health container (default `http://<unraid>:8788`; `GET /api/about` tells the version). The extension **adds**
 endpoints and optional parameters; the upstream API (`/api/config`, `/api/score/*`, `/api/speedtest/*`,
 `/api/logs/live`) keeps working. There is no authentication, so keep the port on your LAN.
 

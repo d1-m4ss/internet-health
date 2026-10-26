@@ -5,6 +5,10 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+- **Documentation for the image-first install.** README (EN/RU), INSTALL-UNRAID and INSTALL-COMPOSE now start from the ready image and the Unraid
+  template (Telegram needs nothing on the host; the Unraid bridge is optional), with updating by tags, switching from the earlier "image + three
+  files" install, restoring a backup and troubleshooting; the file-mount way moved to an appendix. ARCHITECTURE, NOTIFICATIONS, SECURITY, API and
+  UPSTREAM describe the release pipeline and the integrations.
 - **WAN source in the loss report and in the compare chart.** `GET /api/loss` accepts `wan_ip` / `wan_isp` and returns `wan_sources` (how each source
   fared in the window); the report shows that table, clicking a row selects the source. The compare chart gets *One line per WAN source*
   (up to four sources; every picked series is drawn once per source).

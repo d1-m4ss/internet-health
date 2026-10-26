@@ -1,5 +1,6 @@
 # Internet Health — example docker-compose.yml (Unraid paths; change DATA to your own folder).
-# Full guide: docs/INSTALL-COMPOSE.md
+# The file-mount way (an unreleased version over the stock image): see the appendix of docs/INSTALL-UNRAID.md.
+# Most people want examples/docker-compose.image.yml instead.
 #
 # Before the first `docker compose up`, put the three files from this repository's src/ folder into
 # /mnt/user/appdata/netprobe_database/custom/ — otherwise Docker creates EMPTY DIRECTORIES with those names

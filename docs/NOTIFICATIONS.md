@@ -1,7 +1,8 @@
 # Notifications
 
-Notifications are produced by the extension (`Extension.compose`) and delivered by the host bridge through
-Unraid's own `notify` script, so they reach whatever agents you configured (email, Telegram, the Unraid GUI).
+Notifications are produced by the extension (`Extension.compose`) and delivered to the integrations that are switched on (*Settings → Integrations*, see
+[below](#integrations-unraid-and-telegram)): **Unraid**, through the host bridge and Unraid's own `notify` script, so they reach whatever agents you configured
+(email, Telegram, the Unraid GUI); and/or **Telegram**, sent straight from the container.
 
 ## Format
 

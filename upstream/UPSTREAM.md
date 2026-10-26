@@ -10,3 +10,7 @@
 
 If your image differs, run `scripts/verify-image.sh <image>`; on a mismatch re-apply `src/app.py.patch`
 to the new `app.py` (`patch app.py < src/app.py.patch`) and re-run the tests before deploying.
+
+The `Dockerfile`'s `FROM` line carries this digest, and CI pulls it and runs `scripts/verify-image.sh` on every build and release, so a changed base cannot be
+published unnoticed. To move to a newer NetProbe image: change the digest in the `Dockerfile` and in `scripts/verify-image.sh` (with the new file hashes),
+port the hooks with `patch`, run the whole test suite, and release a new version.
