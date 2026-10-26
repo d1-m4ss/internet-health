@@ -204,11 +204,19 @@ class PrefsTests(unittest.TestCase):
         self.assertEqual(self.ext.speedtest_service(), "")
 
     def test_each_service_is_saved_and_survives_a_restart(self):
-        for service in ("python", "ookla", "fast", ""):
+        for service in ("ookla", "fast", ""):
             response = self.client.post("/api/prefs", json={"speedtest_service": service}, headers=self.headers)
             self.assertEqual(response.get_json()["prefs"], dict(npx.PREFS_DEFAULTS, speedtest_service=service))
             fresh = npx.Extension(str(self.root / "netprobe.sqlite"), str(self.root))
             self.assertEqual(fresh.speedtest_service(), service)
+
+    def test_the_removed_speedtest_cli_engine_is_not_accepted_and_a_saved_choice_of_it_means_fast(self):
+        response = self.client.post("/api/prefs", json={"speedtest_service": "python"}, headers=self.headers)
+        self.assertEqual(response.status_code, 400)
+        (self.root / "netprobe-prefs.json").write_text('{"speedtest_service": "python", "speedtest_schedule": "daily"}')
+        prefs = self.ext.prefs()
+        self.assertEqual((prefs["speedtest_service"], prefs["speedtest_schedule"]), ("fast", "daily"))
+        self.assertEqual(self.ext.speedtest_service(), "fast")
 
     def test_invalid_values_are_rejected_and_nothing_is_written(self):
         for body in ({"speedtest_service": "fastcom"}, {"speedtest_service": None}, {"speedtest_service": 1},
@@ -270,13 +278,24 @@ class AppWiringTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.module.normalize_speedtest_backend("netflix")
 
+    def test_the_old_python_names_still_start_and_mean_fast(self):
+        for name in ("python", "legacy", "speedtest-cli", "", None):
+            self.assertEqual(self.module.normalize_speedtest_backend(name), "fast", name)
+        self.assertEqual(self.module.SPEEDTEST_BACKEND, "fast")
+        config = self.client.get("/api/config").get_json()
+        self.assertNotIn("python", config["speedtest_backends_available"])
+        self.assertNotIn("speedtest_secure", config)
+        self.assertEqual(config["db_engine"], "sqlite")
+
     def test_chosen_service_decides_when_the_request_names_none(self):
-        self.assertEqual(self.module.resolve_speedtest_backend(), "python")
+        self.assertEqual(self.module.resolve_speedtest_backend(), "fast", "Fast.com is the default")
+        self.choose("ookla")
+        self.assertEqual(self.module.resolve_speedtest_backend(), "ookla")
         self.choose("fast")
         self.assertEqual(self.module.resolve_speedtest_backend(), "fast")
         self.assertEqual(self.module.resolve_speedtest_backend("ookla"), "ookla", "an explicit request wins")
         self.choose("")
-        self.assertEqual(self.module.resolve_speedtest_backend(), "python")
+        self.assertEqual(self.module.resolve_speedtest_backend(), "fast")
 
     def test_manual_run_stores_a_fast_result_with_an_unknown_upload(self):
         with patch.object(self.module.custom_extension, "run_fast_speedtest", return_value=self.fast_result):

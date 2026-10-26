@@ -4,7 +4,7 @@
 
 `src/app.py` is a modified copy of `probe/app.py` from
 [bmartino1/NetProbe_Python](https://github.com/bmartino1/NetProbe_Python). The unmodified file is kept in
-`upstream/app.py`, and every change is visible in `src/app.py.patch`. The upstream license:
+`upstream/app.py` (the file has been developed on its own since 1.3.0; `diff -u upstream/app.py src/app.py` shows the differences). The upstream license:
 
 ```
 MIT License
@@ -30,14 +30,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-This repository does not ship the upstream Docker image; it is pulled by the user from Docker Hub
-(`bmmbmm01/netprobe`).
+This repository does not use the upstream Docker image: the Internet Health image is built from this repository's `Dockerfile`.
 
 ## Dependencies that are used but not bundled
 
-- **speedtest-cli** (Python backend for the optional Speedtest) — Apache-2.0, installed in the upstream image.
-- **Ookla Speedtest CLI** (optional backend of the upstream image) — proprietary, **not** covered by this
-  repository's license; users accept Ookla's terms themselves.
+- **speedtest-cli** — used by the upstream application and removed from this project in 1.3.0 (the project was archived in April 2026).
+- **Ookla Speedtest CLI** (optional service) — proprietary, **not** covered by this
+  repository's license and **not** in the image: `internet-health-ookla install` downloads it from Ookla after the user accepts Ookla's terms.
 - **Flask**, **dnspython** — BSD-3-Clause / ISC, installed in the upstream image and via `requirements.txt` for tests.
 - **Playwright** (dev only, browser tests) — Apache-2.0.
 

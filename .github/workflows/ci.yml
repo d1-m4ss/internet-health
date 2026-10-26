@@ -17,12 +17,7 @@ jobs:
       - run: pip install -r requirements.txt
 
       - name: Shell syntax
-        run: bash -n src/netprobe-unraid-notify.sh && bash -n scripts/verify-image.sh
-
-      - name: The patch still turns the pinned upstream app.py into src/app.py
-        run: |
-          patch -s -o /tmp/app.py upstream/app.py < src/app.py.patch
-          cmp /tmp/app.py src/app.py
+        run: bash -n src/netprobe-unraid-notify.sh && bash -n scripts/smoke-image.sh
 
       - name: Unit and integration tests
         run: python -m unittest discover -s tests -v
@@ -45,12 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - run: bash -n scripts/smoke-image.sh
       - name: Build the image (this pulls the pinned base)
         run: docker build --build-arg REVISION="$GITHUB_SHA" -t internet-health:ci .
-      - name: The base image is the one the patch was made for
-        run: |
-          docker pull "$(awk '/^FROM /{print $2}' Dockerfile)"
-          bash scripts/verify-image.sh
       - name: Start the image on an empty data folder
         run: bash scripts/smoke-image.sh internet-health:ci

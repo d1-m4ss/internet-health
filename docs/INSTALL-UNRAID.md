@@ -14,7 +14,7 @@ D=/mnt/user/appdata/internet-health      # host folder mounted as /data in the c
 
 - [New install](#new-install) · [Notifications](#notifications) · [Verify](#verify) · [Updating](#updating) ·
   [Moving the data folder](#moving-the-data-folder) · [Switching from a NetProbe + files install](#switching-from-a-netprobe--files-install) · [Restoring a backup](#restoring-a-backup) ·
-  [Rollback](#rollback) · [Troubleshooting](#troubleshooting) · [Appendix: the file-mount way](#appendix-the-file-mount-way)
+  [Rollback](#rollback) · [Troubleshooting](#troubleshooting)
 
 ## New install
 
@@ -114,7 +114,7 @@ folder as a whole), change them too and run `update_cron`; without them it follo
 
 ## Switching from a NetProbe + files install
 
-If you ran the earlier way (the `bmmbmm01/netprobe` image with three read-only bind-mounted files, [described below](#appendix-the-file-mount-way)),
+If you ran the earlier way (the `bmmbmm01/netprobe` image with three read-only bind-mounted files, which Internet Health no longer supports),
 switch to the image and keep your data folder, so history and settings stay:
 
 1. Back up: `mkdir -p $D/backups/pre-image && cd $D/backups/pre-image`, then
@@ -166,33 +166,5 @@ The extension keeps its data in separate `np_*` tables; the upstream tables are 
 | No messages arrive | *Settings → Integrations*: is the channel on? Telegram: *Send test* and the status line under it; Unraid: `grep netprobe-notify /var/log/syslog`, agents configured?, `cat $D/notify-bridge-state.json` |
 | "monitoring is not working" | the probe loop stalled or the API is unreachable from the host (`curl http://127.0.0.1:8788/api/settings`) |
 | Token errors from the bridge | `notify-token` must be mode `600`, a regular file, ≥ 32 hex characters |
-| `unhealthy` | `docker logs <name> \| tail`; the health check asks `GET /api/prefs` inside the container |
+| `unhealthy` | `docker logs <name> \| tail`; the health check asks `GET /api/health` inside the container: it is `503` when the probe loop has stored no cycle for the interval plus five minutes (the reason is in the answer: `curl http://<host>:8788/api/health`) |
 | The page does not change after an update | Ctrl+F5; check the footer version |
-
-## Appendix: the file-mount way
-
-Before the image existed (and still, to run a version that is not released), Internet Health was installed as three files bind-mounted read-only
-over the stock NetProbe image. It still works and is what developers use. Variables:
-
-```sh
-C=$D/custom                                # where the three files live
-```
-
-1. **Back up:** `mkdir -p $D/backups/pre-extension && cd $D/backups/pre-extension`; `docker inspect NetProbe > container-inspect.json && chmod 600 container-inspect.json`;
-   `cp /boot/config/plugins/dockerMan/templates-user/my-NetProbe.xml .`; `docker stop NetProbe && cp -p $D/netprobe.sqlite . && docker start NetProbe`.
-2. **Check the image and pin it by digest.** The files replace files of one specific image version:
-   `docker image inspect bmmbmm01/netprobe:latest --format '{{index .RepoDigests 0}}'`, then `bash scripts/verify-image.sh bmmbmm01/netprobe@sha256:<digest>`
-   (compares `app.py` and `templates/index.html` inside the image with the versions this repository was built against, see
-   [upstream/UPSTREAM.md](../upstream/UPSTREAM.md); on a mismatch re-apply `src/app.py.patch` and run the tests).
-3. **Copy the files:** `mkdir -p $C && scp src/app.py src/netprobe_extensions.py src/index.html root@<unraid>:$C/`.
-4. **Mount them read-only** (*Docker → NetProbe → Edit*, or recreate the container): `$C/app.py → /app/app.py`,
-   `$C/netprobe_extensions.py → /app/netprobe_extensions.py`, `$C/index.html → /app/templates/index.html`; repository
-   `bmmbmm01/netprobe@sha256:<digest>`; variables `ROUTER_IP`, `ROUTER_NAME`, `SITES`, and `GUNICORN_CMD_ARGS=--threads 4` (the stock image runs one
-   single-threaded worker; never raise `--workers`: every worker would start its own probe loop). With compose use
-   [`examples/docker-compose.yml`](../examples/docker-compose.yml).
-5. The Unraid bridge: as in [Notifications](#notifications), or copy `src/netprobe-unraid-notify.sh` and `scripts/netprobe-notify.cron` from your clone.
-6. **Update the files later:** back up (`cp -p $C/*.{py,html} $D/alert-settings.json $D/netprobe-prefs.json` into a folder, and a database copy after `docker stop`),
-   `scp` the three new files into `$C`, `docker restart NetProbe` (templates and modules are read once at start), reload the page.
-   Rollback: copy the old files back and restart.
-7. **Updating the NetProbe base image:** `docker pull bmmbmm01/netprobe:latest`, `bash scripts/verify-image.sh bmmbmm01/netprobe:latest` — if both files match,
-   the files are compatible; otherwise port the hooks with `patch`, run the test suite, update the expected hashes and the digest in the template.

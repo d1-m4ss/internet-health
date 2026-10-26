@@ -1,5 +1,7 @@
-# only these three files go into the image (see the Dockerfile)
+# only these files go into the image (see the Dockerfile)
 *
+!requirements.txt
 !src/app.py
 !src/netprobe_extensions.py
 !src/index.html
+!src/internet-health-ookla

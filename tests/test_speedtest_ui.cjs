@@ -28,8 +28,8 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
         if (api.delays[url.pathname]) await new Promise(r => setTimeout(r, api.delays[url.pathname]));
         if (/^\/api\/backups\/[^/]+\/delete$/.test(url.pathname)) { const name = url.pathname.split('/')[3]; api.backups = api.backups.filter(b => b.name !== name); return route.fulfill({json: {running: false, error: null, backups: api.backups, keep: 5, db_bytes: 5320000, free_bytes: 90e9}}); }
         switch (url.pathname) {
-          case '/api/config': return route.fulfill({json: {probe_interval: 30, ping_count: 4, sites: ['edge.example'], speedtest_backend: 'python', speedtest_secure: true, speedtest_enabled: true, speedtest_interval: 14400,
-            speedtest_backends_available: {python: true, ookla: false, fast: true}, speedtest_ookla_accept_license: false}});
+          case '/api/config': return route.fulfill({json: {probe_interval: 30, ping_count: 4, sites: ['edge.example'], speedtest_backend: 'fast', speedtest_enabled: true, speedtest_interval: 14400,
+            speedtest_backends_available: {ookla: false, fast: true}, speedtest_ookla_accept_license: false}});
           case '/api/prefs':
             if (api.prefsReadFail && request.method() === 'GET') return route.fulfill({status: 503, json: {error: 'Persistent preferences cannot be read'}});
             if (request.method() === 'POST') {
@@ -97,14 +97,15 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
     // --- the service list: three real services, each with an explanation; unavailable ones are disabled ---
     {
       const {page, errors} = await open();
-      assert.deepEqual(await service(page).locator('option').evaluateAll(o => o.map(x => x.value)), ['', 'python', 'ookla', 'fast']);
-      assert.match(await service(page).locator('option').nth(0).textContent(), /As set in the container: Speedtest\.net/);
+      assert.deepEqual(await service(page).locator('option').evaluateAll(o => o.map(x => x.value)), ['', 'ookla', 'fast'], 'Speedtest.net (speedtest-cli) is gone from the list');
+      assert.match(await service(page).locator('option').nth(0).textContent(), /As set in the container: Fast\.com/);
       assert.match(await service(page).locator('option[value="fast"]').textContent(), /Fast\.com \(Netflix\)/);
-      assert.match(await service(page).locator('option[value="python"]').textContent(), /Speedtest\.net.*Ookla servers/);
+      assert.match(await service(page).locator('option[value="ookla"]').textContent(), /Speedtest by Ookla/);
+      assert.equal(await page.locator('#secure').count(), 0, 'no HTTPS switch: it belonged to speedtest-cli');
       assert.equal(await service(page).locator('option[value="ookla"]').evaluate(o => o.disabled), true, 'the official CLI is not installed');
       assert.equal(await service(page).locator('option[value="fast"]').evaluate(o => o.disabled), false);
       assert.equal(await service(page).inputValue(), '', 'the saved preference (follow the container) is shown');
-      assert.match(await page.locator('#serviceNote').textContent(), /Speedtest\.net servers/);
+      assert.match(await page.locator('#serviceNote').textContent(), /Netflix servers/, 'the container default is Fast.com');
       assert.match(await page.locator('#speedServer').textContent(), /Speedtest\.net · Example City/, 'history shows a service name, not a library name');
 
       // choosing fast.com saves immediately, with the same-origin header, and adapts the form
@@ -115,7 +116,6 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       assert.equal(post.headers['x-netprobe-request'], 'settings');
       assert.match(await page.locator('#serviceNote').textContent(), /Netflix servers/);
       assert.equal(await page.locator('#serverId').isDisabled(), true, 'a server id does not apply to fast.com');
-      assert.equal(await page.locator('#secure').isDisabled(), true);
       assert.equal(await page.locator('#forceAuto').isDisabled(), true);
       assert.equal(await page.locator('#speedBtn').isDisabled(), false);
 
@@ -161,7 +161,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       assert.equal(await service(page).inputValue(), 'fast', 'preference survives a reload');
       assert.match(await page.locator('#serviceNote').textContent(), /серверов Netflix/);
       api.prefsFail = true;
-      await service(page).selectOption('python');
+      await service(page).selectOption('');
       await page.waitForFunction(() => /Не удалось сохранить сервис/.test(document.getElementById('speedMessage').textContent));
       assert.equal(await service(page).inputValue(), 'fast', 'the control returns to what is really saved');
       assert.match(await page.locator('#speedMessage').textContent(), /disk full/);
@@ -177,7 +177,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       await page.route('**/*', route => {
         const url = new URL(route.request().url());
         if (url.pathname === '/') return route.fulfill({contentType: 'text/html', body: fs.readFileSync(ui, 'utf8')});
-        if (url.pathname === '/api/config') return route.fulfill({json: {speedtest_backend: 'python', speedtest_backends_available: {python: true, ookla: false}}});
+        if (url.pathname === '/api/config') return route.fulfill({json: {speedtest_backend: 'fast', speedtest_backends_available: {ookla: false}}});
         if (url.pathname === '/api/speedtest/latest') return route.fulfill({json: {result: null}});
         return route.fulfill({status: 404, json: {error: 'not found'}});
       });

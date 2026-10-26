@@ -68,7 +68,7 @@ message with the outage duration when the cable is back. To test **Turbo mode**,
 
 ## 4. Optional settings in the web UI (no restart; stored in `netprobe-prefs.json`)
 
-- *Speedtest* tab → **Measurement service**: Speedtest.net (default), the official Ookla CLI (only selectable when its binary is installed in the container) or **Fast.com**.
+- *Speedtest* tab → **Measurement service**: **Fast.com** (default) or the official Ookla CLI (only selectable once installed: `docker exec -it InternetHealth internet-health-ookla install` shows Ookla's terms, asks for `I ACCEPT` and downloads the program into `/data/ookla`; `status` and `remove` are the other commands).
 - *Speedtest* tab → **Schedule and notifications**: every day at set times or every N hours; a message after every automatic test (and optionally after manual ones);
   a warning when the speed drops 20 / 30 / 50 % below the 7-day median. Leaving *As set in the container* keeps the variables `SPEEDTEST_ENABLED` /
   `SPEEDTEST_INTERVAL` in charge (with `SPEEDTEST_ENABLED: "false"` nothing runs by itself). The tab also draws the results as a chart (speed, or delay under load for Fast.com).
@@ -87,12 +87,11 @@ message with the outage duration when the cable is back. To test **Turbo mode**,
 | change alert thresholds (loss %, RTT, jitter, DNS, number of samples, Turbo) | web UI → *Notification thresholds*, or edit `alert-settings.json` (no restart) |
 | change targets, router name, DNS servers, probe interval | edit the `environment:` block and `docker compose up -d` |
 | back up the database | web UI → Settings → History → *Back up now*, or copy `netprobe.sqlite` after `docker stop` |
-| go back to stock NetProbe | use the `bmmbmm01/netprobe` image on the same data folder: the stock app ignores the `np_*` tables |
 
 Never copy the data folder's `notify-token`, `telegram.json`, `alert-settings.json` or the database into a public place.
 
-## Appendix: the file-mount compose
+## Building from source
 
-To run an unreleased version, [`examples/docker-compose.yml`](../examples/docker-compose.yml) uses the stock `bmmbmm01/netprobe` image pinned by digest and mounts
-`src/app.py`, `src/netprobe_extensions.py` and `src/index.html` read-only over it (put the three files into `<data>/custom/` **before** the first start, otherwise Docker
-creates empty directories with those names; check the base with `scripts/verify-image.sh`). The details are in the appendix of [INSTALL-UNRAID.md](INSTALL-UNRAID.md#appendix-the-file-mount-way).
+To run a version that is not released yet: `docker build -t internet-health:dev .` in a clone of the repository (the base image is pinned by digest, the
+packages by `requirements.txt`), then use `image: internet-health:dev` in the compose file. The tests (`python -m unittest discover -s tests`) need only
+`pip install -r requirements.txt`.

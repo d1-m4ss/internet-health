@@ -35,10 +35,6 @@ jobs:
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           docker build --build-arg VERSION="$VERSION" --build-arg REVISION="$GITHUB_SHA" \
             -t "$IMAGE:$VERSION" -t "$IMAGE:${VERSION%.*}" -t "$IMAGE:latest" .
-      - name: The base image is the one the patch was made for
-        run: |
-          docker pull "$(awk '/^FROM /{print $2}' Dockerfile)"
-          bash scripts/verify-image.sh
       - name: Smoke test (starts the image on an empty data folder)
         run: bash scripts/smoke-image.sh "$IMAGE:$VERSION"
 

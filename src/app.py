@@ -4,7 +4,9 @@
 # DNS reply tracking for alerting, Turbo mode watcher, Fast.com backend, the speedtest service choice,
 # the speedtest schedule and its notifications (also after manual tests), manual tests in the background,
 # jitter / delay under load stored next to each test.
-# Every change is listed in app.py.patch.
+# Since 1.3.0 this file is the project's own source (it is no longer patched on top of the upstream image):
+# upstream/app.py is the original it started from. Removed: the speedtest-cli engine (archived upstream),
+# the Postgres mode.
 import json
 import logging
 import os
@@ -20,7 +22,6 @@ from datetime import datetime, timezone
 
 from flask import Flask, jsonify, render_template, request
 import dns.resolver
-import speedtest
 try:
     from netprobe_extensions import Extension, install_routes, ping_address
 except Exception:  # extension files not mounted: native monitoring must still start
@@ -28,11 +29,6 @@ except Exception:  # extension files not mounted: native monitoring must still s
 
     def ping_address(host, output):
         return None
-
-try:
-    import psycopg2
-except ImportError:
-    psycopg2 = None
 
 # -------------------------
 # Logging setup
@@ -140,12 +136,15 @@ def parse_optional_bool(value, variable_name):
 
 
 def normalize_speedtest_backend(value, variable_name="SPEEDTEST_BACKEND"):
-    """Normalize a Speedtest backend name to ``python``, ``ookla`` or ``fast`` (fast.com)."""
-    normalized = str(value or "python").strip().lower()
+    """Normalize a Speedtest backend name to ``ookla`` or ``fast`` (fast.com).
+
+    The speedtest-cli engine (``python``) was removed in 1.3.0; the old names still start and mean Fast.com.
+    """
+    normalized = str(value or "fast").strip().lower()
     aliases = {
-        "python": "python",
-        "legacy": "python",
-        "speedtest-cli": "python",
+        "python": "fast",
+        "legacy": "fast",
+        "speedtest-cli": "fast",
         "ookla": "ookla",
         "official": "ookla",
         "speedtest": "ookla",
@@ -154,7 +153,7 @@ def normalize_speedtest_backend(value, variable_name="SPEEDTEST_BACKEND"):
     }
     if normalized not in aliases:
         raise ValueError(
-            f"{variable_name} must be 'python', 'ookla' or 'fast'"
+            f"{variable_name} must be 'ookla' or 'fast'"
         )
     return aliases[normalized]
 
@@ -218,26 +217,20 @@ WEB_PORT = int(os.getenv("WEB_PORT", "8080"))
 
 # Built-in defaults if the container is started with no env vars.
 DEFAULT_DB_PATH = "/data/netprobe.sqlite"
-DEFAULT_DB_ENGINE = "sqlite"
 
 DB_PATH = os.getenv("DB_PATH", DEFAULT_DB_PATH)
 
-# Database backend: sqlite (file) or postgres.
-DB_ENGINE = os.getenv("DB_ENGINE", "").strip().lower()
-USE_POSTGRES_FLAG = parse_bool_env("USE_POSTGRES", default=False)
-
-# Legacy behavior: USE_POSTGRES=true forces postgres unless DB_ENGINE is set.
-if not DB_ENGINE and USE_POSTGRES_FLAG:
-    DB_ENGINE = "postgres"
-
-# If DB_ENGINE is missing or invalid, fall back to sqlite file backend.
-if DB_ENGINE not in ("sqlite", "postgres"):
-    DB_ENGINE = DEFAULT_DB_ENGINE
-
-USING_POSTGRES = DB_ENGINE == "postgres"
+# SQLite is the only database. (The Postgres mode of the original was removed in 1.3.0: nothing else in the app
+# supports it, and a single container has no use for a database server.)
+DB_ENGINE = "sqlite"
+if os.getenv("DB_ENGINE", "").strip().lower() == "postgres" or parse_bool_env("USE_POSTGRES"):
+    logging.getLogger("netprobe").warning("Postgres is no longer supported; using the SQLite file %s", DB_PATH)
 
 PROBE_INTERVAL = int(os.getenv("PROBE_INTERVAL", "30"))
 PING_COUNT = int(os.getenv("PING_COUNT", "4"))
+# Seconds ping waits for a reply after the last packet. The default of ping itself is 10 s, which made a dead
+# host take ~13 s per check (longer than the process timeout below, so every such check was logged as a failure).
+PING_WAIT = max(1, int(os.getenv("PING_WAIT", "2")))
 APP_TIMEZONE = os.getenv("APP_TIMEZONE", "UTC")
 
 # Ping targets used by the regular ICMP checks.
@@ -301,34 +294,29 @@ THRESHOLD_DNS_LATENCY = float(os.getenv("THRESHOLD_DNS_LATENCY", "100"))
 SPEEDTEST_ENABLED = parse_bool_env("SPEEDTEST_ENABLED", default=True)
 SPEEDTEST_INTERVAL = int(os.getenv("SPEEDTEST_INTERVAL", "14400"))
 
-# Backend selector:
-# - python: existing sivel/speedtest-cli Python library.
-# - ookla: official /usr/bin/speedtest CLI installed by the end user from
-#   Ookla's repository, or included in an explicitly requested private build.
-# The Python backend remains the default for backward compatibility.
+# Backend selector (the UI choice on the Speedtest tab wins over it):
+# - fast: Fast.com (Netflix), the default.
+# - ookla: the official Ookla CLI, which the user installs and accepts the terms of (see the docs).
 SPEEDTEST_BACKEND = normalize_speedtest_backend(
-    os.getenv("SPEEDTEST_BACKEND", "python")
+    os.getenv("SPEEDTEST_BACKEND", "fast")
 )
-
-# Use HTTPS when communicating through the Python speedtest-cli backend.
-# The official Ookla backend uses its native protocol and ignores this value.
-SPEEDTEST_SECURE = parse_bool_env("SPEEDTEST_SECURE", default=True)
 
 # Official Ookla CLI settings. The end-user acknowledgement is evaluated at
 # runtime, never during the Docker image build. Administrators can either set
 # SPEEDTEST_OOKLA_ACCEPT_LICENSE=I_ACCEPT (True/Yes remain accepted for the
 # unreleased compatibility path) or run the interactive helper, which writes a
-# marker into the persistent /data volume.
+# marker into the persistent /data volume. The helper (internet-health-ookla install) also puts the official binary
+# into /data/ookla, so it survives updates and a recreated container.
+DATA_DIR = os.path.dirname(DB_PATH) or "/data"
 SPEEDTEST_OOKLA_PATH = os.getenv(
-    "SPEEDTEST_OOKLA_PATH", "/usr/bin/speedtest"
-).strip() or "/usr/bin/speedtest"
+    "SPEEDTEST_OOKLA_PATH", ""
+).strip() or os.path.join(DATA_DIR, "ookla", "speedtest")
 SPEEDTEST_OOKLA_ACCEPT_LICENSE_RAW = os.getenv(
     "SPEEDTEST_OOKLA_ACCEPT_LICENSE", ""
 ).strip()
 SPEEDTEST_OOKLA_ACCEPTANCE_FILE = os.getenv(
-    "SPEEDTEST_OOKLA_ACCEPTANCE_FILE",
-    "/data/ookla-eula-accepted.txt",
-).strip() or "/data/ookla-eula-accepted.txt"
+    "SPEEDTEST_OOKLA_ACCEPTANCE_FILE", ""
+).strip() or os.path.join(DATA_DIR, "ookla-eula-accepted.txt")
 OOKLA_EULA_URL = "https://www.speedtest.net/about/eula"
 OOKLA_TERMS_URL = "https://www.speedtest.net/about/terms"
 OOKLA_PRIVACY_URL = "https://www.speedtest.net/about/privacy"
@@ -378,7 +366,7 @@ SPEEDTEST_CSV_SERVERS = parse_speedtest_server_list(
 )
 
 # Global exclusion list applied to automatic, single-server, CSV-pool, and
-# one-off manual tests. The Python backend passes this directly to the library.
+# one-off manual tests. Only the Ookla backend can choose servers (Fast.com picks its own).
 # The Ookla backend selects an allowed server from the official --servers list.
 SPEEDTEST_EXCLUDE_RAW = os.getenv("SPEEDTEST_EXCLUDE", "").strip()
 SPEEDTEST_EXCLUDE = parse_speedtest_server_list(
@@ -398,7 +386,7 @@ logger.info(
     PROBE_INTERVAL,
     PING_COUNT,
 )
-logger.info("Database backend: %s (DB_PATH=%s)", DB_ENGINE, DB_PATH)
+logger.info("Database: SQLite (DB_PATH=%s)", DB_PATH)
 logger.info(
     "Targets: gateway(auto), router=%s, sites=%s, dns_servers=%s, dns_test_sites=%s",
     ROUTER_IP or "(none)",
@@ -426,7 +414,7 @@ if SPEEDTEST_BACKEND == "ookla":
         logger.warning(
             "Ookla backend is locked until the end user sets "
             "SPEEDTEST_OOKLA_ACCEPT_LICENSE=I_ACCEPT or runs "
-            "netprobe-ookla-accept interactively."
+            "internet-health-ookla install."
         )
 if SPEEDTEST_CSV:
     logger.info(
@@ -441,11 +429,6 @@ logger.info(
     "Excluded speedtest server IDs: %s",
     ", ".join(SPEEDTEST_EXCLUDE) or "none",
 )
-logger.info(
-    "Python speedtest-cli protocol: %s%s",
-    "HTTPS (secure)" if SPEEDTEST_SECURE else "HTTP (non-secure)",
-    " (not used by Ookla backend)" if SPEEDTEST_BACKEND == "ookla" else "",
-)
 logger.info("Live log poll interval: %ss", LIVE_LOG_POLL_SECONDS)
 
 
@@ -454,72 +437,17 @@ logger.info("Live log poll interval: %ss", LIVE_LOG_POLL_SECONDS)
 # -------------------------
 
 
-class _WrappedPostgresCursor:
-    def __init__(self, inner):
-        self._inner = inner
-
-    def execute(self, query, params=None):
-        if params is None:
-            params = ()
-        # Translate SQLite-style "?" placeholders to psycopg2 "%s".
-        # Our SQL never contains literal question marks in strings.
-        query = query.replace("?", "%s")
-        return self._inner.execute(query, params)
-
-    def fetchone(self):
-        return self._inner.fetchone()
-
-    def fetchall(self):
-        return self._inner.fetchall()
-
-    def __iter__(self):
-        return iter(self._inner)
-
-
-class _WrappedPostgresConnection:
-    def __init__(self, inner):
-        self._inner = inner
-
-    def cursor(self):
-        return _WrappedPostgresCursor(self._inner.cursor())
-
-    def commit(self):
-        return self._inner.commit()
-
-    def close(self):
-        return self._inner.close()
-
-
 def get_db_connection():
-    """
-    Return a DB-API-compatible connection to SQLite or Postgres.
-    """
-    if USING_POSTGRES:
-        if psycopg2 is None:
-            raise RuntimeError(
-                "psycopg2 is required for Postgres backend (DB_ENGINE=postgres)"
-            )
-        conn = psycopg2.connect(
-            host=os.getenv("POSTGRES_HOST", "postgres"),
-            port=int(os.getenv("POSTGRES_PORT", "5432")),
-            dbname=os.getenv("POSTGRES_DB", "netprobe"),
-            user=os.getenv("POSTGRES_USER", "netprobe"),
-            password=os.getenv("POSTGRES_PASSWORD", "netprobe"),
-        )
-        return _WrappedPostgresConnection(conn)
-
+    """Return a connection to the SQLite database (writers wait up to 30 s for a lock)."""
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    return sqlite3.connect(DB_PATH)
+    return sqlite3.connect(DB_PATH, timeout=30)
 
 
 def ensure_db():
     conn = get_db_connection()
     cur = conn.cursor()
 
-    if USING_POSTGRES:
-        id_col = "id SERIAL PRIMARY KEY"
-    else:
-        id_col = "id INTEGER PRIMARY KEY AUTOINCREMENT"
+    id_col = "id INTEGER PRIMARY KEY AUTOINCREMENT"
 
     # Aggregate probe metrics.
     cur.execute(
@@ -569,6 +497,10 @@ def ensure_db():
         """
     )
 
+    # Every history query is "newest N" or "rows of these timestamps": without an index on ts they read the whole table.
+    for table in ("measurements", "dns_measurements", "speedtests"):
+        cur.execute(f"CREATE INDEX IF NOT EXISTS {table}_ts ON {table}(ts)")
+
     conn.commit()
     conn.close()
 
@@ -577,29 +509,15 @@ def ensure_speedtests_schema():
     """
     Small schema migration for older installs.
 
-    Existing SQLite/Postgres deployments may already have the speedtests table
+    Existing deployments may already have the speedtests table
     without newer server-selection/backend fields. We add them in place if missing.
     """
     conn = get_db_connection()
     cur = conn.cursor()
 
     try:
-        if USING_POSTGRES:
-            cur.execute(
-                """
-                SELECT column_name
-                FROM information_schema.columns
-                WHERE table_name = 'speedtests'
-                """
-            )
-        else:
-            cur.execute("PRAGMA table_info(speedtests)")
-
-        rows = cur.fetchall() or []
-        if USING_POSTGRES:
-            existing = {r[0] for r in rows}
-        else:
-            existing = {r[1] for r in rows}
+        cur.execute("PRAGMA table_info(speedtests)")
+        existing = {r[1] for r in cur.fetchall() or []}
 
         if "server_id" not in existing:
             cur.execute("ALTER TABLE speedtests ADD COLUMN server_id TEXT")
@@ -814,11 +732,11 @@ def run_ping(host, count):
     """
     out = ""
     err = ""
-    timeout = max(5, count * 2)
+    timeout = count + PING_WAIT + 5
 
     try:
         proc = subprocess.run(
-            ["ping", "-q", "-c", str(count), host],
+            ["ping", "-q", "-c", str(count), "-W", str(PING_WAIT), host],
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -922,12 +840,16 @@ def notification_roles(gateway):
 
 
 # Servers that produced at least one DNS reply (any rcode that proves the server is alive) in the
-# current probe cycle. The native latency/score values are unchanged; this only feeds alerting,
-# because a refused/timed-out query still yields an "elapsed time".
+# current probe cycle; it feeds alerting.
 _dns_answers = {}
 
 
 def measure_dns_latency(domain, server, count):
+    """Average time of the queries the server answered (NXDOMAIN counts: it is an answer); None if it answered none.
+
+    A query that timed out or was refused used to be averaged in as the time spent waiting (up to the 3 s lifetime),
+    which made one lost reply look like a slow server.
+    """
     resolver = dns.resolver.Resolver(configure=False)
     resolver.nameservers = [server]
     times = []
@@ -936,13 +858,12 @@ def measure_dns_latency(domain, server, count):
         start = time.perf_counter()
         try:
             resolver.resolve(domain, "A", lifetime=3)
-            _dns_answers[server] = _dns_answers.get(server, 0) + 1
         except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
-            _dns_answers[server] = _dns_answers.get(server, 0) + 1
-        except Exception:
             pass
-        elapsed = (time.perf_counter() - start) * 1000.0
-        times.append(elapsed)
+        except Exception:
+            continue
+        times.append((time.perf_counter() - start) * 1000.0)
+        _dns_answers[server] = _dns_answers.get(server, 0) + 1
 
     if not times:
         return None
@@ -955,6 +876,7 @@ def measure_dns_latency_multi(domains, server, count):
 
     This keeps the existing DB/UI model simple: one value per DNS server per
     probe timestamp, while allowing multiple DNS target domains to contribute.
+    A server that answered nothing gives None.
     """
     times = []
     for domain in domains:
@@ -1066,32 +988,6 @@ class SpeedtestRunError(RuntimeError):
     """A Speedtest failure rewritten into a useful message for the UI/API."""
 
 
-def format_python_speedtest_error(exc, selection, secure):
-    """Return a useful error even when speedtest-cli raises an empty exception."""
-    exception_name = type(exc).__name__
-    exception_text = str(exc).strip()
-    protocol = "HTTPS/secure" if secure else "HTTP/non-secure"
-    requested = ",".join(selection.get("server_ids", [])) or "automatic selection"
-
-    if exception_name == "NoMatchedServers":
-        return (
-            f"No matching Speedtest server was found for {requested} using {protocol}. "
-            "Speedtest server IDs can differ between HTTP and HTTPS lists. "
-            "Toggle Secure / HTTPS, verify the ID with speedtest-cli, or use "
-            "Force auto selection."
-        )
-
-    if exception_text:
-        detail = f"{exception_name}: {exception_text}"
-    else:
-        detail = exception_name
-
-    return (
-        f"{detail}. The selected Python speedtest-cli server may be unavailable. "
-        "Try toggling Secure / HTTPS or use Force auto selection."
-    )
-
-
 def resolve_speedtest_backend(requested_backend=None):
     if requested_backend is None or str(requested_backend).strip() == "":
         chosen = custom_extension.speedtest_service() if custom_extension is not None else ""
@@ -1116,8 +1012,8 @@ def require_ookla_ready():
         raise SpeedtestRunError(
             f"The official Ookla Speedtest CLI was not found at "
             f"{SPEEDTEST_OOKLA_PATH}. After reviewing Ookla's terms, run "
-            "'docker exec -it <container> netprobe-ookla-accept' to "
-            "acknowledge and install it, or select the Python backend."
+            "'docker exec -it <container> internet-health-ookla install' to "
+            "accept them and install it, or select Fast.com."
         )
 
     accepted, _source = ookla_acceptance_status()
@@ -1127,7 +1023,7 @@ def require_ookla_ready():
             "accepts Ookla's EULA, Terms of Use, and Privacy Policy. Set "
             "SPEEDTEST_OOKLA_ACCEPT_LICENSE=I_ACCEPT when launching the "
             "container, or run 'docker exec -it <container> "
-            "netprobe-ookla-accept'."
+            "internet-health-ookla install'."
         )
 
 
@@ -1357,42 +1253,6 @@ def build_ookla_candidate_order(selection):
     return []
 
 
-def run_python_speedtest(selection, secure_mode):
-    try:
-        st = speedtest.Speedtest(secure=secure_mode)
-        server_filter = [int(server_id) for server_id in selection["server_ids"]]
-        exclude_filter = [int(server_id) for server_id in selection["excluded_ids"]]
-
-        if server_filter or exclude_filter:
-            st.get_servers(
-                servers=server_filter or None,
-                exclude=exclude_filter or None,
-            )
-
-        st.get_best_server()
-        down_bps = st.download()
-        up_bps = st.upload()
-        res = st.results.dict()
-    except Exception as exc:
-        raise SpeedtestRunError(
-            format_python_speedtest_error(exc, selection, secure_mode)
-        ) from exc
-
-    return {
-        "ping_ms": res.get("ping"),
-        # Preserve the application's existing conversion for this legacy backend.
-        "download_mbps": down_bps / (1024 * 1024),
-        "upload_mbps": up_bps / (1024 * 1024),
-        "server": res.get("server", {}) or {},
-        "jitter_ms": None,
-        "packet_loss_pct": None,
-        "isp": res.get("client", {}).get("isp") if isinstance(res.get("client"), dict) else None,
-        "result_url": res.get("share"),
-        "protocol": "https" if secure_mode else "http",
-        "secure": secure_mode,
-    }
-
-
 def run_ookla_speedtest(selection):
     candidate_ids = build_ookla_candidate_order(selection)
 
@@ -1435,14 +1295,11 @@ speedtest_run_lock = threading.Lock()
 
 def run_speedtest_internal(
     requested_server_id=None,
-    secure=None,
     force_auto=False,
     backend=None,
 ):
     """Run a speedtest with the configured or one-off selected backend."""
     selected_backend = resolve_speedtest_backend(backend)
-    secure_override = parse_optional_bool(secure, "secure")
-    secure_mode = SPEEDTEST_SECURE if secure_override is None else secure_override
     force_auto_value = parse_optional_bool(force_auto, "force_auto")
     force_auto_mode = bool(force_auto_value) if force_auto_value is not None else False
 
@@ -1463,20 +1320,15 @@ def run_speedtest_internal(
     try:
         logger.info("Starting speedtest run...")
         logger.info(
-            "Speedtest selection: backend=%s protocol=%s mode=%s requested=%s excluded=%s forced_auto=%s",
+            "Speedtest selection: backend=%s mode=%s requested=%s excluded=%s forced_auto=%s",
             selected_backend,
-            (
-                "https" if secure_mode else "http"
-            ) if selected_backend == "python" else "ookla-native",
             selection_mode,
             requested_server_value or "auto",
             ",".join(excluded_server_ids) or "none",
             selection["forced_auto"],
         )
 
-        if selected_backend == "python":
-            normalized = run_python_speedtest(selection, secure_mode)
-        elif selected_backend == "fast":
+        if selected_backend == "fast":
             try:
                 normalized = custom_extension.run_fast_speedtest()
             except Exception as exc:
@@ -1611,71 +1463,96 @@ def run_speedtest_if_due():
             logger.exception("Speedtest notification could not be queued")
 
 
+# State of the probe loop for /api/health (the container health check): when the last cycle was stored and what failed.
+probe_state = {"started": time.time(), "last_ok_ts": None, "last_error": None, "last_error_ts": None, "errors_in_row": 0}
+
+
+def run_probe_cycle(gw):
+    """One probe cycle: ping every target, query the DNS servers, store the result."""
+    ts = int(time.time())
+
+    # ---------- Ping probes ----------
+    ping_targets = []
+    if gw:
+        ping_targets.append(gw)
+    if ROUTER_IP:
+        ping_targets.append(ROUTER_IP)
+    ping_targets.extend(SITES)
+
+    ping_results = [run_ping(host, PING_COUNT) for host in ping_targets]
+
+    latencies = [r["latency"] for r in ping_results]
+    jitters = [r["jitter"] for r in ping_results]
+    losses = [r["loss"] for r in ping_results]
+
+    avg_latency = statistics.mean(latencies) if latencies else 0.0
+    avg_jitter = statistics.mean(jitters) if jitters else 0.0
+    avg_loss = statistics.mean(losses) if losses else 0.0
+
+    # ---------- DNS probes ----------
+    dns_times = []
+    dns_per_server = {}
+    _dns_answers.clear()
+    for server_ip in DNS_SERVERS:
+        measured = measure_dns_latency_multi(
+            DNS_TEST_SITES,
+            server_ip,
+            count=3,
+        )
+        if measured is not None:
+            dns_times.append(measured)
+            dns_per_server[server_ip] = measured
+
+    if dns_times:
+        avg_dns = statistics.mean(dns_times)
+    elif DNS_SERVERS:
+        avg_dns = THRESHOLD_DNS_LATENCY * 2  # no server answered: the same penalty a failed ping gets
+    else:
+        avg_dns = 0.0
+
+    # ---------- Score + persistence ----------
+    score = compute_score(avg_loss, avg_latency, avg_jitter, avg_dns)
+    insert_measurement(ts, avg_latency, avg_jitter, avg_loss, avg_dns, score)
+    insert_dns_measurements(ts, dns_per_server)
+    probe_state.update(last_ok_ts=time.time(), errors_in_row=0)
+    if custom_extension is not None:
+        try:
+            dns_failed = [s for s in DNS_SERVERS if not _dns_answers.get(s)]
+            custom_extension.record_probe(ts, ping_results, dns_per_server, dns_failed=dns_failed)
+        except Exception:
+            logger.exception("Persistent target history / alerts could not be recorded")
+
+    logger.info(
+        "Probe ts=%s score=%.2f loss=%.2f%% latency=%.1fms jitter=%.1fms dns=%.1fms",
+        ts,
+        score,
+        avg_loss,
+        avg_latency,
+        avg_jitter,
+        avg_dns,
+    )
+
+
 def probe_loop():
     gw = get_default_gateway()
     if custom_extension is not None:
         custom_extension.roles = notification_roles(gw)
 
     while True:
-        ts = int(time.time())
+        try:
+            run_probe_cycle(gw)
+        except Exception as exc:
+            # One bad cycle (a locked or full database, an unexpected ping output ...) must not end the monitoring:
+            # the thread is a daemon, so an escaping exception would stop the probes silently.
+            logger.exception("Probe cycle failed: %s", exc)
+            probe_state.update(last_error=str(exc) or type(exc).__name__, last_error_ts=time.time(),
+                               errors_in_row=probe_state["errors_in_row"] + 1)
 
-        # ---------- Ping probes ----------
-        ping_targets = []
-        if gw:
-            ping_targets.append(gw)
-        if ROUTER_IP:
-            ping_targets.append(ROUTER_IP)
-        ping_targets.extend(SITES)
-
-        ping_results = [run_ping(host, PING_COUNT) for host in ping_targets]
-
-        latencies = [r["latency"] for r in ping_results]
-        jitters = [r["jitter"] for r in ping_results]
-        losses = [r["loss"] for r in ping_results]
-
-        avg_latency = statistics.mean(latencies) if latencies else 0.0
-        avg_jitter = statistics.mean(jitters) if jitters else 0.0
-        avg_loss = statistics.mean(losses) if losses else 0.0
-
-        # ---------- DNS probes ----------
-        dns_times = []
-        dns_per_server = {}
-        _dns_answers.clear()
-        for server_ip in DNS_SERVERS:
-            measured = measure_dns_latency_multi(
-                DNS_TEST_SITES,
-                server_ip,
-                count=3,
-            )
-            if measured is not None:
-                dns_times.append(measured)
-                dns_per_server[server_ip] = measured
-
-        avg_dns = statistics.mean(dns_times) if dns_times else 0.0
-
-        # ---------- Score + persistence ----------
-        score = compute_score(avg_loss, avg_latency, avg_jitter, avg_dns)
-        insert_measurement(ts, avg_latency, avg_jitter, avg_loss, avg_dns, score)
-        insert_dns_measurements(ts, dns_per_server)
-        if custom_extension is not None:
-            try:
-                dns_failed = [s for s in DNS_SERVERS if not _dns_answers.get(s)]
-                custom_extension.record_probe(ts, ping_results, dns_per_server, dns_failed=dns_failed)
-            except Exception:
-                logger.exception("Persistent target history / alerts could not be recorded")
-
-        logger.info(
-            "Probe ts=%s score=%.2f loss=%.2f%% latency=%.1fms jitter=%.1fms dns=%.1fms",
-            ts,
-            score,
-            avg_loss,
-            avg_latency,
-            avg_jitter,
-            avg_dns,
-        )
-
-        if SPEEDTEST_ENABLED or custom_extension is not None:
-            threading.Thread(target=run_speedtest_if_due, daemon=True).start()
+        try:
+            if SPEEDTEST_ENABLED or custom_extension is not None:
+                threading.Thread(target=run_speedtest_if_due, daemon=True).start()
+        except Exception:
+            logger.exception("Could not start the scheduled speedtest check")
 
         time.sleep(PROBE_INTERVAL)
 
@@ -1698,6 +1575,27 @@ def index():
         weight_jitter=WEIGHT_JITTER,
         weight_dns_latency=WEIGHT_DNS_LATENCY,
     )
+
+
+@app.route("/api/health")
+def api_health():
+    """200 while the probe loop keeps storing cycles, 503 when it has not for a long time (used by the Docker HEALTHCHECK).
+
+    A cycle takes ~50 s, up to a few minutes while the internet is down, so "long" is the interval plus five minutes;
+    right after the start the first cycle gets the same time.
+    """
+    now = time.time()
+    limit = PROBE_INTERVAL + 300
+    last = probe_state["last_ok_ts"]
+    age = now - (last if last is not None else probe_state["started"])
+    ok = age <= limit
+    return jsonify(
+        status="ok" if ok else "stalled",
+        last_cycle_ts=int(last) if last is not None else None,
+        seconds_since_cycle=int(age),
+        last_error=probe_state["last_error"],
+        errors_in_row=probe_state["errors_in_row"],
+    ), (200 if ok else 503)
 
 
 @app.route("/api/score/recent")
@@ -1776,11 +1674,9 @@ def api_config():
         speedtest_interval=SPEEDTEST_INTERVAL,
         speedtest_backend=SPEEDTEST_BACKEND,
         speedtest_backends_available={
-            "python": True,
             "ookla": ookla_binary_available(),
             "fast": custom_extension is not None,
         },
-        speedtest_secure=SPEEDTEST_SECURE,
         speedtest_ookla_path=SPEEDTEST_OOKLA_PATH,
         speedtest_ookla_installed=ookla_binary_available(),
         speedtest_ookla_accept_license=ookla_acceptance_status()[0],
@@ -1862,18 +1758,16 @@ def api_speedtest_run():
     try:
         payload = request.get_json(silent=True) or {}
         requested_server_id = payload.get("server_id")
-        secure = payload.get("secure")
         force_auto = payload.get("force_auto", False)
         backend = payload.get("backend")
         if payload.get("async") is True:  # the UI: answer at once, poll /api/speedtest/status for the outcome
             started = start_speedtest_job(dict(
-                requested_server_id=requested_server_id, secure=secure, force_auto=force_auto, backend=backend))
+                requested_server_id=requested_server_id, force_auto=force_auto, backend=backend))
             if not started:
                 return jsonify(success=False, error="A Speedtest is already running. Wait for it to finish and try again."), 409
             return jsonify(success=True, started=True), 202
         result = run_speedtest_internal(
             requested_server_id=requested_server_id,
-            secure=secure,
             force_auto=force_auto,
             backend=backend,
         )

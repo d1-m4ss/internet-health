@@ -10,8 +10,8 @@
    CHROME_PATH=/path/to/chrome node tests/test_mobile_nav.cjs
    CHROME_PATH=/path/to/chrome node tests/test_speedtest_ui.cjs
    ```
-4. Keep `src/app.py.patch` in sync when you touch `src/app.py`
-   (`diff -u upstream/app.py src/app.py > src/app.py.patch`; CI checks that the patch reproduces the file).
+4. `src/app.py` is this project's own source now (the original it started from stays in `upstream/` for attribution only); there is no patch to keep in sync.
+   Python packages are pinned in `requirements.txt`: change a version there and run the whole suite.
 5. Screenshots in `docs/screenshots` come from `node tests/screenshots.cjs` (invented data, English UI). Never add
    screenshots or fixtures taken from a real network: no real IP addresses, hostnames, router names or Speedtest servers.
 

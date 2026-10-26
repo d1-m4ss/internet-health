@@ -87,10 +87,12 @@ web UI. It adds its own tables (`np_*`) next to NetProbe's and leaves NetProbe's
   (bufferbloat), and the numbers appear next to each test. An unmeasured value is a gap in the line, never a zero. The history
   table under the chart lists the newest tests first: the last 10, the chart's period, or all.
   Optional messages after manual tests, and a warning when the speed falls 20 / 30 / 50 % below the 7-day median of the same service.
-- **Speedtest service of your choice.** The *Speedtest* tab says which service measures: Speedtest.net (Ookla servers,
-  through speedtest-cli — the default), the official Ookla CLI (when you install its binary in the container) or
-  **Fast.com (Netflix)**, measured by NetProbe itself — no account, key or extra software. The choice applies to
-  manual and scheduled tests and is stored in `/data/netprobe-prefs.json`.
+- **Speedtest service of your choice.** The *Speedtest* tab says which service measures: **Fast.com (Netflix)**, the
+  default, measured by Internet Health itself — no account, key or extra software — or the official **Ookla CLI**, which
+  you install once with `docker exec -it InternetHealth internet-health-ookla install` (it shows Ookla's terms, asks you
+  to accept them and downloads Ookla's program into the data folder, so it survives updates). The choice applies to
+  manual and scheduled tests and is stored in `/data/netprobe-prefs.json`. (The unofficial `speedtest-cli` engine of the
+  original NetProbe, whose project was archived in April 2026, was removed in 1.3.0; old results keep their name.)
 - **Two UI styles, two languages** chosen from drop-downs (remembered in the browser). One self-contained HTML
   file: no CDN, no external fonts, works offline on your LAN.
 - **Safe by construction:** Internet Health sends messages only through Unraid's own `notify` and, if you configure it,
@@ -145,8 +147,9 @@ More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 - **Unraid notifications** (email, any Unraid agent) additionally need the small bridge script on the Unraid host (`curl`, `jq`, `flock`, `bash` — all on stock Unraid) and
   notification agents configured in *Settings → Notification Settings*. It is optional: Telegram needs no host setup.
 
-The image is built on `bmmbmm01/netprobe@sha256:386bdc2c177b11aef4a1223dfd91ae47fe2f9804c5449c5f4c2caae1d048c155` (Python 3.14, Flask 3.1); CI checks that
-base on every build. Running the files on another NetProbe image may need `src/app.py.patch` re-applied — see [upstream/UPSTREAM.md](upstream/UPSTREAM.md).
+The image is built from this repository's own `Dockerfile` on `python:3.14-slim` pinned by digest, with every Python package pinned in
+`requirements.txt`; Dependabot proposes newer versions weekly and CI builds and starts the image on every change. The project began as a fork of
+NetProbe_Python and is independent of its Docker image now — see [upstream/UPSTREAM.md](upstream/UPSTREAM.md).
 
 ## Install
 
@@ -164,8 +167,8 @@ Unraid bridge. Step by step, with checks: **[docs/INSTALL-UNRAID.md](docs/INSTAL
 **Docker compose** — [`examples/docker-compose.image.yml`](examples/docker-compose.image.yml), guide: **[docs/INSTALL-COMPOSE.md](docs/INSTALL-COMPOSE.md)**.
 
 **Already running NetProbe, or the earlier "three files" install?** Change the container's repository to the image and drop the file mounts; your data stays
-(**[docs/INSTALL-UNRAID.md → Switching](docs/INSTALL-UNRAID.md#switching-from-a-netprobe--files-install)**). The old file-mount way still works for running an unreleased version
-(appendix of the same guide).
+(**[docs/INSTALL-UNRAID.md → Switching](docs/INSTALL-UNRAID.md#switching-from-a-netprobe--files-install)**). The file-mount way is no longer supported:
+to run an unreleased version, [build the image](docs/INSTALL-COMPOSE.md#building-from-source).
 
 ## Updating
 
@@ -183,11 +186,11 @@ Details: [docs/INSTALL-UNRAID.md → Updating](docs/INSTALL-UNRAID.md#updating).
 | `ROUTER_NAME` | label used in the UI and in notifications (default `Router`, e.g. `ASUS RT-AX86U`) |
 | `SITES` | comma-separated ping targets; include 1–2 IP addresses besides names |
 | `DNS_NAMESERVER_n` / `_IP` | DNS servers probed (existing upstream variables) |
-| `PROBE_INTERVAL`, `PING_COUNT` | unchanged upstream behaviour (default 30 s, 4 pings) |
-| `SPEEDTEST_ENABLED`, `SPEEDTEST_INTERVAL`, `SPEEDTEST_BACKEND` | upstream behaviour (`python`, `ookla`, and now `fast`); the *Speedtest* tab can override service and schedule, see [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md) |
+| `PROBE_INTERVAL`, `PING_COUNT`, `PING_WAIT` | pause between probe cycles (default 30 s), pings per target (4), seconds to wait for the last reply of a ping (2) |
+| `SPEEDTEST_ENABLED`, `SPEEDTEST_INTERVAL`, `SPEEDTEST_BACKEND` | scheduled tests, their interval and the service (`fast`, the default, or `ookla`; the old value `python` means `fast`); the *Speedtest* tab can override service and schedule, see [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md) |
 | `APP_TIMEZONE` | zone of the daily Speedtest times (default `UTC`) |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | optional: Telegram delivery without the UI form (both needed; they win over the saved values and switch it on) |
-| `GUNICORN_CMD_ARGS` | already `--threads 4` in the Internet Health image (the stock NetProbe image runs one single-threaded worker); never raise `--workers`: every worker would start its own probe loop |
+| `GUNICORN_CMD_ARGS` | already `--threads 4` in the image; never raise `--workers`: every worker would start its own probe loop |
 
 Alert thresholds (loss ≥ 10 %, RTT ≥ 150 ms, jitter ≥ 80 ms, DNS ≥ 250 ms, 2 samples to alert, 2 to recover) are
 edited in the UI (*Notifications* tab / *Notification thresholds*) or in `/data/alert-settings.json`.
@@ -235,8 +238,7 @@ To look at the dashboard without Unraid or a real network, run `python tests/dem
   never reported twice.
 - **Fast.com** numbers come from NetProbe's own client (latency, 8 connections for 8 s down, 4 for 8 s up against the
   closest Netflix servers); they can differ from the fast.com page, so compare a service with itself over time.
-  The Speedtest.net backend keeps its upstream unit conversion (Mbit/s ÷ 1.048576). A scheduled test uses real
-  bandwidth for about 20 s.
+  A scheduled test uses real bandwidth for about 20 s.
 - Fast.com has no documented public API: the client uses the same endpoints as the fast.com page. If Netflix changes
   them, a Fast.com test fails with a readable message (and, when notifications are on, a warning) and the other
   services keep working.

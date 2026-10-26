@@ -14,8 +14,6 @@ services:
       ROUTER_NAME: Router
       # Two IP targets next to the names let it tell "DNS is down" from "the internet is down".
       SITES: fast.com,google.com,youtube.com,1.1.1.1,8.8.8.8
-      DB_ENGINE: sqlite
-      USE_POSTGRES: "false"
       # Optional: Telegram without the Unraid bridge (or set it up in the web UI, Settings -> Telegram)
       # TELEGRAM_BOT_TOKEN: "123456789:AAH..."
       # TELEGRAM_CHAT_ID: "-1001234567890"

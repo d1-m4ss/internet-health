@@ -60,9 +60,10 @@ TURBO_LOOKBACK = 120  # a regular alert stamped up to this long before the outag
 TURBO_EXPIRE = 3600   # a recovered outage not decided within an hour (turbo off, no watcher) is never sent
 TURBO_OUTAGES = 100   # outages returned by /api/loss
 TURBO_ICON = "⚡"
-# Speedtest service: "" keeps what the container variable SPEEDTEST_BACKEND says. python = speedtest.net servers
-# through speedtest-cli, ookla = the official Ookla CLI (a binary the user installs), fast = fast.com (Netflix).
-SPEEDTEST_SERVICES = ("", "python", "ookla", "fast")
+# Speedtest service: "" keeps what the container variable SPEEDTEST_BACKEND says (Fast.com by default), ookla = the
+# official Ookla CLI (a binary the user installs), fast = fast.com (Netflix). The speedtest-cli engine ("python",
+# Speedtest.net servers) was removed in 1.3.0; old rows in the history keep that name, and a saved choice of it means Fast.com.
+SPEEDTEST_SERVICES = ("", "ookla", "fast")
 # Speedtest schedule: container = the container variables SPEEDTEST_ENABLED / SPEEDTEST_INTERVAL decide (the default),
 # off = no automatic tests, interval = every N hours since the last test, daily = at fixed local times.
 SPEEDTEST_SCHEDULES = ("container", "off", "interval", "daily")
@@ -649,6 +650,8 @@ class Extension:
             values = json.loads(self.prefs_path.read_text())
         except FileNotFoundError:
             return dict(PREFS_DEFAULTS)
+        if isinstance(values, dict) and values.get("speedtest_service") == "python":
+            values["speedtest_service"] = "fast"  # the engine is gone; written back with the next save
         self.validate_prefs(values)
         return dict(PREFS_DEFAULTS, **values)
 

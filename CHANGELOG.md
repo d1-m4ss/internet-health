@@ -5,6 +5,29 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+**The project no longer depends on the NetProbe Docker image.** The image is built from this repository's own `Dockerfile` on `python:3.14-slim`
+(pinned by digest) with every Python package pinned in `requirements.txt` (Flask 3.1.3, Werkzeug 3.1.9, dnspython 2.9.0, gunicorn 26.2.0 …); Dependabot
+proposes newer ones weekly. `src/app.py` is plain source now: no `app.py.patch`, no hash check of a foreign image, the file-mount way is gone.
+The image is smaller and holds only what is used: no Postgres client, none of the original's `static/` scripts, no `curl` / `gnupg` / `bash`.
+
+- **The Speedtest.net service (speedtest-cli) is removed.** Its project was archived in April 2026, it is unofficial and it reported Mibit/s as
+  Mbps (about 5 % low next to the other services). Services are now **Fast.com** (the default) and the **official Ookla CLI**. A saved choice of
+  Speedtest.net or `SPEEDTEST_BACKEND=python` means Fast.com; old results keep the name *Speedtest.net* in the history and the chart. The HTTPS
+  switch of manual tests and `speedtest_secure` of `/api/config` are gone with it.
+- **Ookla CLI is installed with one command** that survives updates: `docker exec -it InternetHealth internet-health-ookla install` shows Ookla's
+  terms, asks for `I ACCEPT`, downloads Ookla's own program into `/data/ookla` (it is not part of the image) and records the acceptance in the data
+  folder. `status` and `remove` are the other commands. `SPEEDTEST_OOKLA_PATH` and `SPEEDTEST_OOKLA_ACCEPTANCE_FILE` default to the data folder.
+- **A failing probe cycle no longer stops the monitoring.** An exception in a cycle (a locked or full database, …) used to end the probe thread
+  silently while the container stayed "healthy". Now the cycle is logged and the next one runs; the Docker health check asks the new
+  **`/api/health`**, which answers `503` (with the last error) when no cycle has been stored for the interval plus five minutes.
+- **DNS latency counts only answered queries.** A timeout or a refused query used to be averaged in as the time spent waiting (up to 3 s), so one lost
+  reply looked like a slow server. A server that answers nothing now gets the same penalty a failed ping gets and no per-server value is stored.
+- **History queries use an index.** `measurements`, `dns_measurements` and `speedtests` had no index on the time; "the newest N rows" read the whole
+  table (0.22 s per request with 1 million rows, now under a millisecond). The indexes are created at start. SQLite writers wait up to 30 s for a lock.
+- **Ping to an unreachable host no longer takes 13 s.** ping waited its default 10 s for the last reply, longer than the 8 s limit, so every check of a
+  dead host was logged as an error and lengthened the cycle. Now `-W 2` (`PING_WAIT`) and a limit that fits.
+- The Postgres mode (`DB_ENGINE`, `USE_POSTGRES`, `psycopg2`) is removed; the variables are ignored (a warning is logged). SQLite was the only supported database.
+
 ## 1.2.3 — 2026-10-26
 
 - Fixed: long line names in a chart popup (e.g. “Download ↓ (download) · Fast.com”) stuck out of the popup; they now wrap inside it.
