@@ -21,10 +21,13 @@ COPY src/netprobe_extensions.py /app/netprobe_extensions.py
 COPY src/index.html /app/templates/index.html
 # the optional installer of the Ookla CLI (the binary is not in the image; see docs)
 COPY --chmod=755 src/internet-health-ookla /usr/local/bin/internet-health-ookla
+# starts as root only to hand /data to PUID:PGID (default 99:100), then runs the app as that user
+COPY --chmod=755 src/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 # One worker only: the probe loop is a thread of the process (a second worker would probe twice). The threads keep
 # the page responsive while a Speedtest runs. Override with -e GUNICORN_CMD_ARGS=... if you must.
-ENV WEB_PORT=8080 \
+ENV HOME=/tmp \
+    WEB_PORT=8080 \
     GUNICORN_TIMEOUT=240 \
     GUNICORN_CMD_ARGS="--threads 4"
 
@@ -42,4 +45,5 @@ LABEL org.opencontainers.image.title="Internet Health" \
 HEALTHCHECK --interval=60s --timeout=8s --start-period=90s --retries=3 \
   CMD python -c "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/api/health' % os.getenv('WEB_PORT', '8080'), timeout=6)" || exit 1
 
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["sh", "-c", "exec gunicorn -b 0.0.0.0:${WEB_PORT:-8080} --workers 1 --timeout ${GUNICORN_TIMEOUT:-240} --log-level info app:app"]

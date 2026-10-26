@@ -36,6 +36,7 @@ Copy [`examples/docker-compose.image.yml`](../examples/docker-compose.image.yml)
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | optional; or set Telegram later in the web UI |
 | `ports` | change the left number (`8788`) if the port is taken |
 | `volumes` | the data folder on your host |
+| `PUID`, `PGID` | optional; the user the app runs as (default `99:100`). The container starts as root, gives the data folder to that user and drops the privileges; `PUID=0` keeps root |
 
 The image already starts the web server with four threads (`GUNICORN_CMD_ARGS=--threads 4`); do not raise the number of workers, because every worker
 would start its own probe loop. Use `image: ghcr.io/d1-m4ss/internet-health:latest` to follow releases or a version tag such as `:1.1.0` to stay on one.

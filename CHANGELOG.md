@@ -5,6 +5,11 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+- **The app no longer runs as root.** The container starts as root only to hand the data folder to `PUID:PGID` (default `99:100`, Unraid's nobody:users;
+  files created by root in older versions are converted on the first start) and then drops the privileges for good. `PUID=0` keeps the old behaviour.
+  `internet-health-ookla install` (run by `docker exec` as root) gives what it creates to the owner of the data folder. The smoke test of the image
+  checks the user, the handed-over files, ping without privileges and `PUID=0`.
+
 ## 1.3.0 — 2026-10-26
 
 **The project no longer depends on the NetProbe Docker image.** The image is built from this repository's own `Dockerfile` on `python:3.14-slim`

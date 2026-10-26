@@ -43,6 +43,15 @@ redistribution or commercial-use rights. This helper downloads the binary from O
 """
 
 
+def hand_over(*paths):
+    """`docker exec` runs as root, the app as the owner of the data folder: what is created here must belong to that owner."""
+    if os.geteuid() != 0:
+        return
+    owner = os.stat(DATA_DIR)
+    for path in paths:
+        os.chown(path, owner.st_uid, owner.st_gid)
+
+
 def accepted():
     value = os.getenv("SPEEDTEST_OOKLA_ACCEPT_LICENSE", "").strip()
     if value.upper() in ("I_ACCEPT", "I ACCEPT") or value.lower() in ("1", "true", "yes", "on"):
@@ -65,6 +74,7 @@ def record_acceptance():
                          % (datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), EULA, TERMS, PRIVACY))
     finally:
         os.umask(old)
+    hand_over(ACCEPT_FILE)
     print("Acceptance recorded in", ACCEPT_FILE)
 
 
@@ -127,6 +137,7 @@ def install():
         out.write(binary)
     os.chmod(temp, os.stat(temp).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
     os.replace(temp, BINARY)
+    hand_over(os.path.dirname(BINARY), BINARY)
     print("Installed", BINARY)
     print("Choose \"Speedtest by Ookla\" under Speedtest -> Measurement service in the web page.")
     return 0

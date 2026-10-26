@@ -141,6 +141,26 @@ class OoklaInstallTests(unittest.TestCase):
         self.assertTrue(app.ookla_binary_available())
         self.assertEqual(app.ookla_acceptance_status(), (True, "persistent-file"))
 
+    def test_what_root_creates_is_handed_to_the_owner_of_the_data_folder(self):
+        """docker exec runs as root, the app as an unprivileged user: it must be able to read the acceptance and run the binary."""
+        helper = load_helper(self.env)
+        owner = os.stat(self.data)
+        chowned = []
+        with patch.object(helper.os, "geteuid", return_value=0), \
+             patch.object(helper.os, "chown", side_effect=lambda path, uid, gid: chowned.append((Path(path).name, uid, gid))), \
+             patch.dict(os.environ, {"SPEEDTEST_OOKLA_ACCEPT_LICENSE": "I_ACCEPT"}), patch("sys.stdout", new_callable=io.StringIO):
+            helper.record_acceptance()
+            self.assertEqual(helper.install(), 0)
+        names = [name for name, _uid, _gid in chowned]
+        self.assertEqual(names, ["ookla-eula-accepted.txt", "ookla", "speedtest"])
+        self.assertTrue(all((uid, gid) == (owner.st_uid, owner.st_gid) for _n, uid, gid in chowned))
+
+    def test_a_non_root_run_changes_no_owner(self):
+        helper = load_helper(self.env)
+        with patch.object(helper.os, "geteuid", return_value=1000), patch.object(helper.os, "chown") as chown:
+            helper.hand_over(str(self.data))
+        chown.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -190,6 +190,7 @@ Details: [docs/INSTALL-UNRAID.md → Updating](docs/INSTALL-UNRAID.md#updating).
 | `SPEEDTEST_ENABLED`, `SPEEDTEST_INTERVAL`, `SPEEDTEST_BACKEND` | scheduled tests, their interval and the service (`fast`, the default, or `ookla`; the old value `python` means `fast`); the *Speedtest* tab can override service and schedule, see [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md) |
 | `APP_TIMEZONE` | zone of the daily Speedtest times (default `UTC`) |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | optional: Telegram delivery without the UI form (both needed; they win over the saved values and switch it on) |
+| `PUID`, `PGID` | the user the app runs as (default `99` and `100`, Unraid's *nobody* and *users*); the container starts as root only to hand the data folder to them, then drops the privileges. `PUID=0` keeps running as root |
 | `GUNICORN_CMD_ARGS` | already `--threads 4` in the image; never raise `--workers`: every worker would start its own probe loop |
 
 Alert thresholds (loss ≥ 10 %, RTT ≥ 150 ms, jitter ≥ 80 ms, DNS ≥ 250 ms, 2 samples to alert, 2 to recover) are

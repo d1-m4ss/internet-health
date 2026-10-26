@@ -92,6 +92,11 @@ Releases are published on [GitHub](https://github.com/d1-m4ss/internet-health/re
 - **By hand from the command line:** `docker pull ghcr.io/d1-m4ss/internet-health:latest`, then recreate the container with Unraid's own script
   `/usr/local/emhttp/plugins/dynamix.docker.manager/scripts/rebuild_container <container name>` (it rebuilds from the template).
 
+**From 1.4.0 the app runs as `99:100` (nobody:users), not as root.** The first start after the update gives the files in the data folder to that user
+(you see one `entrypoint: handing files …` line in the log); the host-side bridge and your backups keep working because root reads everything. Files that
+the bridge creates in the folder stay root's. To keep the old behaviour set the variable `PUID` to `0`; to use another user set `PUID` / `PGID`. Going back
+to an older version needs nothing: root can use files of any owner.
+
 The data folder is untouched by an update: new database columns and files are created on first use, and a new feature stays **off** until you
 switch it on in the UI. Before a big step make a copy: *Settings → History → Back up now* (see [Restoring a backup](#restoring-a-backup)).
 After the update reload the page with Ctrl+F5 (the browser may keep the old one) and run the [checks above](#verify).

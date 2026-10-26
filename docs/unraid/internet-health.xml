@@ -34,4 +34,6 @@
   <Config Name="Pings per target" Target="PING_COUNT" Default="4" Mode="" Description="" Type="Variable" Display="advanced" Required="false" Mask="false">4</Config>
   <Config Name="Speedtest enabled" Target="SPEEDTEST_ENABLED" Default="False" Mode="" Description="Scheduled tests; the schedule and the service can also be set in the web UI." Type="Variable" Display="advanced" Required="false" Mask="false">False</Config>
   <Config Name="Speedtest interval (s)" Target="SPEEDTEST_INTERVAL" Default="14400" Mode="" Description="Used while the UI schedule is 'container'." Type="Variable" Display="advanced" Required="false" Mask="false">14400</Config>
+  <Config Name="Run as user (PUID)" Target="PUID" Default="99" Mode="" Description="The app runs as this user, not as root. 99 = nobody. 0 = root." Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
+  <Config Name="Run as group (PGID)" Target="PGID" Default="100" Mode="" Description="100 = users." Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
 </Container>
