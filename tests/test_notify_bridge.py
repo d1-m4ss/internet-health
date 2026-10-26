@@ -89,7 +89,7 @@ class NotifyBridgeTests(unittest.TestCase):
         path.chmod(0o700)
 
     def record(self, **updates):
-        record = dict(id=1, ts=999, level="warning", subject="NetProbe: degraded", message="Loss 20%; $(touch /tmp/no-eval)")
+        record = dict(id=1, ts=999, level="warning", subject="Internet Health: degraded", message="Loss 20%; $(touch /tmp/no-eval)")
         record.update(updates)
         return record
 
@@ -116,8 +116,8 @@ class NotifyBridgeTests(unittest.TestCase):
         args = self.calls()[0]
         self.assertEqual(args[args.index("-i") + 1], "warning")
         self.assertEqual(args[args.index("-m") + 1], self.record()["message"])
-        self.assertEqual(args[args.index("-s") + 1], "NetProbe: degraded")
-        self.assertEqual(args[args.index("-e") + 1], "NetProbe")
+        self.assertEqual(args[args.index("-s") + 1], "Internet Health: degraded")
+        self.assertEqual(args[args.index("-e") + 1], "Internet Health")
         self.assertNotIn("-l", args)
 
     def test_the_data_folder_alone_locates_the_token_the_settings_and_the_state(self):
@@ -345,7 +345,7 @@ class NotifyBridgeTests(unittest.TestCase):
         self.executable("notify", 'import json,os,sys\n'
                         'sys.stdin.read()\n'
                         'with open(os.environ["FIXTURE_LOG"],"a") as f: f.write(json.dumps(sys.argv[1:])+"\\n")\n')
-        self.records = [self.record(id=1), self.record(id=2, subject="NetProbe: second")]
+        self.records = [self.record(id=1), self.record(id=2, subject="Internet Health: second")]
         result = self.run_bridge()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(len(self.calls()), 2)
@@ -400,7 +400,7 @@ class NotifyBridgeTests(unittest.TestCase):
         self.assertNotEqual(self.run_bridge(1000).returncode, 0)
         self.assertNotEqual(self.run_bridge(1100).returncode, 0)
         subject = self.calls()[0][self.calls()[0].index("-s") + 1]
-        self.assertTrue(subject.startswith("⚠️") and "NetProbe" in subject, subject)
+        self.assertTrue(subject.startswith("⚠️") and "Internet Health" in subject, subject)
 
     def test_concurrent_invocation_skips_locked_delivery(self):
         self.records = [self.record()]

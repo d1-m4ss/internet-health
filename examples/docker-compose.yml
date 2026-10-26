@@ -1,0 +1,24 @@
+# Internet Health: one container, one data folder, everything else in the web page.
+# Guide: docs/INSTALL.md (Russian: docs/INSTALL.ru.md). The web page has no login: keep the port on your home network.
+services:
+  internet-health:
+    image: ghcr.io/d1-m4ss/internet-health:latest   # or a version such as :1.4.0 to stay on it
+    container_name: InternetHealth
+    restart: unless-stopped
+    ports:
+      - "8788:8080"            # web page: http://<this machine>:8788
+    environment:
+      TZ: Europe/Berlin        # your time zone
+      APP_TIMEZONE: Europe/Berlin
+      ROUTER_IP: 192.168.1.1   # your router
+      ROUTER_NAME: Router
+      # Two IP addresses next to the names let it tell "DNS is down" from "the internet is down".
+      SITES: fast.com,google.com,youtube.com,1.1.1.1,8.8.8.8
+      # Optional: the user the app runs as (default 99:100); the container hands the data folder to it.
+      # PUID: "1000"
+      # PGID: "1000"
+      # Optional: Telegram (or set it up in the web page, Settings -> Integrations)
+      # TELEGRAM_BOT_TOKEN: "123456789:AAH..."
+      # TELEGRAM_CHAT_ID: "-1001234567890"
+    volumes:
+      - ./data:/data           # database, settings and backups; any folder on this machine

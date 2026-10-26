@@ -1,8 +1,7 @@
 # HTTP API
 
-All endpoints are served by the Internet Health container (default `http://<unraid>:8788`; `GET /api/about` tells the version). The extension **adds**
-endpoints and optional parameters; the upstream API (`/api/config`, `/api/score/*`, `/api/speedtest/*`,
-`/api/logs/live`) keeps working. There is no authentication, so keep the port on your LAN.
+All endpoints are served by the Internet Health container (default `http://<host>:8788`; `GET /api/about` tells the version). The original
+NetProbe API (`/api/config`, `/api/score/*`, `/api/speedtest/*`, `/api/logs/live`) is kept for compatibility; the endpoints below are Internet Health's own. There is no authentication, so keep the port on your LAN.
 
 ## Choosing a period
 

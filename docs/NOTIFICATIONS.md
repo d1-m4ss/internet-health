@@ -1,16 +1,16 @@
 # Notifications
 
 Notifications are produced by the extension (`Extension.compose`) and delivered to the integrations that are switched on (*Settings → Integrations*, see
-[below](#integrations-unraid-and-telegram)): **Unraid**, through the host bridge and Unraid's own `notify` script, so they reach whatever agents you configured
-(email, Telegram, the Unraid GUI); and/or **Telegram**, sent straight from the container.
+[below](#integrations-unraid-and-telegram)): **Telegram**, sent straight from the container (any machine); and/or, on Unraid, **Unraid**, through the
+host bridge and Unraid's own `notify` script, so they reach whatever agents you configured (email, Telegram, the Unraid GUI).
 
 ## Format
 
-Each notification has three parts, matching what Unraid's agents expect:
+Each notification has three parts (the same that Unraid's agents expect):
 
 | Part | Used as | Notes |
 |---|---|---|
-| `subject` (`-s`) | title | `🔴 NetProbe: No internet` — icon + diagnosis, ≤ 120 chars |
+| `subject` (`-s`) | title | `🔴 Internet Health: No internet` — icon + diagnosis, ≤ 120 chars |
 | `description` (`-d`) | one-line summary | diagnosis + hint, ≤ 240 chars, no line breaks |
 | `message` (`-m`) | details | lines separated by the two characters `\n` (that is how Unraid's email/Telegram agents split a message) |
 
@@ -24,7 +24,7 @@ The headline is derived from the **current state of all targets**, not just from
 
 | Situation | Headline |
 |---|---|
-| Docker gateway on the Unraid host silent | 🔴 Docker gateway on Unraid is not responding |
+| Docker gateway on the server silent | 🔴 Docker gateway on the server is not responding |
 | Router silent **and** other targets failing | 🔴 Router is not responding |
 | Router silent but internet and DNS fine | 🟠 Router does not answer ping (probably ICMP filtering / wrong `ROUTER_IP`) |
 | All external hosts silent, DNS servers answer | 🟠 External hosts do not answer ping |
@@ -42,7 +42,7 @@ SERVFAIL/REFUSED do not).
 ## Example (from `tests/simulate_network.py -v`)
 
 ```
-[alert] 🔴 NetProbe: No internet
+[alert] 🔴 Internet Health: No internet
   🔴 No internet
 
   What changed:
@@ -54,7 +54,7 @@ SERVFAIL/REFUSED do not).
 
   Time: 20:12, 23.10.2026 UTC
 
-[normal] ✅ NetProbe: Everything is back to normal
+[normal] ✅ Internet Health: Everything is back to normal
   What changed:
   • 🟢 Google (google.com) - back to normal (problem lasted 10 min)
   ...
@@ -176,7 +176,7 @@ enter both, press *Send test* and Save.
 
 ## WAN change
 
-With *Show my external IP and provider* on, NetProbe remembers the last WAN (`/data/wan-state.json`). *Send a notification
+With *Show my external IP and provider* on, Internet Health remembers the last WAN (`/data/wan-state.json`). *Send a notification
 when the external IP or provider changes* sends one message when the address changes — useful when the router fails over to
 a backup link. The new address must be seen by two checks in a row (the second one a minute after the first, whatever the check interval), so one odd answer is not a change; there is no message in manual mode, where nothing watches the link; a
 provider name that only changed its spelling with the same address is ignored; at most 6 messages per hour. The level is

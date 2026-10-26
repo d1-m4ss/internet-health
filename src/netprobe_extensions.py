@@ -1,4 +1,4 @@
-"""Additive storage and state-change alerts for the installed NetProbe app."""
+"""Internet Health: per-target history, state-change alerts and messages, Speedtest clients, WAN tracking and the HTTP routes."""
 from concurrent.futures import ThreadPoolExecutor
 import csv
 from contextlib import contextmanager
@@ -1217,7 +1217,7 @@ class Extension:
             if recent >= WAN_NOTIFY_MAX_PER_HOUR:
                 logger.warning("WAN changed again; the hourly notification limit is used up")
                 return None
-            return self.queue(conn, now, "warning" if changed else "normal", ("%s NetProbe: %s" % (WAN_ICON, title))[:120],
+            return self.queue(conn, now, "warning" if changed else "normal", ("%s Internet Health: %s" % (WAN_ICON, title))[:120],
                               ("%s: %s → %s" % (title, before["ip"], after["ip"]))[:240], NEWLINE.join(lines)[:MAX_MESSAGE])
 
     def start_wan_watcher(self, sleep=time.sleep, rounds=None):
@@ -1505,7 +1505,7 @@ class Extension:
         if error is not None:
             reason = " ".join(CONTROL_CHARS.sub(" ", str(error)).split())[:300] or "unknown error"
             lines = ["⚠️ %s Speedtest failed (%s)" % (kind, service), "", "• Reason: " + reason, "", "Time: " + clock]
-            subject, level = "⚠️ NetProbe: Speedtest failed (%s)" % service, "warning"
+            subject, level = "⚠️ Internet Health: Speedtest failed (%s)" % service, "warning"
             description = "The %s Speedtest (%s) failed: %s" % (kind.lower(), service, reason)
         else:
             def mbps(value):
@@ -1528,7 +1528,7 @@ class Extension:
                     before["download_mbps"], "%.0f" % before["upload_mbps"] if before["upload_mbps"] is not None else "—",
                     stamp(before["ts"], "%H:%M, %d.%m")))
             lines += ["", "Time: " + clock]
-            subject = "%s NetProbe: Speedtest ↓ %s / ↑ %s" % (
+            subject = "%s Internet Health: Speedtest ↓ %s / ↑ %s" % (
                 SPEED_ICON, "%.0f" % down if isinstance(down, (int, float)) else "—",
                 "%.0f" % up if isinstance(up, (int, float)) else "—")
             level = "normal"
@@ -1567,12 +1567,12 @@ class Extension:
             change = (value - median) / median * 100
             rows_text.append("• %s: %.0f Mbps — usually %.0f Mbps (%+.0f %%)" % (name, value, median, change))
         if dropped:
-            subject = "%s NetProbe: Speedtest slowed down (%s)" % (SPEED_ICON, service)
+            subject = "%s Internet Health: Speedtest slowed down (%s)" % (SPEED_ICON, service)
             lines = ["%s Speedtest is slower than usual (%s)" % (SPEED_ICON, service), ""] + rows_text + [
                 "• Compared with the median of %d tests in the last 7 days" % max(c for _v, _m, c in dropped.values()), "", "Time: " + clock]
             level, description = "warning", "Speed is %d %% or more below the 7-day median (%s)." % (pct, service)
         else:
-            subject = "%s NetProbe: Speedtest is back to normal (%s)" % (SPEED_ICON, service)
+            subject = "%s Internet Health: Speedtest is back to normal (%s)" % (SPEED_ICON, service)
             lines = ["%s Speedtest is back to normal (%s)" % (SPEED_ICON, service), ""] + rows_text + ["", "Time: " + clock]
             level, description = "normal", "Speed is within the usual range again (%s)." % service
         with self.lock, self.db() as conn:
@@ -1871,7 +1871,7 @@ class Extension:
                                                              time.localtime(more_since)), TURBO_MAX_PER_HOUR))
         lines += ["", "Time: " + time.strftime("%H:%M, %d.%m.%Y %Z", time.localtime(ts))]
         message = NEWLINE.join(lines)[:MAX_MESSAGE]
-        return "warning", ("%s NetProbe: %s" % (TURBO_ICON, title))[:120], (title + ". " + hint)[:240], message
+        return "warning", ("%s Internet Health: %s" % (TURBO_ICON, title))[:120], (title + ". " + hint)[:240], message
 
     def outages(self, start, upper):
         with self.db() as conn:
@@ -1965,8 +1965,8 @@ class Extension:
         weak = lambda role: [t for t in by_role.get(role, []) if t in bad]
         sites, router, dns = (by_role.get(r, []) for r in ("site", "router", "dns"))
         if down("gateway"):
-            return ("🔴", "Docker gateway on Unraid is not responding",
-                    "The problem is inside Unraid or its Docker network, not at the ISP.", "alert")
+            return ("🔴", "Docker gateway on the server is not responding",
+                    "The problem is inside the server or its Docker network, not at the ISP.", "alert")
         if down("router"):
             if any(self.role(t) in ("site", "dns") for t in bad):
                 return ("🔴", "Router is not responding",
@@ -1997,7 +1997,7 @@ class Extension:
             return ("🟠", "Router responds with interruptions",
                     "Packet loss or latency on the path to the router: check the cable or Wi-Fi link and network load.", "warning")
         if weak("gateway"):
-            return ("🟠", "Docker gateway on Unraid has interruptions", "Check Unraid load and its network interface.", "warning")
+            return ("🟠", "Docker gateway on the server has interruptions", "Check the server's load and its network interface.", "warning")
         if weak("dns"):
             if len(weak("dns")) == len(dns):
                 return ("🟠", "DNS servers are not working",
@@ -2029,7 +2029,7 @@ class Extension:
             icon, level = "🟡", "warning"
             title = "Unstable connection: " + ", ".join(self.short_name(t) for t in unstable)
             hint = ("The state keeps changing, so repeated notifications for these targets are muted. "
-                    "Details are in the NetProbe event log.")
+                    "Details are in the Internet Health event log.")
         elif still_bad:
             icon, title, hint, level = self.diagnose(states)
             if not kinds & {"problem", "worse"}:
@@ -2065,10 +2065,10 @@ class Extension:
         kept = []  # bound the size on line boundaries
         for i, line in enumerate(lines):
             if len(NEWLINE.join(kept + [line])) > MAX_MESSAGE - 60:
-                kept.append("... and %d more lines (see the NetProbe event log)" % (len(lines) - i))
+                kept.append("... and %d more lines (see the Internet Health event log)" % (len(lines) - i))
                 break
             kept.append(line)
-        subject = ("%s NetProbe: %s" % (icon, title))[:120]
+        subject = ("%s Internet Health: %s" % (icon, title))[:120]
         description = (title + (". " + hint if hint else ""))[:240]
         return level, subject, description, NEWLINE.join(kept)
 

@@ -664,7 +664,7 @@ def notification_roles(gateway):
     """Human names for notifications: target -> (role, display name)."""
     roles = {}
     if gateway:
-        roles[gateway] = ("gateway", "Docker gateway on Unraid")
+        roles[gateway] = ("gateway", "Docker gateway")
     if ROUTER_IP:
         roles[ROUTER_IP] = ("router", ROUTER_NAME)
     for site in SITES:

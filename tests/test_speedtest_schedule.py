@@ -203,7 +203,7 @@ class NotificationTests(Base):
         self.assertIsNotNone(self.ext.notify_speedtest(self.result))
         (level, subject, description, message), = self.queued()
         self.assertEqual(level, "normal")
-        self.assertEqual(subject, "📶 NetProbe: Speedtest ↓ 482 / ↑ 91")
+        self.assertEqual(subject, "📶 Internet Health: Speedtest ↓ 482 / ↑ 91")
         self.assertEqual(description, "Scheduled Speedtest (Fast.com): download 482.3 Mbps, upload 91.0 Mbps.")
         lines = message.split("\\n")
         self.assertEqual(lines[0], "📶 Scheduled Speedtest (Fast.com)")
@@ -220,7 +220,7 @@ class NotificationTests(Base):
         self.result["upload_mbps"] = None
         self.ext.notify_speedtest(self.result)
         (_, subject, description, message), = self.queued()
-        self.assertEqual(subject, "📶 NetProbe: Speedtest ↓ 482 / ↑ —")
+        self.assertEqual(subject, "📶 Internet Health: Speedtest ↓ 482 / ↑ —")
         self.assertIn("upload not measured", description)
         self.assertIn("• Upload: not measured", message)
 
@@ -228,7 +228,7 @@ class NotificationTests(Base):
         self.prefs(speedtest_notify=True)
         self.ext.notify_speedtest(error=RuntimeError("fast.com is not reachable:\ntimed out \\n injected"), backend="fast")
         (level, subject, description, message), = self.queued()
-        self.assertEqual((level, subject), ("warning", "⚠️ NetProbe: Speedtest failed (Fast.com)"))
+        self.assertEqual((level, subject), ("warning", "⚠️ Internet Health: Speedtest failed (Fast.com)"))
         self.assertIn("• Reason: fast.com is not reachable: timed out n injected", message)
         self.assertNotIn("\\ninjected", message)
         self.assertNotRegex(message.replace("\\n", ""), r"[\x00-\x1f\\]")
@@ -299,7 +299,7 @@ class AppSchedulerTests(unittest.TestCase):
     def test_daily_schedule_runs_even_when_the_container_variable_is_off(self):
         self.ext.update_prefs({"speedtest_schedule": "daily", "speedtest_times": [self.local_time_in(-0.1)], "speedtest_notify": True})
         self.assertEqual(self.run_due(self.result).call_count, 1)
-        self.assertEqual(self.queued(), [("normal", "📶 NetProbe: Speedtest ↓ 300 / ↑ 50")])
+        self.assertEqual(self.queued(), [("normal", "📶 Internet Health: Speedtest ↓ 300 / ↑ 50")])
 
     def test_daily_schedule_waits_for_its_time(self):
         self.ext.update_prefs({"speedtest_schedule": "daily", "speedtest_times": [self.local_time_in(6)]})
@@ -313,7 +313,7 @@ class AppSchedulerTests(unittest.TestCase):
     def test_a_failure_is_reported_once_and_not_retried_every_cycle(self):
         self.ext.update_prefs({"speedtest_schedule": "interval", "speedtest_interval_h": 1, "speedtest_notify": True, "speedtest_service": "fast"})
         self.assertEqual(self.run_due(self.module.SpeedtestRunError("fast.com is not reachable: timed out")).call_count, 1)
-        self.assertEqual(self.queued(), [("warning", "⚠️ NetProbe: Speedtest failed (Fast.com)")])
+        self.assertEqual(self.queued(), [("warning", "⚠️ Internet Health: Speedtest failed (Fast.com)")])
         self.assertEqual(self.run_due(self.result).call_count, 0, "the next probe cycle must not hammer a broken service")
         self.assertEqual(len(self.queued()), 1)
 

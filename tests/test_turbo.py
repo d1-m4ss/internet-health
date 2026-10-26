@@ -245,7 +245,7 @@ class TurboTests(unittest.TestCase):
         self.turbo()
         self.rounds(2)
         with sqlite3.connect(self.db) as conn:  # confirm_samples=1: the alert carries the cycle start, 60 s earlier
-            conn.execute("INSERT INTO np_notifications(ts,level,subject,message) VALUES (?,?,?,?)", (self.now - 60, "alert", "🔴 NetProbe: No internet", "x"))
+            conn.execute("INSERT INTO np_notifications(ts,level,subject,message) VALUES (?,?,?,?)", (self.now - 60, "alert", "🔴 Internet Health: No internet", "x"))
         self.rounds(6, NET)
         self.rounds(3)
         self.main_cycle()

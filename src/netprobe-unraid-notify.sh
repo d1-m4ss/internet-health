@@ -19,7 +19,7 @@ WEB_URL="${NETPROBE_WEB_URL:-}"
 # Lock lives in RAM (not on the /mnt/user FUSE share, where flock is not guaranteed).
 LOCK_FILE="${NETPROBE_LOCK_FILE:-/var/run/netprobe-notify.lock}"
 
-die() { printf 'NetProbe bridge: %s\n' "$1" >&2; exit 1; }
+die() { printf 'Internet Health bridge: %s\n' "$1" >&2; exit 1; }
 for cmd in curl jq timeout flock date stat mktemp mv wc; do
     command -v "$cmd" >/dev/null 2>&1 || die "missing dependency: $cmd"
 done
@@ -74,7 +74,7 @@ send_notification() {
         description=${message//\\n/ }
         description=${description//$'\n'/ }
     fi
-    local args=(-e NetProbe -s "$subject" -d "${description:0:240}" -i "$level" -m "$message")
+    local args=(-e 'Internet Health' -s "$subject" -d "${description:0:240}" -i "$level" -m "$message")
     [[ -z "$WEB_URL" ]] || args+=(-l "$WEB_URL")
     timeout 15 "$NOTIFY" "${args[@]}" < /dev/null > /dev/null 2>&1
 }
@@ -124,12 +124,12 @@ if (( last_poll == 0 || now - last_poll >= 50 )); then
     if [[ "$health" != GRACE && "$health" != "$active" ]] && (( streak >= 2 )); then
         if [[ "$health" == UNAVAILABLE ]]; then
             level=warning
-            subject='⚠️ NetProbe: monitoring is not working'
-            message='⚠️ NetProbe monitoring is not responding or its data is stale (two checks in a row).\n\nNetProbe cannot report network problems right now. Check the NetProbe container in Unraid and its probe loop.'
+            subject='⚠️ Internet Health: monitoring is not working'
+            message='⚠️ Internet Health monitoring is not responding or its data is stale (two checks in a row).\n\nInternet Health cannot report network problems right now. Check the NetProbe container in Unraid and its probe loop.'
         else
             level=normal
-            subject='✅ NetProbe: monitoring is working again'
-            message='✅ Fresh NetProbe measurements were confirmed by two checks in a row. Network monitoring is working.'
+            subject='✅ Internet Health: monitoring is working again'
+            message='✅ Fresh Internet Health measurements were confirmed by two checks in a row. Network monitoring is working.'
         fi
         send_notification "$level" "$subject" "$message" || die 'health notification failed; will retry'
         state=$(jq -c --arg health "$health" '.health = $health' <<< "$state")

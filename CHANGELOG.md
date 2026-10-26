@@ -5,6 +5,14 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+- **Not tied to Unraid or NetProbe any more.** The README and the install guides are written for any Docker machine (mini PC, NAS, Proxmox,
+  Docker Desktop), with a `docker run` quick start, compose (`examples/docker-compose.yml`, data in `./data`) and the NAS GUIs; Unraid has its own
+  guide. New guides in Russian: `docs/INSTALL.ru.md`, `docs/INSTALL-UNRAID.ru.md` (`docs/INSTALL-COMPOSE.md` became `docs/INSTALL.md`).
+- **Messages are signed *Internet Health*** instead of *NetProbe* (`🔴 Internet Health: No internet`), the Unraid bridge sends them as the event
+  *Internet Health*, and the page no longer says Unraid or NetProbe where it means the machine or the app: the path starts at *Server*, the
+  style is called *Classic*, the gateway message says *Docker gateway on the server*. File, table and header names (`netprobe.sqlite`, `np_*`,
+  `X-NetProbe-Request`, the bridge script) stay, so existing installations keep working.
+
 - **Three Speedtest services: Fast.com, Cloudflare and Ookla.**
   - **Cloudflare** (new): Internet Health measures against the nearest Cloudflare data centre itself (speed.cloudflare.com, the endpoints its
     page uses): download, upload, latency, jitter and the latency under load; nothing to install. Shown as *Cloudflare* with the data centre

@@ -14,7 +14,7 @@ from fixture_db import make_database  # noqa: E402
 
 GATEWAY, ROUTER = "172.17.0.1", "192.168.1.1"
 ROLES = {
-    GATEWAY: ("gateway", "Docker gateway on Unraid"),
+    GATEWAY: ("gateway", "Docker gateway"),
     ROUTER: ("router", "Router"),
     "google.com": ("site", "Google"),
     "cloudflare.com": ("site", "Cloudflare"),
@@ -119,7 +119,7 @@ class MessageTests(unittest.TestCase):
     def test_docker_gateway_failure_points_inside_unraid(self):
         self.run_cycles(3)
         self.run_cycles(2, gateway=100)
-        self.assertIn("Docker gateway on Unraid", self.text(self.last()))
+        self.assertIn("Docker gateway", self.text(self.last()))
 
     # -- recovery ----------------------------------------------------------------
     def test_recovery_has_check_icon_duration_and_normal_level(self):

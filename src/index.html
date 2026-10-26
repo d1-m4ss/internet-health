@@ -462,16 +462,16 @@
       <a href="#diagnostics" data-i18n-attr="title:nav.diagnostics"><span class="nav-icon" aria-hidden="true">≋</span><span class="nav-label" data-i18n="nav.diagnostics">Диагностика</span></a>
       <a href="#speedtest" title="Speedtest"><span class="nav-icon" aria-hidden="true">⇅</span><span class="nav-label">Speedtest</span></a>
     </nav>
-    <div class="side-foot"><div><span class="pulse"></span><strong id="sidebarMode">…</strong></div><div style="margin-top:7px">Unraid · Internet Health</div></div>
+    <div class="side-foot"><div><span class="pulse"></span><strong id="sidebarMode">…</strong></div><div style="margin-top:7px">Internet Health</div></div>
   </aside>
   <main id="overview">
     <header class="head">
-      <div class="unifi-top unifi-only"><span class="site-pill"><span class="site-dot" id="siteDot" data-s="unknown"></span><span>Unraid · Internet Health</span></span><span class="net-tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="topbar.network">Сеть</span></span></div>
+      <div class="unifi-top unifi-only"><span class="site-pill"><span class="site-dot" id="siteDot" data-s="unknown"></span><span>Internet Health</span></span><span class="net-tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="topbar.network">Сеть</span></span></div>
       <span class="wordmark unifi-only" aria-hidden="true">Internet Health</span>
-      <div><div class="eyebrow" data-i18n="head.eyebrow">Internet monitoring / Unraid</div><h1 data-i18n="head.title">Состояние сети</h1></div>
+      <div><div class="eyebrow" data-i18n="head.eyebrow">Internet monitoring</div><h1 data-i18n="head.title">Состояние сети</h1></div>
       <div class="head-actions">
         <label class="pick"><span data-i18n="ctl.language">Язык</span><select id="langSelect"><option value="ru">Русский</option><option value="en">English</option></select></label>
-        <label class="pick"><span data-i18n="ctl.style">Стиль</span><select id="styleSelect"><option value="netprobe">NetProbe</option><option value="unifi">UniFi</option></select></label>
+        <label class="pick"><span data-i18n="ctl.style">Стиль</span><select id="styleSelect"><option value="netprobe">Classic</option><option value="unifi">UniFi</option></select></label>
         <span class="tag" id="sourceTag">…</span><button class="btn" id="refreshBtn" data-i18n="head.refresh">Обновить данные</button>
       </div>
     </header>
@@ -507,7 +507,7 @@
       <div class="path-row">
         <div class="node" id="nodeUnraid" data-s="unknown">
           <span class="node-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="3.5" width="16" height="7" rx="1.6"/><rect x="4" y="13.5" width="16" height="7" rx="1.6"/><path d="M7.5 7h.01M7.5 17h.01M12 7h5M12 17h5"/></svg></span>
-          <span class="node-text"><span class="node-name">Unraid</span><span class="node-sub" id="nodeUnraidSub">—</span><span><span class="pill" id="nodeUnraidPill">—</span></span></span>
+          <span class="node-text"><span class="node-name" data-i18n="path.server">Server</span><span class="node-sub" id="nodeUnraidSub">—</span><span><span class="pill" id="nodeUnraidPill">—</span></span></span>
         </div>
         <div class="link" id="linkUnraid" data-s="unknown"><span class="link-ms" id="linkUnraidMs">—</span><span class="link-line"></span><span class="link-cap" id="linkUnraidCap"></span></div>
         <div class="node" id="nodeRouter" data-s="unknown">
@@ -617,7 +617,7 @@
               <p class="card-sub" data-i18n="bk.note" style="margin:4px 0 0"></p>
               <div class="settings-actions"><button type="button" class="btn" id="bkCreate" disabled data-i18n="bk.create">Создать копию</button><span class="card-sub" id="bkMessage" role="status"></span></div>
               <div class="table-wrap"><table class="table"><tbody id="bkList"></tbody></table></div></div></div></details></section>
-        <section class="card" id="diagCard"><div class="card-head"><div><h2 data-i18n="diag.title">Диагностика</h2><div class="card-sub" data-i18n="diag.sub">Логи и активные настройки NetProbe</div></div></div><details id="detailsLog"><summary data-i18n="diag.logs">Логи приложения</summary><pre class="log-box" id="logOutput"></pre><div class="section-status" id="logStatus" role="status"></div></details><details><summary data-i18n="diag.config">Конфигурация (без секретов)</summary><pre class="log-box" id="configOutput">…</pre></details></section>
+        <section class="card" id="diagCard"><div class="card-head"><div><h2 data-i18n="diag.title">Диагностика</h2><div class="card-sub" data-i18n="diag.sub">Логи и активные настройки</div></div></div><details id="detailsLog"><summary data-i18n="diag.logs">Логи приложения</summary><pre class="log-box" id="logOutput"></pre><div class="section-status" id="logStatus" role="status"></div></details><details><summary data-i18n="diag.config">Конфигурация (без секретов)</summary><pre class="log-box" id="configOutput">…</pre></details></section>
       </div>
     </div>
     <div class="footer">NETPROBE · SQLite history · <span id="footerMode">—</span> · <span id="footerVersion"></span></div>
@@ -649,19 +649,19 @@
       'chk.title':'Связность','chk.sub':'Доля успешных замеров за период','chk.bridge':'Мост Docker','chk.router':'Роутер','chk.internet':'Интернет','chk.dns':'DNS',
       'tab.targets':'Цели','tab.dns':'DNS','tab.events':'События','tab.settings':'Уведомления','tab.diag':'Диагностика',
       'cnt.ok':'в норме','cnt.warn':'перебои','cnt.down':'нет ответа','cnt.dns':'DNS {ok}/{n}',
-      'kv.routerIp':'IP роутера','kv.gateway':'Шлюз Docker (Unraid)','kv.routerRtt':'RTT до роутера','kv.interval':'Интервал проб','kv.last':'Последний замер','kv.since':'Мониторинг с',
+      'kv.routerIp':'IP роутера','kv.gateway':'Шлюз Docker','kv.routerRtt':'RTT до роутера','kv.interval':'Интервал проб','kv.last':'Последний замер','kv.since':'Мониторинг с',
       'kv.score':'Качество','kv.hosts':'Узлы отвечают','kv.avgRtt':'Средняя RTT','kv.loss':'Потеря пакетов','kv.speed':'Последний Speedtest',
       'thr.loss':'потери ≥ {v}%','thr.rtt':'RTT ≥ {v} мс','thr.jitter':'джиттер ≥ {v} мс','thr.dns':'DNS ≥ {v} мс','thr.confirm':'тревога: {n} зам.','thr.recover':'восстановление: {n} зам.',
-      'brand.sub':'UNRAID MONITOR','nav.aria':'Навигация','nav.overview':'Обзор','nav.targets':'Цели','nav.diagnostics':'Диагностика',
-      'ctl.language':'Язык','ctl.style':'Стиль','head.eyebrow':'Мониторинг интернета / Unraid','head.title':'Состояние сети','head.refresh':'Обновить данные',
+      'brand.sub':'NETWORK HEALTH','nav.aria':'Навигация','nav.overview':'Обзор','nav.targets':'Цели','nav.diagnostics':'Диагностика',
+      'ctl.language':'Язык','ctl.style':'Стиль','head.eyebrow':'Мониторинг интернета','path.server':'Сервер','head.title':'Состояние сети','head.refresh':'Обновить данные',
       'side.connecting':'Подключение…','side.live':'Данные получены','side.stale':'Замеры устарели','side.offline':'Нет полного ответа API',
-      'status.last':'Последний замер','status.checking':'Проверяем сеть…','status.waiting':'Ожидание данных от NetProbe',
+      'status.last':'Последний замер','status.checking':'Проверяем сеть…','status.waiting':'Ожидание данных мониторинга',
       'status.unavailable':'API недоступен или ответ неполный','status.noFresh':'Нет свежих замеров','status.down':'Нет ответа от целей: {n} из {total}','status.degraded':'Перебои на целях: {n}','status.d.bad':'Проблемные цели: {names}','status.unconfirmed':'Состояние целей ещё не подтверждено','status.ok':'Цели работают штатно',
-      'status.d.lastReal':'Показаны последние реальные данные; проверьте время замеров.','status.d.waitReal':'Ожидание реальных данных от NetProbe.','status.d.outdated':'Мониторинг не предоставил свежий замер.','status.d.cycle':'Пауза между циклами: {i} сек · {p} ping на цель · последовательные пробы',
+      'status.d.lastReal':'Показаны последние реальные данные; проверьте время замеров.','status.d.waitReal':'Ожидание реальных данных мониторинга.','status.d.outdated':'Мониторинг не предоставил свежий замер.','status.d.cycle':'Пауза между циклами: {i} сек · {p} ping на цель · последовательные пробы',
       'metrics.title':'Интернет','metrics.aria':'Основные метрики','metric.score':'Качество соединения','metric.loss':'Потеря пакетов','metric.latency':'Задержка','metric.jitter':'Джиттер','metric.dns':'Ответ DNS',
-      'mf.score':'Комплексная оценка NetProbe','mf.loss':'Среднее по всем ICMP-целям','mf.latency':'Средняя RTT','mf.jitter':'NetProbe: max − min RTT','mf.dns':'Среднее по DNS-серверам',
-      'path.title':'Путь до интернета','path.internet':'Интернет','path.hosts':'отвечают {ok} из {n} узлов','path.dns':'DNS: {ok} из {n}','path.host':'хост NetProbe · мост Docker {ms}','path.hostOnly':'хост NetProbe','path.noData':'нет данных',
-      'path.router':'Роутер','path.link1':'RTT Unraid → {r}','path.link2':'средняя RTT до внешних узлов','path.note':'RTT измеряется с Unraid; ссылки показывают задержку до узла, а не отдельного участка.','path.noRouter':'роутер не задан','path.noHosts':'нет внешних целей',
+      'mf.score':'Комплексная оценка качества','mf.loss':'Среднее по всем ICMP-целям','mf.latency':'Средняя RTT','mf.jitter':'max − min RTT','mf.dns':'Среднее по DNS-серверам',
+      'path.title':'Путь до интернета','path.internet':'Интернет','path.hosts':'отвечают {ok} из {n} узлов','path.dns':'DNS: {ok} из {n}','path.host':'контейнер · мост Docker {ms}','path.hostOnly':'контейнер Internet Health','path.noData':'нет данных',
+      'path.router':'Роутер','path.link1':'RTT сервер → {r}','path.link2':'средняя RTT до внешних узлов','path.note':'RTT измеряется с сервера, где работает контейнер; ссылки показывают задержку до узла, а не отдельного участка.','path.noRouter':'роутер не задан','path.noHosts':'нет внешних целей',
       'state.OK':'Норма','state.DEGRADED':'Перебои','state.DOWN':'Нет ответа','state.UNKNOWN':'Нет данных',
       'chart.title':'История соединения','chart.sub':'Сводные метрики всех целей · SQLite','chart.titleTarget':'История · {t}','chart.subTarget':'Измеренный RTT, jitter и потери выбранной цели','chart.targetLabel':'Цель графика','chart.all':'Все цели · сводка','chart.aria':'График истории сети',
       'chart.loading':'Загрузка истории…','chart.unavailable':'История недоступна','chart.empty':'Нет измерений за выбранный период','chart.points':'точек: {n}','chart.peakNote':' · линия: среднее, точки: максимум','chart.errPrefix':'История недоступна · {kept}{err}','chart.kept':'сохранены последние полученные точки · ',
@@ -670,7 +670,7 @@
       'targets.title':'Контрольные адреса','targets.sub':'Маршрутизатор и внешние узлы','th.target':'Цель / измеренный IP','th.last':'Последний замер','th.period':'За период','th.state':'Состояние',
       'targets.none':'Замеров целей за период нет','targets.unavailable':'Данные целей недоступны','targets.ipUnknown':'IP не определён','targets.stale':'устарел','targets.ipPeriod':'IP за период: {n}','targets.samples':'замеров: {n}','targets.loss':'потери','targets.lossShort':'Потери','targets.note':'История адресов с {when}. До установки расширения доступны только сводные замеры. Нажмите на цель для её графика.',
       'dns.title':'DNS-серверы','dns.sub':'Ответ на DNS-запросы','dns.none':'Замеров DNS за период нет','dns.unavailable':'Данные DNS недоступны',
-      'events.title':'События','events.sub':'Подтверждённые изменения состояния','events.none':'Подтверждённых изменений за период нет','events.unavailable':'События недоступны','events.note':'Предупреждения и восстановление передаются через штатные уведомления Unraid.',
+      'events.title':'События','events.sub':'Подтверждённые изменения состояния','events.none':'Подтверждённых изменений за период нет','events.unavailable':'События недоступны','events.note':'Предупреждения и восстановление уходят во включённые интеграции (Telegram, Unraid).',
       'reason.noPing':'нет ответа на ping','reason.noDns':'DNS не отвечает','reason.loss':'потери пакетов {v}%','reason.rtt':'задержка {v} мс','reason.jitter':'джиттер {v} мс','reason.dnsSlow':'медленный DNS-ответ, {v} мс',
       'speed.gSpeed':'Скорость','speed.gDelay':'Задержка','speed.gLoss':'Потери','speed.keyDashed':'пунктир','speed.chartRange':'Период графика','speed.r24h':'24 часа','speed.r7d':'7 дней','speed.r30d':'30 дней','speed.chartAria':'График результатов Speedtest','speed.chartEmpty':'За этот период тестов нет.','speed.lgDown':'Скачивание ↓ (download)','speed.lgUp':'Отдача ↑ (upload)','speed.lgPing':'Ping без нагрузки','speed.lgLoadDown':'Ping при скачивании','speed.lgLoadUp':'Ping при отдаче','speed.lgJitter':'Джиттер','speed.lgLoss':'Потери пакетов','speed.chartLoss':'Потери','speed.chartService':'Сервис','speed.svcAll':'Все сервисы','speed.rAll':'Всё время','speed.noData':'Нет данных за этот период','speed.chartNothing':'Все линии скрыты: нажмите на название выше, чтобы показать.','speed.histShow':'Показать','speed.hist10':'Последние 10','speed.histRange':'За период графика','speed.histAll':'Все','speed.histCount':'Записей: {n}','speed.histCap':'Показаны последние {n} из {m}','sh.speeds':'Скачивание ↓ / отдача ↑, Mbps','speed.chartNoDelay':'Ping под нагрузкой и джиттер измеряют Fast.com, Cloudflare и Ookla, и только начиная с версии 1.1.0: у серых линий за этот период данных нет. Запустите тест Fast.com — они появятся.','speed.extra':'Джиттер {j} · задержка под нагрузкой: ↓ {d} / ↑ {u}','speed.extraLoss':' · потери {l} %','speed.histExtra':'джиттер {j} · под нагрузкой ↓ {d} / ↑ {u}','speed.history':'История Speedtest',
       'speed.last':'Последний тест · {when}','speed.none':'Измерений Speedtest пока нет','speed.unavailable':'Результат Speedtest недоступен','speed.lastErr':'Последний результат: {e}','speed.histErr':'История: {e}','speed.noMeasurements':'Нет измерений','speed.historyUnavailable':'История недоступна',
@@ -701,7 +701,7 @@
       'loss.outages':'Короткие обрывы (Turbo)','loss.wans':'По WAN-источникам','loss.wansNote':'Нажмите на строку, чтобы показать отчёт и графики только для этого источника. Короткие обрывы (Turbo) ниже не делятся по источникам.','loss.noOutages':'Turbo-обрывов за период нет','out.internet':'Обрыв интернета','out.router':'Роутер не отвечал','out.open':'идёт сейчас',
       'out.st.sent':'уведомление отправлено','out.st.pending':'ждёт отправки','out.st.covered':'тревога уже была от основного мониторинга','out.st.off':'уведомления выключены','out.st.capped':'лимит 3 в час','out.st.counted':'учтён в следующем сообщении','out.st.stopped':'Turbo выключен во время обрыва','out.st.open':'',
       'set.invalid':'Проверьте значения порогов.','set.saving':'Сохранение…','set.saved':'Сохранено на сервере.','set.notSaved':'Не сохранено: {e}','set.dirty':'Изменения ещё не сохранены.','set.storage':'SQLite: {mb} MiB · {ret}','set.noRetention':'Без автоматического удаления истории','set.retention':'Хранение: {d} дней','set.noStorage':'Хранилище: нет данных API',
-      'diag.title':'Диагностика','diag.sub':'Логи и активные настройки NetProbe','diag.logs':'Логи приложения','diag.config':'Конфигурация (без секретов)','diag.logHint':'Для просмотра разверните раздел.','diag.noLines':'В текущем буфере нет строк.','diag.lastRead':'Последнее чтение · {when}','diag.logsUnavailable':'Логи недоступны · {e}','diag.configUnavailable':'Конфигурация API недоступна.',
+      'diag.title':'Диагностика','diag.sub':'Логи и активные настройки','diag.logs':'Логи приложения','diag.config':'Конфигурация (без секретов)','diag.logHint':'Для просмотра разверните раздел.','diag.noLines':'В текущем буфере нет строк.','diag.lastRead':'Последнее чтение · {when}','diag.logsUnavailable':'Логи недоступны · {e}','diag.configUnavailable':'Конфигурация API недоступна.',
       'err.apiDown':'API недоступен · {kept}{e}','err.kept':'сохранены последние полученные данные · ','err.timeout':'Время ожидания истекло','err.badResponse':'Некорректный ответ','err.badHistory':'Некорректный ответ истории','err.badLogs':'Некорректный ответ логов'
     },
     en: {
@@ -715,19 +715,19 @@
       'chk.title':'Connectivity','chk.sub':'Share of successful samples in the period','chk.bridge':'Docker bridge','chk.router':'Router','chk.internet':'Internet','chk.dns':'DNS',
       'tab.targets':'Targets','tab.dns':'DNS','tab.events':'Events','tab.settings':'Notifications','tab.diag':'Diagnostics',
       'cnt.ok':'OK','cnt.warn':'degraded','cnt.down':'down','cnt.dns':'DNS {ok}/{n}',
-      'kv.routerIp':'Router IP','kv.gateway':'Docker gateway (Unraid)','kv.routerRtt':'RTT to router','kv.interval':'Probe interval','kv.last':'Last sample','kv.since':'Monitoring since',
+      'kv.routerIp':'Router IP','kv.gateway':'Docker gateway','kv.routerRtt':'RTT to router','kv.interval':'Probe interval','kv.last':'Last sample','kv.since':'Monitoring since',
       'kv.score':'Quality','kv.hosts':'Hosts reachable','kv.avgRtt':'Average RTT','kv.loss':'Packet loss','kv.speed':'Last Speedtest',
       'thr.loss':'loss ≥ {v}%','thr.rtt':'RTT ≥ {v} ms','thr.jitter':'jitter ≥ {v} ms','thr.dns':'DNS ≥ {v} ms','thr.confirm':'alert after {n} samples','thr.recover':'recover after {n} samples',
-      'brand.sub':'UNRAID MONITOR','nav.aria':'Navigation','nav.overview':'Overview','nav.targets':'Targets','nav.diagnostics':'Diagnostics',
-      'ctl.language':'Language','ctl.style':'Style','head.eyebrow':'Internet monitoring / Unraid','head.title':'Network status','head.refresh':'Refresh',
+      'brand.sub':'NETWORK HEALTH','nav.aria':'Navigation','nav.overview':'Overview','nav.targets':'Targets','nav.diagnostics':'Diagnostics',
+      'ctl.language':'Language','ctl.style':'Style','head.eyebrow':'Internet monitoring','path.server':'Server','head.title':'Network status','head.refresh':'Refresh',
       'side.connecting':'Connecting…','side.live':'Data received','side.stale':'Samples are stale','side.offline':'API response incomplete',
-      'status.last':'Last sample','status.checking':'Checking the network…','status.waiting':'Waiting for NetProbe data',
+      'status.last':'Last sample','status.checking':'Checking the network…','status.waiting':'Waiting for monitoring data',
       'status.unavailable':'API unavailable or response incomplete','status.noFresh':'No fresh samples','status.down':'No response from {n} of {total} targets','status.degraded':'Interruptions on {n} targets','status.d.bad':'Problem targets: {names}','status.unconfirmed':'Target state is not confirmed yet','status.ok':'All targets are healthy',
-      'status.d.lastReal':'Showing the last real data; check the sample time.','status.d.waitReal':'Waiting for real data from NetProbe.','status.d.outdated':'Monitoring has not provided a fresh sample.','status.d.cycle':'Pause between cycles: {i} s · {p} pings per target · sequential probes',
+      'status.d.lastReal':'Showing the last real data; check the sample time.','status.d.waitReal':'Waiting for real monitoring data.','status.d.outdated':'Monitoring has not provided a fresh sample.','status.d.cycle':'Pause between cycles: {i} s · {p} pings per target · sequential probes',
       'metrics.title':'Internet','metrics.aria':'Key metrics','metric.score':'Connection quality','metric.loss':'Packet loss','metric.latency':'Latency','metric.jitter':'Jitter','metric.dns':'DNS response',
-      'mf.score':'NetProbe composite score','mf.loss':'Average over all ICMP targets','mf.latency':'Average RTT','mf.jitter':'NetProbe: max − min RTT','mf.dns':'Average over DNS servers',
-      'path.title':'Path to the internet','path.internet':'Internet','path.hosts':'{ok} of {n} hosts reachable','path.dns':'DNS: {ok} of {n}','path.host':'NetProbe host · Docker bridge {ms}','path.hostOnly':'NetProbe host','path.noData':'no data',
-      'path.router':'Router','path.link1':'RTT Unraid → {r}','path.link2':'average RTT to external hosts','path.note':'RTT is measured from Unraid; each link shows latency to that node, not to a separate segment.','path.noRouter':'router not configured','path.noHosts':'no external targets',
+      'mf.score':'Composite quality score','mf.loss':'Average over all ICMP targets','mf.latency':'Average RTT','mf.jitter':'max − min RTT','mf.dns':'Average over DNS servers',
+      'path.title':'Path to the internet','path.internet':'Internet','path.hosts':'{ok} of {n} hosts reachable','path.dns':'DNS: {ok} of {n}','path.host':'container · Docker bridge {ms}','path.hostOnly':'Internet Health container','path.noData':'no data',
+      'path.router':'Router','path.link1':'RTT server → {r}','path.link2':'average RTT to external hosts','path.note':'RTT is measured from the server the container runs on; each link shows latency to that node, not to a separate segment.','path.noRouter':'router not configured','path.noHosts':'no external targets',
       'state.OK':'OK','state.DEGRADED':'Degraded','state.DOWN':'Down','state.UNKNOWN':'No data',
       'chart.title':'Connection history','chart.sub':'Summary metrics of all targets · SQLite','chart.titleTarget':'History · {t}','chart.subTarget':'Measured RTT, jitter and loss of the selected target','chart.targetLabel':'Chart target','chart.all':'All targets · summary','chart.aria':'Network history chart',
       'chart.loading':'Loading history…','chart.unavailable':'History unavailable','chart.empty':'No measurements in the selected period','chart.points':'{n} points','chart.peakNote':' · line: average, dots: maximum','chart.errPrefix':'History unavailable · {kept}{err}','chart.kept':'showing the last received points · ',
@@ -736,7 +736,7 @@
       'targets.title':'Targets','targets.sub':'Router and external hosts','th.target':'Target / measured IP','th.last':'Last sample','th.period':'Period','th.state':'State',
       'targets.none':'No target samples in this period','targets.unavailable':'Target data unavailable','targets.ipUnknown':'IP unknown','targets.stale':'stale','targets.ipPeriod':'IPs in period: {n}','targets.samples':'{n} samples','targets.loss':'loss','targets.lossShort':'Loss','targets.note':'Address history since {when}. Before the extension was installed only summary samples exist. Click a target to chart it.',
       'dns.title':'DNS servers','dns.sub':'Response to DNS queries','dns.none':'No DNS samples in this period','dns.unavailable':'DNS data unavailable',
-      'events.title':'Events','events.sub':'Confirmed state changes','events.none':'No confirmed changes in this period','events.unavailable':'Events unavailable','events.note':'Warnings and recoveries are delivered through the standard Unraid notifications.',
+      'events.title':'Events','events.sub':'Confirmed state changes','events.none':'No confirmed changes in this period','events.unavailable':'Events unavailable','events.note':'Warnings and recoveries go to the integrations that are switched on (Telegram, Unraid).',
       'reason.noPing':'no ping reply','reason.noDns':'not answering DNS','reason.loss':'packet loss {v}%','reason.rtt':'latency {v} ms','reason.jitter':'jitter {v} ms','reason.dnsSlow':'slow DNS reply, {v} ms',
       'speed.gSpeed':'Speed','speed.gDelay':'Delay','speed.gLoss':'Loss','speed.keyDashed':'dashed','speed.chartRange':'Chart period','speed.r24h':'24 hours','speed.r7d':'7 days','speed.r30d':'30 days','speed.chartAria':'Speedtest results chart','speed.chartEmpty':'No tests in this period.','speed.lgDown':'Download ↓','speed.lgUp':'Upload ↑','speed.lgPing':'Idle ping','speed.lgLoadDown':'Ping while downloading','speed.lgLoadUp':'Ping while uploading','speed.lgJitter':'Jitter','speed.lgLoss':'Packet loss','speed.chartLoss':'Loss','speed.chartService':'Service','speed.svcAll':'All services','speed.rAll':'All time','speed.noData':'No data in this period','speed.chartNothing':'Every line is hidden: click a name above to show it.','speed.histShow':'Show','speed.hist10':'Last 10','speed.histRange':'The chart period','speed.histAll':'All','speed.histCount':'Records: {n}','speed.histCap':'Showing the latest {n} of {m}','sh.speeds':'Download ↓ / upload ↑, Mbps','speed.chartNoDelay':'Ping under load and jitter are measured by Fast.com, Cloudflare and Ookla, and only since version 1.1.0: the greyed lines have no data in this period. Run a Fast.com test and they appear.','speed.extra':'Jitter {j} · delay under load: ↓ {d} / ↑ {u}','speed.extraLoss':' · loss {l} %','speed.histExtra':'jitter {j} · under load ↓ {d} / ↑ {u}','speed.history':'Speedtest history',
       'speed.last':'Last test · {when}','speed.none':'No Speedtest results yet','speed.unavailable':'Speedtest result unavailable','speed.lastErr':'Last result: {e}','speed.histErr':'History: {e}','speed.noMeasurements':'No measurements','speed.historyUnavailable':'History unavailable',
@@ -767,7 +767,7 @@
       'loss.outages':'Short outages (Turbo)','loss.wans':'By WAN source','loss.wansNote':'Click a row to show the report and the charts for that source only. The short outages (Turbo) below are not split by source.','loss.noOutages':'No Turbo outages in this period','out.internet':'Internet outage','out.router':'Router did not answer','out.open':'ongoing',
       'out.st.sent':'notification sent','out.st.pending':'waiting to be sent','out.st.covered':'the regular monitor already alerted','out.st.off':'notifications disabled','out.st.capped':'3 per hour limit','out.st.counted':'counted in the next message','out.st.stopped':'Turbo was switched off during the outage','out.st.open':'',
       'set.invalid':'Check the threshold values.','set.saving':'Saving…','set.saved':'Saved on the server.','set.notSaved':'Not saved: {e}','set.dirty':'Changes are not saved yet.','set.storage':'SQLite: {mb} MiB · {ret}','set.noRetention':'History is never deleted automatically','set.retention':'Retention: {d} days','set.noStorage':'Storage: no API data',
-      'diag.title':'Diagnostics','diag.sub':'NetProbe logs and active settings','diag.logs':'Application logs','diag.config':'Configuration (no secrets)','diag.logHint':'Expand the section to view.','diag.noLines':'The current buffer has no lines.','diag.lastRead':'Last read · {when}','diag.logsUnavailable':'Logs unavailable · {e}','diag.configUnavailable':'API configuration is unavailable.',
+      'diag.title':'Diagnostics','diag.sub':'Logs and active settings','diag.logs':'Application logs','diag.config':'Configuration (no secrets)','diag.logHint':'Expand the section to view.','diag.noLines':'The current buffer has no lines.','diag.lastRead':'Last read · {when}','diag.logsUnavailable':'Logs unavailable · {e}','diag.configUnavailable':'API configuration is unavailable.',
       'err.apiDown':'API unavailable · {kept}{e}','err.kept':'showing the last received data · ','err.timeout':'Request timed out','err.badResponse':'Invalid response','err.badHistory':'Invalid history response','err.badLogs':'Invalid log response'
     }
   };
@@ -854,7 +854,7 @@
     const down = bad.filter(x => x.state === 'DOWN' && !stale(x.ts));
     const unknown = live().some(x => !['OK','DEGRADED','DOWN'].includes(x.state) || stale(x.ts));
     const unavailable = coreMissing || failures.length > 0, mode = unavailable ? 'OFFLINE' : outdated ? 'STALE' : 'LIVE';
-    $('sourceTag').textContent = `${mode} · NetProbe API`;
+    $('sourceTag').textContent = `${mode}`;
     $('sourceTag').className = 'tag' + (mode === 'LIVE' ? '' : ' offline');
     $('statusDot').className = 'status-dot' + (unavailable || outdated || down.length ? ' offline' : bad.length || unknown || !live().length ? ' warning' : '');
     $('statusName').textContent = unavailable ? t('status.unavailable') : outdated ? t('status.noFresh') : down.length ? t('status.down', {n: down.length, total: live().length}) : bad.length ? t('status.degraded', {n: bad.length}) : unknown || !live().length ? t('status.unconfirmed') : t('status.ok');

@@ -390,7 +390,7 @@ class ChangeNotificationTests(WanBase):
         self.see(B)
         (level, subject, description, message), = self.queued()
         self.assertEqual(level, "warning")
-        self.assertEqual(subject, "🌐 NetProbe: WAN changed: Beta Cable")
+        self.assertEqual(subject, "🌐 Internet Health: WAN changed: Beta Cable")
         self.assertEqual(description, "WAN changed: Beta Cable: 203.0.113.10 → 198.51.100.20")
         lines = message.split("\\n")
         self.assertEqual(lines[0], "🌐 WAN changed: Beta Cable")
@@ -403,7 +403,7 @@ class ChangeNotificationTests(WanBase):
         self.see(A)
         self.see(("198.51.100.99", "Alpha Net"))
         (level, subject, description, message), = self.queued()
-        self.assertEqual((level, subject), ("normal", "🌐 NetProbe: External IP changed (Alpha Net)"))
+        self.assertEqual((level, subject), ("normal", "🌐 Internet Health: External IP changed (Alpha Net)"))
         self.assertIn("assigned a new address", message)
 
     def test_an_unknown_provider_is_said_not_invented(self):
@@ -460,7 +460,7 @@ class ChangeNotificationTests(WanBase):
         self.see(A)
         self.see((B[0], "Evil\nNet \\n Extra"))
         (_, subject, _, message), = self.queued()
-        self.assertEqual(subject, "🌐 NetProbe: WAN changed: Evil Net n Extra")
+        self.assertEqual(subject, "🌐 Internet Health: WAN changed: Evil Net n Extra")
         self.assertNotRegex(message.replace("\\n", ""), r"[\x00-\x1f\\]")
 
     def test_it_does_not_count_as_covering_a_turbo_outage(self):
@@ -480,7 +480,7 @@ class ChangeNotificationTests(WanBase):
         for _ in range(3):
             self.now += 60
             self.ext.wan_tick()
-        self.assertEqual([q[1] for q in self.queued()], ["🌐 NetProbe: WAN changed: Beta Cable"])
+        self.assertEqual([q[1] for q in self.queued()], ["🌐 Internet Health: WAN changed: Beta Cable"])
         key = (self.root / "notify-token").read_text().strip()
         pending = self.client.get("/api/notifications/pending", headers={"X-NetProbe-Notify-Key": key}).get_json()["notifications"]
         self.assertEqual(len(pending), 1)

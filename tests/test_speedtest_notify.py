@@ -51,9 +51,9 @@ class ManualNotificationTests(NotifyBase):
         self.now += 1
         self.ext.notify_speedtest(error=RuntimeError("fast.com is not reachable: timed out"), backend="fast", manual=True)
         (ok, bad) = self.queued()
-        self.assertEqual(ok[:2], ("normal", "📶 NetProbe: Speedtest ↓ 400 / ↑ 90"))
+        self.assertEqual(ok[:2], ("normal", "📶 Internet Health: Speedtest ↓ 400 / ↑ 90"))
         self.assertIn("Manual Speedtest (Fast.com)", ok[2])
-        self.assertEqual(bad, ("warning", "⚠️ NetProbe: Speedtest failed (Fast.com)", "The manual Speedtest (Fast.com) failed: fast.com is not reachable: timed out"))
+        self.assertEqual(bad, ("warning", "⚠️ Internet Health: Speedtest failed (Fast.com)", "The manual Speedtest (Fast.com) failed: fast.com is not reachable: timed out"))
         text = self.messages()[0]
         self.assertIn("Manual Speedtest (Fast.com)", text)
         self.assertIn("• Previous: ↓ 380 / ↑ 85 Mbps", text)
@@ -101,7 +101,7 @@ class DropTests(NotifyBase):
     def test_a_drop_warns_once_and_recovery_is_announced_once(self):
         self.drop_check(260)                              # -35 %
         (level, subject, description), = self.queued()
-        self.assertEqual((level, subject), ("warning", "📶 NetProbe: Speedtest slowed down (Fast.com)"))
+        self.assertEqual((level, subject), ("warning", "📶 Internet Health: Speedtest slowed down (Fast.com)"))
         self.assertIn("30 %", description)
         text = self.messages()[0]
         self.assertIn("• Download: 260 Mbps — usually 400 Mbps (-35 %)", text)
@@ -111,7 +111,7 @@ class DropTests(NotifyBase):
         self.drop_check(250)
         self.assertEqual(len(self.queued()), 1, "no repeats while it stays low")
         self.drop_check(395)
-        self.assertEqual([q[1] for q in self.queued()], ["📶 NetProbe: Speedtest slowed down (Fast.com)", "📶 NetProbe: Speedtest is back to normal (Fast.com)"])
+        self.assertEqual([q[1] for q in self.queued()], ["📶 Internet Health: Speedtest slowed down (Fast.com)", "📶 Internet Health: Speedtest is back to normal (Fast.com)"])
         self.assertEqual(self.queued()[1][0], "normal")
         self.drop_check(400)
         self.assertEqual(len(self.queued()), 2, "normal stays quiet")
@@ -191,7 +191,7 @@ class AppHookTests(unittest.TestCase):
                 time.sleep(0.02)
         with module.custom_extension.db() as conn:
             rows = [tuple(r) for r in conn.execute("SELECT subject FROM np_notifications")]
-        self.assertEqual(rows, [("📶 NetProbe: Speedtest ↓ 100 / ↑ 50",)])
+        self.assertEqual(rows, [("📶 Internet Health: Speedtest ↓ 100 / ↑ 50",)])
         with patch.object(module, "run_speedtest_internal", side_effect=module.SpeedtestRunError("timed out")):
             client.post("/api/speedtest/run", json={"async": True})
             deadline = time.time() + 5

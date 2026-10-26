@@ -60,7 +60,7 @@ class TelegramBase(unittest.TestCase):
     def configure(self, enabled=True, token=TOKEN, chat=CHAT):
         return self.ext.update_telegram({"enabled": enabled, "token": token, "chat_id": chat})
 
-    def notify(self, text="🔴 Alert" + NL + "line two", subject="NetProbe: alert", offset=0):
+    def notify(self, text="🔴 Alert" + NL + "line two", subject="Internet Health: alert", offset=0):
         with self.ext.db() as conn:
             return self.ext.queue(conn, self.now + offset, "alert", subject, "d", text)
 
