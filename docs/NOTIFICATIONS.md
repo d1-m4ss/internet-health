@@ -172,7 +172,7 @@ enter both, press *Send test* and Save.
   waited more than two minutes ends with a line such as `⏱ Delivered 12 min late: the event happened at 03:33` (with the date when it was
   another day), so a late "No internet" is not mistaken for a current one.
 - The settings show the last delivery or the last error and, while messages wait, how many, since when and when the next attempt is.
-- The token is never shown again; *Forget token…* removes it.
+- The token and the chat ID are never shown again (the fields show *saved · leave empty to keep it*; an empty field keeps the saved value); *Forget token…* removes both.
 
 ## WAN change
 

@@ -71,7 +71,7 @@ class TelegramBase(unittest.TestCase):
 class ConfigTests(TelegramBase):
     def test_off_and_empty_by_default(self):
         view = self.client.get("/api/telegram").get_json()
-        self.assertEqual(view, {"enabled": False, "configured": False, "token_set": False, "chat_id": "", "source": None,
+        self.assertEqual(view, {"enabled": False, "configured": False, "token_set": False, "chat_set": False, "source": None,
                                 "last_ok_ts": None, "last_error": None, "last_error_ts": None,
                                 "queued": 0, "oldest_ts": None, "retry_ts": None})
         self.assertEqual(self.ext.telegram_tick(), 0)
@@ -83,8 +83,10 @@ class ConfigTests(TelegramBase):
         for body in (response.get_data(as_text=True), self.client.get("/api/telegram").get_data(as_text=True)):
             self.assertNotIn(TOKEN, body)
             self.assertNotIn("AAH-test", body)
+            self.assertNotIn(CHAT, body, "the chat ID is kept private like the token")
         view = response.get_json()
-        self.assertEqual((view["enabled"], view["configured"], view["token_set"], view["chat_id"], view["source"]), (True, True, True, CHAT, "ui"))
+        self.assertEqual((view["enabled"], view["configured"], view["token_set"], view["chat_set"], view["source"]), (True, True, True, True, "ui"))
+        self.assertNotIn("chat_id", view)
         self.assertEqual(oct((self.root / "telegram.json").stat().st_mode & 0o777), "0o600")
         self.assertEqual(self.client.get("/api/telegram").headers["Cache-Control"], "no-store")
         for path in ("/api/prefs", "/api/config", "/api/settings"):
@@ -95,7 +97,14 @@ class ConfigTests(TelegramBase):
         self.client.post("/api/telegram", json={"chat_id": "-100999"}, headers=HEADERS)
         self.assertEqual((self.ext.telegram_config()["token"], self.ext.telegram_config()["chat_id"]), (TOKEN, "-100999"))
         view = self.client.post("/api/telegram", json={"clear": True, "enabled": False}, headers=HEADERS).get_json()
-        self.assertEqual((view["token_set"], view["chat_id"], view["configured"], view["enabled"]), (False, "", False, False))
+        self.assertEqual((view["token_set"], view["chat_set"], view["configured"], view["enabled"]), (False, False, False, False))
+
+    def test_an_empty_token_or_chat_keeps_the_saved_one(self):
+        self.configure()
+        view = self.client.post("/api/telegram", json={"enabled": True, "token": "", "chat_id": ""}, headers=HEADERS).get_json()
+        self.assertEqual((view["token_set"], view["chat_set"], view["configured"]), (True, True, True))
+        saved = self.ext.telegram_config()
+        self.assertEqual((saved["token"], saved["chat_id"]), (TOKEN, CHAT))
 
     def test_values_are_validated(self):
         for body in ({"token": "1111"}, {"token": "abc"}, {"chat_id": "chat"}, {"chat_id": "12"}, {"enabled": "yes"}, {"enabled": 1},
@@ -115,8 +124,9 @@ class ConfigTests(TelegramBase):
     def test_the_environment_wins_and_switches_it_on(self):
         os.environ["TELEGRAM_BOT_TOKEN"], os.environ["TELEGRAM_CHAT_ID"] = TOKEN, CHAT
         view = self.client.get("/api/telegram").get_json()
-        self.assertEqual((view["enabled"], view["configured"], view["source"], view["chat_id"]), (True, True, "env", CHAT))
+        self.assertEqual((view["enabled"], view["configured"], view["source"], view["chat_set"]), (True, True, "env", True))
         self.assertNotIn(TOKEN, json.dumps(view))
+        self.assertNotIn(CHAT, json.dumps(view))
         self.assertEqual(self.client.post("/api/telegram", json={"token": "999999:" + "B" * 30}, headers=HEADERS).status_code, 400)
         self.assertEqual(self.client.post("/api/telegram", json={"clear": True}, headers=HEADERS).status_code, 400)
         paused = self.client.post("/api/telegram", json={"enabled": False}, headers=HEADERS).get_json()

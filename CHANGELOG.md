@@ -5,6 +5,18 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+- **The Speedtest chart, rebuilt.** Speed, delay and (when measured) packet-loss views; every line has a button to show or hide it (remembered);
+  one service is drawn at a time (the newest test's by default, or *All services*), so Fast.com and Speedtest.net results no longer tangle into
+  one zig-zag; clear names (*Download ↓*, *Upload ↑*, idle ping, ping while downloading / uploading, jitter, packet loss) and the unit on the axis;
+  the axis makes room for wide numbers; the period includes *All time* and is applied without asking the server again
+  (`GET /api/speedtest/series?range=all`). The placeholder delay that speedtest-cli stores when it cannot measure (1 800 000 ms) is shown
+  as unknown, never as a spike.
+- **The Speedtest history table**: newest first, the last 10, the chart's period, or all (the choice is remembered).
+- **A popup on every chart**: hover (or touch) a point of the main chart, the compare chart or the Speedtest chart to see the time and the
+  value(s) at once instead of the slow browser tooltip.
+- **The Telegram chat ID is kept private like the token**: `GET /api/telegram` returns `chat_set` instead of `chat_id`, the field shows
+  *saved · leave empty to keep it*, and an empty `chat_id` in a save keeps the saved one.
+
 ## 1.2.0 — 2026-10-26
 
 - **The default data folder is `/mnt/user/appdata/internet-health`** in the Unraid template, the compose examples and the guides. Existing

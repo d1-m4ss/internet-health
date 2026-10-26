@@ -119,6 +119,8 @@ TELEGRAM_POLL = 5       # seconds between looks at the queue (only while Telegra
 TELEGRAM_TIMEOUT = 10
 TELEGRAM_MAX_AGE = 86400  # a message that could not be delivered for a day is given up
 TELEGRAM_BATCH = 10
+SPEED_DELAY_FIELDS = ("ping_ms", "jitter_ms", "loaded_down_ms", "loaded_up_ms")
+SPEED_DELAY_MAX_MS = 60000  # above a minute a delay is a placeholder for "not measured"
 TELEGRAM_LATE = 120     # a message delivered later than this after the event says so
 GZIP_TYPES = ("text/html", "application/json", "text/csv")  # compressed when the browser accepts gzip
 GZIP_MIN = 1024
@@ -1109,12 +1111,12 @@ class Extension:
                 queued, oldest = conn.execute("SELECT COUNT(*),MIN(ts) FROM np_notifications WHERE tg=0 AND ts>=?",
                                               (max(cfg["armed_at"], now - TELEGRAM_MAX_AGE),)).fetchone()
             retry = int(self.tg_retry_at) if queued and self.tg_retry_at > now else None
-        return dict(enabled=cfg["enabled"], configured=cfg["ready"], token_set=bool(cfg["token"]), chat_id=cfg["chat_id"], source=cfg["source"],
+        return dict(enabled=cfg["enabled"], configured=cfg["ready"], token_set=bool(cfg["token"]), chat_set=bool(cfg["chat_id"]), source=cfg["source"],
                     last_ok_ts=state.get("last_ok_ts"), last_error=state.get("last_error"), last_error_ts=state.get("last_error_ts"),
                     queued=queued, oldest_ts=oldest, retry_ts=retry)
 
     def update_telegram(self, patch):
-        """patch: any of enabled (bool), token (str, empty = keep), chat_id (str), clear (True forgets token and chat)."""
+        """patch: any of enabled (bool), token (str, empty = keep), chat_id (str, empty = keep), clear (True forgets token and chat)."""
         if not isinstance(patch, dict) or set(patch) - {"enabled", "token", "chat_id", "clear"}:
             raise ValueError("Unknown or invalid Telegram settings")
         if "enabled" in patch and type(patch["enabled"]) is not bool:
@@ -1124,10 +1126,10 @@ class Extension:
         for key in ("token", "chat_id"):
             if key in patch and not isinstance(patch[key], str):
                 raise ValueError(key + " must be a string")
-        token, chat = (patch.get("token") or "").strip(), (patch.get("chat_id") or "").strip() if "chat_id" in patch else None
+        token, chat = (patch.get("token") or "").strip(), (patch.get("chat_id") or "").strip()
         if token and not TELEGRAM_TOKEN.match(token):
             raise ValueError("The bot token looks like 123456789:AAH… (from @BotFather)")
-        if chat is not None and chat and not TELEGRAM_CHAT.match(chat):
+        if chat and not TELEGRAM_CHAT.match(chat):
             raise ValueError("The chat ID is a number such as -1001234567890 (or @channelname)")
         with self.lock:
             before = self.telegram_config()
@@ -1138,7 +1140,7 @@ class Extension:
                 saved.pop("token", None), saved.pop("chat_id", None)
             if token:
                 saved["token"] = token
-            if chat is not None:
+            if chat:
                 saved["chat_id"] = chat
             if "enabled" in patch:
                 saved["enabled"] = patch["enabled"]
@@ -1438,7 +1440,12 @@ class Extension:
                                           e.jitter_ms, e.packet_loss_pct, e.loaded_down_ms, e.loaded_up_ms
                                    FROM speedtests s LEFT JOIN np_speedtest_extra e ON e.ts = s.ts
                                    WHERE s.ts >= ? AND s.ts <= ? ORDER BY s.ts DESC LIMIT ?""", (end - seconds, end, limit)).fetchall()
-        return [dict(r) for r in reversed(rows)]
+        series = [dict(r) for r in reversed(rows)]
+        for row in series:  # speedtest-cli stores 1 800 000 ms when it could not measure the ping: that is "unknown", not a delay
+            for key in SPEED_DELAY_FIELDS:
+                if row[key] is not None and not 0 <= row[key] <= SPEED_DELAY_MAX_MS:
+                    row[key] = None
+        return series
 
     @staticmethod
     def classify(row, cfg):
@@ -2250,7 +2257,10 @@ def install_routes(app, ext):
 
     @app.get("/api/speedtest/series")
     def np_speedtest_series():
-        seconds, end = window(7 * 86400)
+        if request.args.get("range") == "all":  # the whole history (the newest 2000 tests)
+            seconds, end = 20 * 365 * 86400, None
+        else:
+            seconds, end = window(7 * 86400)
         return jsonify(tests=ext.speedtest_series(seconds, end), range=seconds)
 
     @app.get("/api/about")

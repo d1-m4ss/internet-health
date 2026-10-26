@@ -63,3 +63,19 @@ class ExtraTests(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_range_all_returns_the_whole_history(self):
+        for i, age in enumerate((400 * DAY, 100 * DAY, 3600)):
+            self.add_test(NOW - age, down=100.0 + i)
+        self.assertEqual(len(self.client.get("/api/speedtest/series?range=all").get_json()["tests"]), 3)
+        self.assertEqual(len(self.client.get("/api/speedtest/series?range=%d" % (30 * DAY)).get_json()["tests"]), 1, "numbers still limit")
+
+    def test_a_placeholder_delay_is_not_a_delay(self):
+        self.add_test(NOW - 300, ping=1_800_000.0)   # what speedtest-cli stores when it could not measure the ping
+        self.add_test(NOW - 200, ping=0.0)
+        self.add_test(NOW - 100, ping=60000.0)
+        self.add_test(NOW - 50, ping=60000.5)
+        self.ext.save_speedtest_extra(NOW - 300, {"jitter_ms": 2.0, "loaded_ping_ms": 5_000_000.0})
+        series = {t["ts"]: t for t in self.client.get("/api/speedtest/series?range=3600").get_json()["tests"]}
+        self.assertEqual([series[NOW - o]["ping_ms"] for o in (300, 200, 100, 50)], [None, 0.0, 60000.0, None])
+        self.assertEqual((series[NOW - 300]["jitter_ms"], series[NOW - 300]["loaded_down_ms"]), (2.0, None))

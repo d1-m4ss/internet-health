@@ -47,8 +47,16 @@ const shots = process.env.NETPROBE_SHOTS || os.tmpdir();
     await page.locator('#targetsBody button[data-target="edge.example"]').first().click();
     await page.waitForFunction(()=>document.getElementById('chartTitle').textContent.includes('edge.example'));
     assert(calls.some(c=>c.url.includes('/api/targets/history?')&&c.url.includes('target=edge.example')),'target selection must fetch target history');
-    await page.waitForFunction(()=>document.getElementById('primaryChart').textContent.includes('макс. потери 100.0%'));
-    assert.match(await page.locator('#primaryChart').textContent(),/100.*%/,'loss peak must remain in graph tooltip');
+    await page.waitForFunction(()=>document.querySelectorAll('#primaryChart circle.c-peak').length>0);
+    {   // the popup of the point with the highest peak shows that peak (hover, no native title)
+      const box=await page.evaluate(()=>{const c=[...document.querySelectorAll('#primaryChart circle.c-peak')].sort((a,b)=>a.getBoundingClientRect().top-b.getBoundingClientRect().top)[0].getBoundingClientRect();return {x:c.left+c.width/2,y:c.top+c.height/2};});
+      await page.mouse.move(box.x,box.y);
+      await page.waitForFunction(()=>{const t=document.getElementById('chartTip');return !t.hidden&&/100\.00 %/.test(t.textContent)});
+      assert.match(await page.locator('#chartTip').textContent(),/макс/i,'the popup names the peak row');
+      assert.equal(await page.locator('#primaryChart title').count(),0,'no slow native tooltips');
+      await page.mouse.move(2,2);
+      await page.waitForFunction(()=>document.getElementById('chartTip').hidden);
+    }
     await page.locator('[data-metric="avg_latency_ms"]').click();
     assert.equal(await page.locator('#primaryChart circle').count(),1,'null RTT must leave a graph gap, not a healthy zero');
     await page.locator('[data-metric="avg_loss_pct"]').click();

@@ -57,7 +57,7 @@ web UI. It adds its own tables (`np_*`) next to NetProbe's and leaves NetProbe's
   straight from the container, or both, or neither (history and charts are recorded either way). Ticking Telegram shows the bot token
   (from @BotFather) and chat ID fields, *Send test*, Save; values given to the container as variables are not shown. The container then sends the same messages Unraid gets (alerts, recoveries, WAN changes, Speedtest
   results) to the chat through the Bot API — together with the Unraid bridge or without it. The token is stored in
-  `/data/telegram.json` (mode 600), is never shown again by the UI or the API, and can instead be given to the container as
+  `/data/telegram.json` (mode 600), is never shown again by the UI or the API (nor is the chat ID: an empty field keeps the saved value), and can instead be given to the container as
   `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`. Messages from before it was switched on are not sent; a failed delivery is
   retried with a growing pause and given up after a day.
 - **The loss report and the compare chart know the WAN source.** The *WAN source* choice also limits the *Packet loss* report, and a
@@ -80,9 +80,12 @@ web UI. It adds its own tables (`np_*`) next to NetProbe's and leaves NetProbe's
 - **Compare mode** — several metrics and several targets (for example all DNS servers) on one chart, with a
   shared scale when the units match and a per-series scale otherwise.
 - **Path to the internet:** Unraid → router → Internet, drawn from the real targets, with measured RTT on the links.
-- **Speedtest chart, jitter and delay under load.** The *Speedtest* tab draws the results over 24 hours, 7 or 30 days — speed
-  (download and upload) or delay (idle ping, ping while downloading and while uploading, jitter). Fast.com also measures the
-  delay under load (bufferbloat), and the numbers appear next to each test. An unmeasured value is a gap in the line, never a zero.
+- **Speedtest chart, jitter and delay under load.** The *Speedtest* tab draws the results over 24 hours, 7 days, 30 days or all
+  time — speed (download ↓ and upload ↑), delay (idle ping, ping while downloading and while uploading, jitter) or packet loss
+  (when the service measures it). Every line has a button to show or hide it, one service at a time is drawn (the newest test's
+  by default), and hovering a point shows its values, the service and the server. Fast.com also measures the delay under load
+  (bufferbloat), and the numbers appear next to each test. An unmeasured value is a gap in the line, never a zero. The history
+  table under the chart lists the newest tests first: the last 10, the chart's period, or all.
   Optional messages after manual tests, and a warning when the speed falls 20 / 30 / 50 % below the 7-day median of the same service.
 - **Speedtest service of your choice.** The *Speedtest* tab says which service measures: Speedtest.net (Ookla servers,
   through speedtest-cli — the default), the official Ookla CLI (when you install its binary in the container) or

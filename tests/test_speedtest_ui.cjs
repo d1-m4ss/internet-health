@@ -11,7 +11,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
   try {
     const now = Math.floor(Date.now() / 1000);
     const api = {
-      prefs: {speedtest_service: '', speedtest_schedule: 'container', speedtest_interval_h: 6, speedtest_times: ['03:00'], speedtest_notify: false, show_public_ip: false, wan_check_min: 15, wan_notify: false, history_retention_days: 0, notify_unraid: true}, history: {last: null, next_ts: null, db_bytes: 5320000, oldest_ts: now - 86400 * 40}, cleanupTotal: 1234, cleanupError: null, publicIp: {enabled: false}, targets: [], wanData: {sources: [], current: null}, publicIpDelay: 0, loss: null, historyByWan: null, series: [], backups: [], backupFail: null, tg: {enabled: false, configured: false, token_set: false, chat_id: '', source: null, last_ok_ts: null, last_error: null, last_error_ts: null}, tgFail: null, delays: {}, statusSeq: [], status: {running: false, success: null, error: null, result: null}, runStatus: 202, prefsFail: false, prefsReadFail: false, speedRun: null, calls: [],
+      prefs: {speedtest_service: '', speedtest_schedule: 'container', speedtest_interval_h: 6, speedtest_times: ['03:00'], speedtest_notify: false, show_public_ip: false, wan_check_min: 15, wan_notify: false, history_retention_days: 0, notify_unraid: true}, history: {last: null, next_ts: null, db_bytes: 5320000, oldest_ts: now - 86400 * 40}, cleanupTotal: 1234, cleanupError: null, publicIp: {enabled: false}, targets: [], wanData: {sources: [], current: null}, publicIpDelay: 0, loss: null, historyByWan: null, series: [], backups: [], backupFail: null, tg: {enabled: false, configured: false, token_set: false, chat_set: false, source: null, last_ok_ts: null, last_error: null, last_error_ts: null}, tgFail: null, delays: {}, statusSeq: [], status: {running: false, success: null, error: null, result: null}, runStatus: 202, prefsFail: false, prefsReadFail: false, speedRun: null, calls: [],
       latest: {ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server: {id: '1', name: 'Example City', country: 'EX'}, backend: 'python'},
       history: [{ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server_id: '1', server_name: 'Example City', backend: 'python'}],
     };
@@ -50,11 +50,11 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
           case '/api/telegram':
             if (request.method() === 'POST') {
               if (api.tgFail) return route.fulfill({status: 400, json: {error: api.tgFail}});
-              if (body.clear) api.tg = {...api.tg, token_set: false, chat_id: '', configured: false};
+              if (body.clear) api.tg = {...api.tg, token_set: false, chat_set: false, configured: false};
               if (typeof body.token === 'string') api.tg.token_set = true;
-              if (typeof body.chat_id === 'string') api.tg.chat_id = body.chat_id;
+              if (typeof body.chat_id === 'string' && body.chat_id) api.tg.chat_set = true;
               if (typeof body.enabled === 'boolean') api.tg.enabled = body.enabled;
-              api.tg.configured = api.tg.token_set && Boolean(api.tg.chat_id); api.tg.source = api.tg.configured ? 'ui' : null;
+              api.tg.configured = api.tg.token_set && api.tg.chat_set; api.tg.source = api.tg.configured ? 'ui' : null;
             }
             return route.fulfill({json: api.tg});
           case '/api/telegram/test':
@@ -76,7 +76,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
               api.backups = api.backups.slice(0, 5);
             }
             return route.fulfill({status: request.method() === 'POST' ? 202 : 200, json: {running: false, started_at: now, finished_at: now, error: null, name: api.backups[0]?.name ?? null, backups: api.backups, keep: 5, db_bytes: 5320000, free_bytes: 90e9}});
-          case '/api/speedtest/series': return route.fulfill({json: {tests: api.series.filter(r => r.ts >= now - Number(url.searchParams.get('range'))), range: Number(url.searchParams.get('range'))}});
+          case '/api/speedtest/series': { const all = url.searchParams.get('range') === 'all'; return route.fulfill({json: {tests: all ? api.series : api.series.filter(r => r.ts >= now - Number(url.searchParams.get('range'))), range: all ? 630720000 : Number(url.searchParams.get('range'))}}); }
           case '/api/speedtest/history': return route.fulfill({json: {tests: api.history}});
           case '/api/speedtest/run': return route.fulfill(api.runStatus === 202 ? {status: 202, json: {success: true, started: true}} : {status: api.runStatus, json: {success: false, error: 'A Speedtest is already running. Wait for it to finish and try again.'}});
           case '/api/speedtest/status': return route.fulfill({json: api.statusSeq.length ? api.statusSeq.shift() : api.status});
@@ -275,54 +275,121 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       await page.close();
     }
 
-    // --- Speedtest chart: speed / delay modes, range, gaps for unmeasured values, extras next to the numbers ---
+    // --- Speedtest chart: speed / delay / loss, a service, lines to switch off, hover popup, the table under it ---
     {
       const day = 86400;
       api.series = [
-        {ts: now - 5 * day, ping_ms: 14, download_mbps: 410, upload_mbps: 88, backend: 'fast', jitter_ms: 1.2, loaded_down_ms: 40, loaded_up_ms: 90, packet_loss_pct: null},
-        {ts: now - 3 * day, ping_ms: 15, download_mbps: 395, upload_mbps: null, backend: 'fast', jitter_ms: null, loaded_down_ms: null, loaded_up_ms: null, packet_loss_pct: null},
-        {ts: now - 2 * day, ping_ms: 13, download_mbps: 120, upload_mbps: 80, backend: 'python', jitter_ms: null, loaded_down_ms: null, loaded_up_ms: null, packet_loss_pct: null},
-        {ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, backend: 'fast', jitter_ms: 2.5, loaded_down_ms: 55, loaded_up_ms: 110, packet_loss_pct: 0.5},
+        {ts: now - 5 * day, ping_ms: 14, download_mbps: 410, upload_mbps: 88, backend: 'fast', server_name: 'Old City', jitter_ms: 1.2, loaded_down_ms: 40, loaded_up_ms: 90, packet_loss_pct: null},
+        {ts: now - 3 * day, ping_ms: 15, download_mbps: 395, upload_mbps: null, backend: 'fast', server_name: 'Mid City', jitter_ms: null, loaded_down_ms: null, loaded_up_ms: null, packet_loss_pct: null},
+        {ts: now - 2 * day, ping_ms: 13, download_mbps: 120, upload_mbps: 80, backend: 'python', server_name: 'Net City', jitter_ms: null, loaded_down_ms: null, loaded_up_ms: null, packet_loss_pct: null},
+        {ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, backend: 'fast', server_name: 'Example City', jitter_ms: 2.5, loaded_down_ms: 55, loaded_up_ms: 110, packet_loss_pct: 0.5},
       ];
       api.latest = {ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server: {id: '1', name: 'Example City', country: 'EX'}, backend: 'fast'};
       api.history = [{ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server_id: '1', server_name: 'Example City', backend: 'fast'}];
       const {page, errors} = await open('netprobe', 'en');
       const circles = () => page.locator('#speedChart circle').count();
-      const legend = () => page.locator('#speedLegend span').allTextContents();
+      const chips = () => page.locator('#speedLegend .sp-chip').allTextContents();
+      const on = () => page.locator('#speedLegend .sp-chip[aria-pressed="true"]').allTextContents();
       await page.waitForFunction(() => document.querySelectorAll('#speedChart circle').length > 0);
-      assert.deepEqual(await legend(), ['Download, Mbps', 'Upload, Mbps']);
-      assert.equal(await circles(), 7, 'one point per measured value: 4 downloads + 3 uploads (an unmeasured upload is not a point)');
+      assert.deepEqual(await chips(), ['Download ↓', 'Upload ↑']);
+      assert.equal(await page.locator('#speedService').count(), 0);
+      assert.equal(await page.locator('#spService').inputValue(), 'fast', 'the newest test decides: services are not mixed on one line');
+      assert.deepEqual(await page.locator('#spService option').allTextContents(), ['All services', 'Fast.com', 'Speedtest.net']);
+      assert.equal(await circles(), 5, 'Fast.com only, last 7 days: 3 downloads + 2 uploads (an unmeasured upload is not a point)');
       assert.equal(await page.locator('#speedChart path.sp-line').count(), 2);
       const upPath = await page.locator('#speedChart path.sp-line').nth(1).getAttribute('d');
       assert.equal((upPath.match(/M/g) || []).length, 2, 'the unmeasured upload breaks the line: a gap, not a zero');
-      assert.match(await page.locator('#speedChart circle title').first().textContent(), /Download, Mbps: 410\.0 · Fast\.com/);
+      assert.equal(await page.locator('#speedChart title').count(), 0, 'no slow native tooltips');
+      assert.match(await page.locator('#speedChart text').first().textContent(), /^Mbps$/, 'the unit is written on the axis');
       assert.equal(await page.locator('#speedChartNote').textContent(), '');
+      // the popup of a point
+      const pointOf = async index => { await page.locator('#speedChart').scrollIntoViewIfNeeded(); return page.locator('#speedChart circle').nth(index).evaluate(c => { const r = c.getBoundingClientRect(); return {x: r.left + r.width / 2, y: r.top + r.height / 2}; }); };
+      let p = await pointOf(0);
+      await page.mouse.move(p.x, p.y);
+      await page.waitForFunction(() => !document.getElementById('speedTip').hidden);
+      const tip = await page.locator('#speedTip').textContent();
+      assert.match(tip, /Download ↓410\.0 Mbps/);
+      assert.match(tip, /Upload ↑88\.0 Mbps/);
+      assert.match(tip, /Fast\.com · Old City/);
+      await page.mouse.move(2, 2);
+      await page.waitForFunction(() => document.getElementById('speedTip').hidden);
+      // lines can be switched off and on, and the choice is remembered
+      await page.locator('#speedLegend [data-sk="upload_mbps"]').click();
+      assert.deepEqual(await on(), ['Download ↓']);
+      assert.equal(await circles(), 3);
+      assert.deepEqual((await page.evaluate(() => JSON.parse(localStorage.getItem('netprobe.speedchart')))).hidden, ['upload_mbps']);
+      await page.locator('#speedLegend [data-sk="download_mbps"]').click();
+      await page.waitForFunction(() => /Every line is hidden/.test(document.getElementById('speedChartNote').textContent));
+      assert.equal(await circles(), 0);
+      await page.locator('#speedLegend [data-sk="download_mbps"]').click();
+      await page.locator('#speedLegend [data-sk="upload_mbps"]').click();
+      assert.equal(await circles(), 5);
+      // all services: both are drawn
+      await page.locator('#spService').selectOption('all');
+      assert.equal(await circles(), 7);
+      await page.locator('#spService').selectOption('fast');
       assert.match(await page.locator('#speedExtra').textContent(), /^Jitter 3 ms · delay under load: ↓ 55 ms \/ ↑ 110 ms · loss 0\.5 %$/);
-      assert.match(await page.locator('#speedHistory').textContent(), /jitter/, 'rows of tests that have extras mention them');
       // the delay view
       await page.locator('#spModeDelay').click();
-      assert.deepEqual(await legend(), ['Idle ping, ms', 'Ping while downloading, ms', 'Ping while uploading, ms', 'Jitter, ms']);
+      assert.deepEqual(await chips(), ['Idle ping', 'Ping while downloading', 'Ping while uploading', 'Jitter']);
       assert.equal(await page.locator('#spModeDelay').evaluate(e => e.classList.contains('active')), true);
-      assert.equal(await circles(), 4 + 2 + 2 + 2);
+      assert.equal(await circles(), 3 + 2 + 2 + 2);
+      assert.match(await page.locator('#speedChart text').first().textContent(), /^ms$/);
       assert.equal((await page.evaluate(() => JSON.parse(localStorage.getItem('netprobe.speedchart')))).mode, 'delay');
-      // another period asks the server again
+      p = await pointOf(9 - 1);
+      await page.mouse.move(p.x, p.y);
+      await page.waitForFunction(() => /Jitter/.test(document.getElementById('speedTip').textContent));
+      assert.match(await page.locator('#speedTip').textContent(), /Idle ping20\.0 ms/);
+      await page.mouse.move(2, 2);
+      // the loss view exists only when some test measured the loss
+      assert.equal(await page.locator('#spModeLoss').isVisible(), true);
+      await page.locator('#spModeLoss').click();
+      assert.deepEqual(await chips(), ['Packet loss']);
+      assert.equal(await circles(), 1);
+      await page.locator('#spModeDelay').click();
+      // another period is applied without asking the server again
       api.calls.length = 0;
       await page.locator('#spRange').selectOption('86400');
       await page.waitForFunction(() => document.querySelectorAll('#speedChart circle').length === 4);
-      assert(api.calls.some(c => c.path === '/api/speedtest/series' && c.query === '?range=86400'));
-      // the choice is remembered over a reload
+      assert.equal(api.calls.some(c => c.path === '/api/speedtest/series'), false, 'the period filters what is already loaded');
+      await page.locator('#spRange').selectOption('0');
+      assert.equal(await circles(), 9, 'all time, this service');
+      await page.locator('#spRange').selectOption('86400');
+      // the table: newest first, the last 10 / the chart period / all
+      const rowsText = () => page.locator('#speedHistory tr').allTextContents();
+      await page.locator('#speedHistory').evaluate(e => { e.closest('details').open = true; });
+      let rows = await rowsText();
+      assert.equal(rows.length, 4, 'the last 10, but only 4 tests exist');
+      assert.match(rows[0], /Example City/);
+      assert.match(rows[3], /Old City/);
+      assert.match(await page.locator('#speedHistory tr').first().textContent(), /480\.00? \/ 90\.00?|480/);
+      await page.locator('#spHist').selectOption('range');
+      assert.equal((await rowsText()).length, 1, 'the chart period is 24 hours');
+      await page.locator('#spHist').selectOption('all');
+      assert.equal((await rowsText()).length, 4);
+      assert.equal((await page.evaluate(() => JSON.parse(localStorage.getItem('netprobe.speedchart')))).hist, 'all');
+      // the choices are remembered over a reload
       await page.reload();
-      await page.waitForFunction(() => document.getElementById('spRange').value === '86400' && document.getElementById('spModeDelay').classList.contains('active'));
-      // no tests in the period: a note instead of an empty plot
+      await page.waitForFunction(() => document.getElementById('spRange').value === '86400' && document.getElementById('spModeDelay').classList.contains('active') && document.getElementById('spHist').value === 'all');
+      // no tests at all: a note instead of an empty plot
       api.series = [];
-      await page.locator('#spRange').selectOption('2592000');
+      await page.reload();
       await page.waitForFunction(() => document.getElementById('speedChartNote').textContent === 'No tests in this period.');
       assert.equal(await circles(), 0);
-      // only Ookla/Speedtest.net-like data: the delay view says why the load lines are missing
-      api.series = [{ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, backend: 'python', jitter_ms: null, loaded_down_ms: null, loaded_up_ms: null, packet_loss_pct: null}];
-      await page.locator('#spRange').selectOption('604800');
+      // only Speedtest.net-like data: the delay view says why the load lines are missing, and draws what exists
+      api.series = [{ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, backend: 'python', server_name: 'Net City', jitter_ms: null, loaded_down_ms: null, loaded_up_ms: null, packet_loss_pct: null}];
+      await page.reload();
       await page.waitForFunction(() => /measured by Fast\.com only/.test(document.getElementById('speedChartNote').textContent));
-      assert.deepEqual(await legend(), ['Idle ping, ms']);
+      assert.deepEqual(await page.locator('#speedLegend .sp-chip:not([disabled])').allTextContents(), ['Idle ping']);
+      assert.equal(await page.locator('#speedLegend .sp-chip[disabled]').count(), 3);
+      assert.equal(await page.locator('#spModeLoss').isHidden(), true, 'no loss measured: no loss view');
+      // a placeholder ping (speedtest-cli stores 1 800 000 ms when it cannot measure) is not drawn and not shown
+      api.series = [{ts: now - 600, ping_ms: 1800000, download_mbps: 480, upload_mbps: 90, backend: 'python', server_name: 'Net City', jitter_ms: null, loaded_down_ms: null, loaded_up_ms: null, packet_loss_pct: null}];
+      api.latest = {ts: now - 600, ping_ms: 1800000, download_mbps: 480, upload_mbps: 90, server: {id: '1', name: 'Net City', country: 'EX'}, backend: 'python'};
+      await page.reload();
+      await page.waitForFunction(() => /Every line is hidden|measured by Fast\.com only|No tests/.test(document.getElementById('speedChartNote').textContent) || document.querySelectorAll('#speedChart circle').length === 0);
+      assert.equal(await page.locator('#speedPing').textContent(), '— ms');
+      assert.doesNotMatch(await page.locator('#speedChart').textContent(), /1800000|1800|1\.8k/);
       assert.deepEqual(errors, []);
       await page.close();
     }
@@ -421,12 +488,14 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       assert.deepEqual(tg('').pop().body, {enabled: true, chat_id: '-11111', token: '123456789:AAH-test_token_value_0123456789abc'});
       assert.equal(await page.locator('#tg_token').inputValue(), '');
       assert.equal(await page.locator('#tg_token').getAttribute('placeholder'), 'saved · leave empty to keep it');
-      assert.equal(await page.locator('#tg_chat').inputValue(), '-11111');
+      assert.equal(await page.locator('#tg_chat').inputValue(), '', 'the saved chat is not shown, like the token');
+      assert.equal(await page.locator('#tg_chat').getAttribute('placeholder'), 'saved · leave empty to keep it');
       assert.equal(await page.locator('#tgClear').isEnabled(), true);
+      assert.equal(await save.isEnabled(), false, 'nothing to save');
       // saving again without typing a token keeps the saved one (no token key is sent)
       await page.locator('#tg_chat').fill('-22222');
       await save.click();
-      await page.waitForFunction(() => document.getElementById('tg_chat').value === '-22222' && document.getElementById('tgMessage').textContent === 'Saved.');
+      await page.waitForFunction(() => document.getElementById('tg_chat').value === '' && document.getElementById('tgMessage').textContent === 'Saved.');
       assert.deepEqual(tg('').pop().body, {enabled: true, chat_id: '-22222'});
       // Unraid back on together with Telegram off: one Save, both calls
       await page.locator('#int_unraid').check();
@@ -436,7 +505,8 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       await page.waitForFunction(() => document.getElementById('tgMessage').textContent === 'Saved.');
       assert.equal(tg('').pop().body.enabled, false);
       assert.deepEqual(posts('/api/prefs').pop().body, {notify_unraid: true});
-      assert.equal(await page.locator('#tg_chat').inputValue(), '-22222', 'the saved chat is kept while Telegram is off');
+      assert.equal(await page.locator('#tg_chat').getAttribute('placeholder'), 'saved · leave empty to keep it', 'the saved chat is kept while Telegram is off');
+      assert.deepEqual(tg('').pop().body, {enabled: false}, 'an untouched chat field sends nothing');
       // forgetting asks first
       await page.locator('#tg_enabled').check();
       let asked = '';
@@ -452,7 +522,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       assert.equal(await page.locator('#tgFields').isHidden(), true);
 
       // values that come from the container environment are not shown; only on / off is offered
-      api.tg = {enabled: true, configured: true, token_set: true, chat_id: '-1', source: 'env', last_ok_ts: null, last_error: 'Telegram refused the message (403): Forbidden: bot was blocked by the user', last_error_ts: now};
+      api.tg = {enabled: true, configured: true, token_set: true, chat_set: true, source: 'env', last_ok_ts: null, last_error: 'Telegram refused the message (403): Forbidden: bot was blocked by the user', last_error_ts: now};
       await page.reload();
       await page.locator('#alertSettings').evaluate(e => e.open = true);
       await page.waitForFunction(() => document.getElementById('tg_enabled').checked);
@@ -465,7 +535,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       await page.waitForFunction(() => document.getElementById('tgMessage').textContent === 'Saved.');
       assert.deepEqual(tg('').pop().body, {enabled: false}, 'only the switch is sent, never the environment values');
       // a delivery error is shown plainly, in both languages
-      api.tg = {enabled: true, configured: true, token_set: true, chat_id: '-1', source: 'ui', last_ok_ts: null, last_error: 'Telegram refused the message (403): Forbidden: bot was blocked by the user', last_error_ts: now};
+      api.tg = {enabled: true, configured: true, token_set: true, chat_set: true, source: 'ui', last_ok_ts: null, last_error: 'Telegram refused the message (403): Forbidden: bot was blocked by the user', last_error_ts: now};
       await page.reload();
       await page.waitForFunction(() => /Delivery error \(.+\): Telegram refused the message \(403\)/.test(document.getElementById('tgStatus').textContent));
       await page.locator('#langSelect').selectOption('ru');
