@@ -143,10 +143,10 @@ class WiringTests(unittest.TestCase):
                        "jitter_ms": 2.0, "packet_loss_pct": None, "isp": None, "result_url": None,
                        "loaded_ping_ms": 40.0, "loaded_up_ping_ms": 55.0, "protocol": "https", "secure": True}
 
-    def test_it_is_offered_next_to_fast_com_and_nothing_else(self):
+    def test_it_is_offered_next_to_fast_com_and_ookla(self):
         config = self.client.get("/api/config").get_json()
-        self.assertEqual(config["speedtest_backends_available"], {"fast": True, "cloudflare": True})
-        self.assertFalse([key for key in config if "ookla" in key or key in ("speedtest_server", "speedtest_csv", "speedtest_exclude")])
+        self.assertEqual(config["speedtest_backends_available"], {"fast": True, "cloudflare": True, "ookla": True})
+        self.assertFalse([key for key in config if key.startswith("speedtest_ookla") or key in ("speedtest_server", "speedtest_csv", "speedtest_exclude")])
 
     def test_a_manual_run_stores_the_result_under_the_name_cloudflare(self):
         with patch.object(self.module.custom_extension, "run_cloudflare_speedtest", return_value=self.result) as run:
@@ -171,16 +171,15 @@ class WiringTests(unittest.TestCase):
         fast.assert_not_called()
 
     def test_removed_services_in_old_settings_mean_fast_com(self):
-        for name in ("ookla", "python", "speedtest-cli", "official"):
+        for name in ("python", "speedtest-cli", "legacy"):
             self.assertEqual(self.module.normalize_speedtest_backend(name), "fast", name)
         self.assertEqual(self.module.normalize_speedtest_backend("Cloudflare"), "cloudflare")
-        response = self.client.post("/api/prefs", json={"speedtest_service": "ookla"}, headers={"X-NetProbe-Request": "settings"})
+        response = self.client.post("/api/prefs", json={"speedtest_service": "python"}, headers={"X-NetProbe-Request": "settings"})
         self.assertEqual(response.status_code, 400, "a removed service cannot be chosen any more")
 
     def test_notifications_name_the_service(self):
         self.assertEqual(npx.SPEED_NAMES["cloudflare"], "Cloudflare")
         self.assertEqual(npx.SPEED_NAMES["python"], "Speedtest.net", "old Speedtest.net results keep their name")
-        self.assertNotIn("ookla", npx.SPEED_NAMES)
 
 
 if __name__ == "__main__":

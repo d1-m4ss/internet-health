@@ -88,16 +88,18 @@ web UI. It adds its own tables (`np_*`) next to NetProbe's and leaves NetProbe's
   table under the chart lists the newest tests first: the last 10, the chart's period, or all.
   Optional messages after manual tests, and a warning when the speed falls 20 / 30 / 50 % below the 7-day median of the same service.
 - **Speedtest service of your choice.** The *Speedtest* tab says which service measures: **Fast.com (Netflix)**, the
-  default, or **Cloudflare** (speed.cloudflare.com, the nearest Cloudflare data centre). Both are measured by Internet
-  Health itself — no account, key, extra software or licence to accept — with download, upload, latency, jitter and the
-  latency under load. The choice applies to manual and scheduled tests and is stored in `/data/netprobe-prefs.json`.
-  (The unofficial `speedtest-cli` engine of the original NetProbe, archived in April 2026, was removed in 1.3.0, and the
-  proprietary Ookla CLI in 1.4.0; old Speedtest.net results keep their name.)
+  default, **Cloudflare** (speed.cloudflare.com, the nearest Cloudflare data centre) — both measured by Internet Health
+  itself, no account, key or extra software — or **Ookla** (Speedtest.net servers): its official CLI is downloaded from
+  Ookla into the data folder by the first Ookla test, and choosing it means accepting Ookla's terms (personal,
+  non-commercial use). All report download, upload, latency, jitter and the latency under load (Ookla also packet loss).
+  The choice applies to manual and scheduled tests and is stored in `/data/netprobe-prefs.json`. (The unofficial
+  `speedtest-cli` engine of the original NetProbe, archived in April 2026, was removed in 1.3.0; old Speedtest.net
+  results keep their name.)
 - **Two UI styles, two languages** chosen from drop-downs (remembered in the browser). One self-contained HTML
   file: no CDN, no external fonts, works offline on your LAN.
 - **Safe by construction:** Internet Health sends messages only through Unraid's own `notify` and, if you configure it,
-  to your own Telegram chat. The only other outbound requests are the ones you ask for: the Speedtest you run or schedule (fast.com / Netflix or
-  Cloudflare, depending on the chosen service) and, only with the checkbox ticked, the public-IP / ISP lookup. The
+  to your own Telegram chat. The only other outbound requests are the ones you ask for: the Speedtest you run or schedule (fast.com / Netflix,
+  Cloudflare or Ookla, depending on the chosen service; the first Ookla test also downloads Ookla's CLI) and, only with the checkbox ticked, the public-IP / ISP lookup. The
   container gets no extra privileges, no Docker socket and no host mounts besides its data folder.
 
 ![Compare several DNS servers](docs/screenshots/compare-dns.png)
@@ -187,7 +189,7 @@ Details: [docs/INSTALL-UNRAID.md → Updating](docs/INSTALL-UNRAID.md#updating).
 | `SITES` | comma-separated ping targets; include 1–2 IP addresses besides names |
 | `DNS_NAMESERVER_n` / `_IP` | DNS servers probed (existing upstream variables) |
 | `PROBE_INTERVAL`, `PING_COUNT`, `PING_WAIT` | pause between probe cycles (default 30 s), pings per target (4), seconds to wait for the last reply of a ping (2) |
-| `SPEEDTEST_ENABLED`, `SPEEDTEST_INTERVAL`, `SPEEDTEST_BACKEND` | scheduled tests, their interval and the service (`fast`, the default, or `cloudflare`; the old values `python` and `ookla` mean `fast`); the *Speedtest* tab can override service and schedule, see [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md) |
+| `SPEEDTEST_ENABLED`, `SPEEDTEST_INTERVAL`, `SPEEDTEST_BACKEND` | scheduled tests, their interval and the service (`fast`, the default, `cloudflare` or `ookla`; the old value `python` means `fast`); the *Speedtest* tab can override service and schedule, see [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md) |
 | `APP_TIMEZONE` | zone of the daily Speedtest times (default `UTC`) |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | optional: Telegram delivery without the UI form (both needed; they win over the saved values and switch it on) |
 | `PUID`, `PGID` | the user the app runs as (default `99` and `100`, Unraid's *nobody* and *users*); the container starts as root only to hand the data folder to them, then drops the privileges. `PUID=0` keeps running as root |

@@ -5,20 +5,23 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
-- **Cloudflare replaces the Ookla CLI as the second Speedtest service.** Internet Health measures against the nearest Cloudflare data
-  centre itself (speed.cloudflare.com, the endpoints its page uses): download, upload, latency, jitter and the latency under load, with no
-  program to install and no licence to accept. The history and the chart show it as *Cloudflare* with the data centre (e.g. `OTP`); with
-  *All services* its lines are darker and dotted with ▲ markers. Like Fast.com, Cloudflare publishes no API guarantee for these endpoints:
-  if they change, its tests fail with a readable message and Fast.com keeps working.
-- **The Ookla CLI is removed** with everything around it: `internet-health-ookla`, the terms acceptance, `SPEEDTEST_OOKLA_*`, the server
-  choice of manual tests (`SPEEDTEST_SERVER`, `SPEEDTEST_CSV*`, `SPEEDTEST_EXCLUDE`, `server_id` / `force_auto` of `POST /api/speedtest/run`)
-  and the `speedtest_ookla_*` / `speedtest_server*` fields of `/api/config`. A saved choice of Ookla or `SPEEDTEST_BACKEND=ookla` means Fast.com.
-  `requested_server_id(s)` left the speedtest history answers. A downloaded binary in `<data>/ookla` is not used any more and can be deleted.
+- **Three Speedtest services: Fast.com, Cloudflare and Ookla.**
+  - **Cloudflare** (new): Internet Health measures against the nearest Cloudflare data centre itself (speed.cloudflare.com, the endpoints its
+    page uses): download, upload, latency, jitter and the latency under load; nothing to install. Shown as *Cloudflare* with the data centre
+    (e.g. `OTP`); with *All services* its lines are darker and dotted with ▲ markers.
+  - **Ookla** (Speedtest.net servers) works without a console now: the official CLI is not in the image; the first Ookla test downloads it from
+    Ookla (install.speedtest.net, version 1.2.0, ~1 MB) into `<data>/ookla` and later tests reuse it (it survives updates). Choosing the service is
+    the acceptance of Ookla's terms, which the service's help text says; the CLI runs with `--accept-license --accept-gdpr` (as MySpeed does).
+    It reports packet loss and the latency while downloading / uploading too. Lighter, dash-dotted lines with ◆ markers.
+  - Removed with the old way of installing Ookla: `internet-health-ookla`, the separate terms acceptance (`SPEEDTEST_OOKLA_*`), the server choice
+    of manual tests (`SPEEDTEST_SERVER`, `SPEEDTEST_CSV*`, `SPEEDTEST_EXCLUDE`, `server_id` / `force_auto` of `POST /api/speedtest/run`), the
+    `speedtest_ookla_*` / `speedtest_server*` fields of `/api/config` and `requested_server_id(s)` of the speedtest history answers.
+  - Cloudflare and Fast.com publish no API guarantee for their endpoints: if they change, that service fails with a readable message and the
+    others keep working.
 
 - **The app no longer runs as root.** The container starts as root only to hand the data folder to `PUID:PGID` (default `99:100`, Unraid's nobody:users;
   files created by root in older versions are converted on the first start) and then drops the privileges for good. `PUID=0` keeps the old behaviour.
-  `internet-health-ookla install` (run by `docker exec` as root) gives what it creates to the owner of the data folder. The smoke test of the image
-  checks the user, the handed-over files, ping without privileges and `PUID=0`.
+  The smoke test of the image checks the user, the handed-over files, ping without privileges and `PUID=0`.
 
 ## 1.3.0 — 2026-10-26
 

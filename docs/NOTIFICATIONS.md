@@ -119,11 +119,11 @@ The *Speedtest* tab (*Schedule and notifications*) can run the test automaticall
   restarting still runs within two hours of its time; later it waits for the next time. A failed test is not
   retried before the next slot.
 - **Notification** (off by default; follows the main *notifications enabled* switch): after every automatic test one
-  message, level `normal`; when the test fails, level `warning` with the reason. The measuring service (Fast.com or Cloudflare;
+  message, level `normal`; when the test fails, level `warning` with the reason. The measuring service (Fast.com, Cloudflare or Ookla;
   older results may say Speedtest.net) is named; an unmeasured upload reads *not measured*, never 0. A second switch does the same
   **after manual tests** (the message says *Manual Speedtest*). Messages go to the integrations that are switched on.
-- **Jitter and delay under load:** when the service measured them (Fast.com and Cloudflare measure the jitter and the delay while
-  they download and while they upload), the message and the page show them next to the speed.
+- **Jitter and delay under load:** when the service measured them (all three services measure the jitter and the delay while
+  they download and while they upload; Ookla also packet loss), the message and the page show them next to the speed.
 - **Warning when the speed drops** (off by default; 20 / 30 / 50 %): an automatic test is compared with the median of the tests of
   the same service in the last 7 days (at least three are needed; manual tests are not judged, they may be run under load).
   One `warning` when the speed falls that far below it (download and upload are checked separately) and one `normal` message

@@ -8,7 +8,7 @@ GHCR, GitHub Release); Dependabot proposes newer packages and base digests weekl
 
 | File | Runs | Role |
 |---|---|---|
-| `src/app.py` | in the container (`/app/app.py`) | the probe loop, the native tables and API (grown from NetProbe_Python's `app.py`, kept in `upstream/` for reference), the hooks into the extension (which holds the Fast.com and Cloudflare clients). The extension is imported defensively: if it fails to start, the basic monitoring keeps running. |
+| `src/app.py` | in the container (`/app/app.py`) | the probe loop, the native tables and API (grown from NetProbe_Python's `app.py`, kept in `upstream/` for reference), the hooks into the extension (which holds the Fast.com and Cloudflare clients and runs the Ookla CLI). The extension is imported defensively: if it fails to start, the basic monitoring keeps running. |
 | `src/netprobe_extensions.py` | in the container | storage, state machine, flood control, message composition, HTTP routes |
 | `src/index.html` | served by Flask | the single-file UI (two styles, two languages, no external assets) |
 | `src/netprobe-unraid-notify.sh` | on the Unraid host (cron, every minute), optional | the Unraid integration: drains the queue through Unraid's `notify` (email and the Unraid agents), acknowledges what was delivered. Telegram does not need it: the container sends to Telegram itself |

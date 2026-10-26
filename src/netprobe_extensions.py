@@ -12,6 +12,7 @@ import json
 import logging
 import math
 import os
+import platform
 import re
 from pathlib import Path
 import secrets
@@ -20,6 +21,7 @@ import sqlite3
 import ssl
 import statistics
 import subprocess
+import tarfile
 import tempfile
 import threading
 import time
@@ -61,10 +63,11 @@ TURBO_EXPIRE = 3600   # a recovered outage not decided within an hour (turbo off
 TURBO_OUTAGES = 100   # outages returned by /api/loss
 TURBO_ICON = "⚡"
 # Speedtest service: "" keeps what the container variable SPEEDTEST_BACKEND says (Fast.com by default), fast = fast.com
-# (Netflix), cloudflare = Cloudflare's speed test. The speedtest-cli engine ("python", Speedtest.net servers) was removed in
-# 1.3.0 and the Ookla CLI in 1.4.0; a saved choice of either means Fast.com (old speedtest-cli rows keep their name).
-SPEEDTEST_SERVICES = ("", "fast", "cloudflare")
-LEGACY_SERVICES = ("python", "ookla")
+# (Netflix), cloudflare = Cloudflare's speed test, ookla = the official Ookla CLI (Speedtest.net servers), downloaded from
+# Ookla into the data folder on first use. The speedtest-cli engine ("python") was removed in 1.3.0; a saved choice of it
+# means Fast.com (its old rows keep the name Speedtest.net).
+SPEEDTEST_SERVICES = ("", "fast", "cloudflare", "ookla")
+LEGACY_SERVICES = ("python",)
 # Speedtest schedule: container = the container variables SPEEDTEST_ENABLED / SPEEDTEST_INTERVAL decide (the default),
 # off = no automatic tests, interval = every N hours since the last test, daily = at fixed local times.
 SPEEDTEST_SCHEDULES = ("container", "off", "interval", "daily")
@@ -77,7 +80,7 @@ SPEED_ICON = "📶"
 SPEED_DROP_CHOICES = (0, 20, 30, 50)  # percent below the 7-day median that counts as a drop; 0 = off
 SPEED_DROP_WINDOW = 7 * 86400
 SPEED_DROP_MIN_TESTS = 3              # earlier tests of the same service needed before a "typical" speed exists
-SPEED_NAMES = {"python": "Speedtest.net", "fast": "Fast.com", "cloudflare": "Cloudflare"}
+SPEED_NAMES = {"python": "Speedtest.net", "fast": "Fast.com", "cloudflare": "Cloudflare", "ookla": "Ookla"}
 TIME_OF_DAY = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 # History retention: 0 keeps everything (the default). A positive value deletes records older than that many days
 # once a day in the quiet hours (CLEANUP_HOURS of the APP_TIMEZONE day); the same ranges can be cleaned on demand.
@@ -140,6 +143,16 @@ FAST_UPLOAD_BODY = 1_000_000
 FAST_TIMEOUT = 12
 # Cloudflare's speed test: the public endpoints of speed.cloudflare.com (the same the page uses), no account or key.
 CLOUDFLARE_URL = "https://speed.cloudflare.com/__down"   # GET ?bytes=N sends N bytes; the sibling /__up takes a POST
+# The official Ookla CLI: proprietary, so not in the image; downloaded from Ookla into <data>/ookla on the first test (like MySpeed
+# does) and run with --accept-license --accept-gdpr: choosing the service in the UI is the user's acceptance of Ookla's terms.
+OOKLA_VERSION = "1.2.0"
+OOKLA_BASE = "https://install.speedtest.net/app/cli"
+OOKLA_ARCHES = {"x86_64": "x86_64", "amd64": "x86_64", "aarch64": "aarch64", "arm64": "aarch64", "armv7l": "armhf",
+                "armv6l": "armel", "i686": "i386", "i386": "i386"}
+OOKLA_TIMEOUT = 180           # seconds a test may take
+OOKLA_ARCHIVE_MAX = 32 * 1024 * 1024
+OOKLA_TERMS = ("https://www.speedtest.net/about/eula", "https://www.speedtest.net/about/terms", "https://www.speedtest.net/about/privacy")
+_ookla_lock = threading.Lock()
 logger = logging.getLogger(__name__)
 CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f\\]+")  # also drops backslashes: Unraid agents expand \\n escapes
 NEWLINE = "\\n"  # Unraid email/Telegram agents split the message on the two characters backslash + n
@@ -459,6 +472,101 @@ def run_cloudflare_test(url=CLOUDFLARE_URL, down_seconds=FAST_DOWN_SECONDS, up_s
             "jitter_ms": jitter, "packet_loss_pct": None, "isp": None, "result_url": None,
             "loaded_ping_ms": _median_or_none(loaded_down), "loaded_up_ping_ms": _median_or_none(loaded_up),
             "protocol": "https", "secure": True}
+
+
+def ookla_binary(data_dir, base=OOKLA_BASE, machine=None):
+    """Path of the Ookla CLI in <data>/ookla, downloaded from Ookla first when it is not there yet."""
+    target = Path(data_dir) / "ookla" / "speedtest"
+    with _ookla_lock:  # a manual and a scheduled test never download twice
+        if target.is_file() and os.access(target, os.X_OK):
+            return target
+        arch = OOKLA_ARCHES.get((machine or platform.machine()).lower())
+        if arch is None:
+            raise FastTestError("Ookla publishes no Speedtest CLI for the %s architecture" % (machine or platform.machine()))
+        url = "%s/ookla-speedtest-%s-linux-%s.tgz" % (base.rstrip("/"), OOKLA_VERSION, arch)
+        logger.info("Downloading the Ookla Speedtest CLI from %s", url)
+        try:
+            request = urllib.request.Request(url, headers={"User-Agent": "Internet-Health"})
+            with urllib.request.urlopen(request, timeout=60) as response:
+                payload = response.read(OOKLA_ARCHIVE_MAX)
+            with tarfile.open(fileobj=io.BytesIO(payload), mode="r:gz") as archive:
+                member = next((m for m in archive.getmembers() if m.isfile() and m.name.lstrip("./") == "speedtest"), None)
+                binary = archive.extractfile(member).read() if member is not None else None
+        except (OSError, tarfile.TarError, http.client.HTTPException) as exc:
+            raise FastTestError("The Ookla Speedtest CLI could not be downloaded: %s" % (str(exc) or type(exc).__name__)) from exc
+        if not binary:
+            raise FastTestError("The Ookla download does not contain the speedtest program")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        handle, temp = tempfile.mkstemp(dir=target.parent, prefix=".speedtest-")
+        with os.fdopen(handle, "wb") as out:
+            out.write(binary)
+        os.chmod(temp, 0o755)
+        os.replace(temp, target)
+        logger.info("Ookla Speedtest CLI %s installed in %s", OOKLA_VERSION, target)
+        return target
+
+
+def _ookla_message(text):
+    """The message of the CLI's JSON log lines ({"type":"log","level":"error","message":...}), or the text itself."""
+    messages = []
+    for line in (text or "").splitlines():
+        try:
+            item = json.loads(line)
+        except ValueError:
+            if line.strip():
+                messages.append(line.strip())
+            continue
+        if isinstance(item, dict) and item.get("message"):
+            messages.append(str(item["message"]).strip())
+    return CONTROL_CHARS.sub(" ", "; ".join(messages))[:300]
+
+
+def run_ookla_test(binary, timeout=OOKLA_TIMEOUT):
+    """One measurement with the official Ookla CLI, shaped like the other services."""
+    try:
+        done = subprocess.run([str(binary), "--accept-license", "--accept-gdpr", "--format=json", "--progress=no"],
+                              capture_output=True, text=True, timeout=timeout, check=False)
+    except subprocess.TimeoutExpired as exc:
+        raise FastTestError("The Ookla test did not finish within %d s" % timeout) from exc
+    except OSError as exc:
+        raise FastTestError("The Ookla Speedtest CLI could not be started: %s" % exc) from exc
+    result = None
+    for line in (done.stdout or "").splitlines():
+        try:
+            item = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(item, dict) and (item.get("type") == "result" or "download" in item):
+            result = item
+    if done.returncode != 0 or result is None:
+        detail = _ookla_message(done.stderr) or _ookla_message(done.stdout) or "exit code %d" % done.returncode
+        raise FastTestError("The Ookla test failed: %s" % detail)
+
+    def part(name, source=None):
+        value = (result if source is None else source).get(name)
+        return value if isinstance(value, dict) else {}
+
+    def mbps(name):
+        value = part(name).get("bandwidth")  # bytes per second
+        return value * 8 / 1e6 if isinstance(value, (int, float)) and value > 0 else None
+
+    def number(value):
+        return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+    ping, server = part("ping"), part("server")
+    download = mbps("download")
+    if download is None:
+        raise FastTestError("The Ookla test returned no download speed")
+    return {"ping_ms": number(ping.get("latency")), "download_mbps": download, "upload_mbps": mbps("upload"),
+            "server": {"id": str(server["id"]) if server.get("id") is not None else None,
+                       "name": ", ".join(str(x) for x in (server.get("name"), server.get("location")) if x) or "Ookla",
+                       "host": server.get("host"), "country": server.get("country")},
+            "jitter_ms": number(ping.get("jitter")), "packet_loss_pct": number(result.get("packetLoss")),
+            "isp": result.get("isp") if isinstance(result.get("isp"), str) else None,
+            "result_url": part("result").get("url"),
+            "loaded_ping_ms": number(part("latency", part("download")).get("iqm")),
+            "loaded_up_ping_ms": number(part("latency", part("upload")).get("iqm")),
+            "protocol": "ookla", "secure": None}
 
 
 class TelegramError(Exception):
@@ -1477,6 +1585,9 @@ class Extension:
 
     def run_cloudflare_speedtest(self):
         return run_cloudflare_test()
+
+    def run_ookla_speedtest(self):
+        return run_ookla_test(ookla_binary(self.data_dir))
 
     def save_speedtest_extra(self, ts, result):
         """Keep what a finished test measured besides the native columns (jitter, packet loss, delay under load), by test time."""

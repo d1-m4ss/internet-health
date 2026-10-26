@@ -69,7 +69,7 @@ message with the outage duration when the cable is back. To test **Turbo mode**,
 
 ## 4. Optional settings in the web UI (no restart; stored in `netprobe-prefs.json`)
 
-- *Speedtest* tab → **Measurement service**: **Fast.com** (default) or **Cloudflare**; both need nothing installed.
+- *Speedtest* tab → **Measurement service**: **Fast.com** (default), **Cloudflare** or **Ookla**. Nothing to install: the first Ookla test downloads Ookla's CLI into `/data/ookla` (choosing Ookla accepts its terms; personal, non-commercial use).
 - *Speedtest* tab → **Schedule and notifications**: every day at set times or every N hours; a message after every automatic test (and optionally after manual ones);
   a warning when the speed drops 20 / 30 / 50 % below the 7-day median. Leaving *As set in the container* keeps the variables `SPEEDTEST_ENABLED` /
   `SPEEDTEST_INTERVAL` in charge (with `SPEEDTEST_ENABLED: "false"` nothing runs by itself). The tab also draws the results as a chart (speed, or delay under load for Fast.com).

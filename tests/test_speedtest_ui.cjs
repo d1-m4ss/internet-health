@@ -29,7 +29,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
         if (/^\/api\/backups\/[^/]+\/delete$/.test(url.pathname)) { const name = url.pathname.split('/')[3]; api.backups = api.backups.filter(b => b.name !== name); return route.fulfill({json: {running: false, error: null, backups: api.backups, keep: 5, db_bytes: 5320000, free_bytes: 90e9}}); }
         switch (url.pathname) {
           case '/api/config': return route.fulfill({json: {probe_interval: 30, ping_count: 4, sites: ['edge.example'], speedtest_backend: 'fast', speedtest_enabled: true, speedtest_interval: 14400,
-            speedtest_backends_available: {fast: true, cloudflare: true}}});
+            speedtest_backends_available: {fast: true, cloudflare: true, ookla: true}}});
           case '/api/prefs':
             if (api.prefsReadFail && request.method() === 'GET') return route.fulfill({status: 503, json: {error: 'Persistent preferences cannot be read'}});
             if (request.method() === 'POST') {
@@ -97,12 +97,19 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
     // --- the service list: three real services, each with an explanation; unavailable ones are disabled ---
     {
       const {page, errors} = await open();
-      assert.deepEqual(await service(page).locator('option').evaluateAll(o => o.map(x => x.value)), ['', 'fast', 'cloudflare'], 'two services: Fast.com and Cloudflare (Speedtest.net and Ookla are gone)');
+      assert.deepEqual(await service(page).locator('option').evaluateAll(o => o.map(x => x.value)), ['', 'fast', 'cloudflare', 'ookla'], 'Fast.com, Cloudflare and Ookla (speedtest-cli is gone)');
       assert.match(await service(page).locator('option').nth(0).textContent(), /As set in the container: Fast\.com/);
       assert.match(await service(page).locator('option[value="fast"]').textContent(), /Fast\.com \(Netflix\)/);
       assert.match(await service(page).locator('option[value="cloudflare"]').textContent(), /Cloudflare/);
       for (const gone of ['#secure', '#serverId', '#forceAuto']) assert.equal(await page.locator(gone).count(), 0, gone + ' belonged to the removed engines');
       assert.equal(await service(page).locator('option[value="cloudflare"]').evaluate(o => o.disabled), false);
+      assert.match(await service(page).locator('option[value="ookla"]').textContent(), /Speedtest by Ookla/);
+      await service(page).selectOption('ookla');
+      await page.waitForFunction(() => /Service saved/.test(document.getElementById('speedMessage').textContent));
+      assert.match(await page.locator('#serviceNote').textContent(), /downloads it from Ookla.*you accept Ookla's terms/, 'choosing Ookla says what it means');
+      assert.equal(await page.locator('#speedBtn').isDisabled(), false);
+      await service(page).selectOption('');
+      await page.waitForFunction(() => /Service saved/.test(document.getElementById('speedMessage').textContent));
       assert.equal(await service(page).locator('option[value="fast"]').evaluate(o => o.disabled), false);
       assert.equal(await service(page).inputValue(), '', 'the saved preference (follow the container) is shown');
       assert.match(await page.locator('#serviceNote').textContent(), /Netflix servers/, 'the container default is Fast.com');
@@ -377,7 +384,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       // Speedtest.net-like data: the delay lines that need Fast.com are greyed out, the note says why, no loss panel
       api.series = [{ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, backend: 'python', server_name: 'Net City', jitter_ms: null, loaded_down_ms: null, loaded_up_ms: null, packet_loss_pct: null}];
       await page.reload();
-      await page.waitForFunction(() => /measured by Fast\.com and Cloudflare/.test(document.getElementById('speedChartNote').textContent));
+      await page.waitForFunction(() => /measured by Fast\.com, Cloudflare and Ookla/.test(document.getElementById('speedChartNote').textContent));
       assert.deepEqual(await page.locator('#speedLegend .sp-chip:not([disabled])').allTextContents(), ['Download ↓', 'Upload ↑', 'Idle ping']);
       assert.equal(await page.locator('#speedLegend .sp-chip[disabled]').count(), 3);
       assert.deepEqual(await page.locator('#speedLegend .sp-gl').allTextContents(), ['Speed', 'Delay'], 'nothing measured the loss: no loss group');

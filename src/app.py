@@ -117,9 +117,9 @@ def parse_bool_env(name, default=False):
 
 
 def normalize_speedtest_backend(value, variable_name="SPEEDTEST_BACKEND"):
-    """Normalize a Speedtest backend name to ``fast`` (Fast.com) or ``cloudflare``.
+    """Normalize a Speedtest backend name to ``fast`` (Fast.com), ``cloudflare`` or ``ookla`` (the official Ookla CLI).
 
-    The speedtest-cli engine (``python``) and the Ookla CLI (``ookla``) were removed; their old names still start and mean Fast.com.
+    The speedtest-cli engine (``python``) was removed; its old names still start and mean Fast.com.
     """
     normalized = str(value or "fast").strip().lower()
     aliases = {
@@ -130,13 +130,13 @@ def normalize_speedtest_backend(value, variable_name="SPEEDTEST_BACKEND"):
         "python": "fast",
         "legacy": "fast",
         "speedtest-cli": "fast",
-        "ookla": "fast",
-        "official": "fast",
-        "speedtest": "fast",
+        "ookla": "ookla",
+        "official": "ookla",
+        "speedtest": "ookla",
     }
     if normalized not in aliases:
         raise ValueError(
-            f"{variable_name} must be 'fast' or 'cloudflare'"
+            f"{variable_name} must be 'fast', 'cloudflare' or 'ookla'"
         )
     return aliases[normalized]
 
@@ -240,10 +240,11 @@ SPEEDTEST_INTERVAL = int(os.getenv("SPEEDTEST_INTERVAL", "14400"))
 # Backend selector (the UI choice on the Speedtest tab wins over it):
 # - fast: Fast.com (Netflix), the default.
 # - cloudflare: Cloudflare's speed test (speed.cloudflare.com).
+# - ookla: the official Ookla CLI (Speedtest.net servers), downloaded from Ookla into the data folder on the first test.
 SPEEDTEST_BACKEND = normalize_speedtest_backend(
     os.getenv("SPEEDTEST_BACKEND", "fast")
 )
-if os.getenv("SPEEDTEST_BACKEND", "").strip().lower() in ("python", "legacy", "speedtest-cli", "ookla", "official", "speedtest"):
+if os.getenv("SPEEDTEST_BACKEND", "").strip().lower() in ("python", "legacy", "speedtest-cli"):
     logging.getLogger("netprobe").warning("SPEEDTEST_BACKEND=%s no longer exists; Fast.com is used", os.getenv("SPEEDTEST_BACKEND"))
 
 # Browser log-tail polling interval. This only affects the UI refresh cadence.
@@ -788,6 +789,8 @@ def run_speedtest_internal(backend=None):
         try:
             if selected_backend == "cloudflare":
                 normalized = custom_extension.run_cloudflare_speedtest()
+            elif selected_backend == "ookla":
+                normalized = custom_extension.run_ookla_speedtest()
             else:
                 normalized = custom_extension.run_fast_speedtest()
         except Exception as exc:
@@ -1123,6 +1126,7 @@ def api_config():
         speedtest_backends_available={
             "fast": custom_extension is not None,
             "cloudflare": custom_extension is not None,
+            "ookla": custom_extension is not None,
         },
         live_log_poll_seconds=LIVE_LOG_POLL_SECONDS,
         db_engine=DB_ENGINE,
