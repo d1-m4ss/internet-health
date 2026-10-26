@@ -5,6 +5,8 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+## 1.3.0 — 2026-10-26
+
 **The project no longer depends on the NetProbe Docker image.** The image is built from this repository's own `Dockerfile` on `python:3.14-slim`
 (pinned by digest) with every Python package pinned in `requirements.txt` (Flask 3.1.3, Werkzeug 3.1.9, dnspython 2.9.0, gunicorn 26.2.0 …); Dependabot
 proposes newer ones weekly. `src/app.py` is plain source now: no `app.py.patch`, no hash check of a foreign image, the file-mount way is gone.
