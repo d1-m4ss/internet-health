@@ -5,6 +5,8 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+## 1.4.1 — 2026-10-26
+
 - **Fixed: the Speedtest chart blew its text up on wide screens.** It was drawn in a fixed 640-unit canvas and stretched to the card, so on a
   1700 px window the axis text was about 2.7 times too large. It is now drawn in real pixels (like the main chart) and redrawn when the
   window is resized; a UI test checks the text size at 390–2400 px.
