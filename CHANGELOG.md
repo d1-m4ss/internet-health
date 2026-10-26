@@ -5,6 +5,8 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+## 1.2.2 — 2026-10-26
+
 - **Speedtest chart: speed, delay and loss together.** The Speed / Delay tabs are gone: speed (Mbps), delay (ms) and packet loss (%) are three
   panels on one time axis, each with its own scale, and every line has its own on / off button, so any combination can be shown at once. The
   colours are fixed and conventional: download blue, upload red, idle ping green, ping while downloading amber, ping while uploading purple,
