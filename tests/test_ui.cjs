@@ -59,6 +59,17 @@ const shots = process.env.NETPROBE_SHOTS || os.tmpdir();
     }
     await page.locator('[data-metric="avg_latency_ms"]').click();
     assert.equal(await page.locator('#primaryChart circle').count(),1,'null RTT must leave a graph gap, not a healthy zero');
+    {   // every metric has its own line colour, and the legend swatch follows it
+      const colour=()=>page.evaluate(()=>({line:getComputedStyle(document.getElementById('primaryChart')).getPropertyValue('--chart-line').trim(),swatch:getComputedStyle(document.querySelector('.legend-line')).backgroundColor}));
+      const colours={};
+      for(const m of ['avg_loss_pct','avg_latency_ms','avg_jitter_ms']){
+        await page.locator(`#metricTabs [data-metric="${m}"]`).click();
+        await page.waitForFunction(m2=>document.getElementById('diagnostics').dataset.metric===m2,m);
+        colours[m]=await colour();
+      }
+      assert.equal(new Set(Object.values(colours).map(c=>c.line)).size,3,'loss, delay and jitter are three different colours: '+JSON.stringify(colours));
+      for(const c of Object.values(colours)) assert.notEqual(c.swatch,'rgba(0, 0, 0, 0)','the legend swatch has a colour');
+    }
     await page.locator('[data-metric="avg_loss_pct"]').click();
     await page.locator('#targetsBody details').evaluate(e=>e.open=true);
     await page.locator('[data-address="192.0.2.8"]').click();

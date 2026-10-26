@@ -61,10 +61,6 @@ function startDemo(port, extra = []) {
       await page.locator('#unifiTabs [data-tab="speedtest"]').click();
       await page.waitForFunction(() => document.querySelectorAll('#speedChart circle').length > 0);
       await page.locator('#speedChartBox').screenshot({path: `${out}/speedtest-chart.png`});
-      await page.locator('#spModeDelay').click();
-      await page.waitForTimeout(300);
-      await page.locator('#speedChartBox').screenshot({path: `${out}/speedtest-delay.png`});
-      await page.locator('#spModeSpeed').click();
       await page.locator('#schedBox summary').click();
       await page.waitForTimeout(500);
       await page.locator('#speedtest').screenshot({path: `${out}/speedtest-schedule.png`});

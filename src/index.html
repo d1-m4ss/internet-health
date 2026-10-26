@@ -70,11 +70,11 @@
     .wan-src { display:block;color:var(--mute);font-size:11px;overflow-wrap:anywhere }
     .btn.danger { border-color:var(--bad-line);color:var(--bad) } .btn.danger:hover:not(:disabled) { background:var(--bad-bg) }
     .sp-chart { margin-top:14px } .sp-head { display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px }
-    .sp-tabs { display:flex;gap:6px } .sp-tabs .btn { padding:5px 12px } .sp-tabs .btn.active { border-color:var(--accent);color:var(--accent-ink) }
     #speedChart { width:100%;height:auto;display:block;touch-action:pan-y } .sp-line { fill:none;stroke-width:1.8;stroke-linejoin:round;stroke-linecap:round }
-    .sp-tabs .btn[hidden], .sp-filters select[hidden] { display:none }
+    .sp-filters select[hidden] { display:none } .sp-head { justify-content:flex-end }
+    .sp-group { display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:2px 0 } .sp-gl { font-size:11px;color:var(--mute);min-width:64px } .sp-key { display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--mute);margin:2px 0 4px }
     .sp-chart { position:relative } .sp-filters { display:flex;gap:8px;flex-wrap:wrap }
-    .sp-legend { display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 6px } .sp-chip { display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--text2);font:inherit;font-size:12px;cursor:pointer }
+    .sp-legend { margin:2px 0 6px } .sp-chip { display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--text2);font:inherit;font-size:12px;cursor:pointer }
     .sp-chip i { width:14px;height:3px;border-radius:2px;flex:none } .sp-chip[aria-pressed="false"] { opacity:.5;text-decoration:line-through } .sp-chip:disabled { opacity:.35;cursor:default;text-decoration:none }
     .sp-histbar { display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 }
     #tgBox { margin-top:18px;padding-top:14px;border-top:1px solid var(--line) }
@@ -359,8 +359,12 @@
     html[data-style="unifi"] .chip-val { display:inline;font-weight:650;font-variant-numeric:tabular-nums }
     html[data-style="unifi"] #metricTabs [data-metric="avg_latency_ms"] { --chip:#7a4cdb } html[data-style="unifi"] #metricTabs [data-metric="avg_jitter_ms"] { --chip:#0e8f9b }
     html[data-style="unifi"] #metricTabs [data-metric="avg_dns_latency_ms"] { --chip:#d6409f } html[data-style="unifi"] #metricTabs [data-metric="score"] { --chip:#1a8f4b }
-    html[data-style="unifi"] #primaryChart[data-metric="avg_latency_ms"] { --chart-line:#7a4cdb } html[data-style="unifi"] #primaryChart[data-metric="avg_jitter_ms"] { --chart-line:#0e8f9b }
-    html[data-style="unifi"] #primaryChart[data-metric="avg_dns_latency_ms"] { --chart-line:#d6409f } html[data-style="unifi"] #primaryChart[data-metric="score"] { --chart-line:#1a8f4b }
+    html[data-style="unifi"] #diagnostics[data-metric="avg_latency_ms"] { --chart-line:#7a4cdb } html[data-style="unifi"] #diagnostics[data-metric="avg_jitter_ms"] { --chart-line:#0e8f9b }
+    html[data-style="unifi"] #diagnostics[data-metric="avg_dns_latency_ms"] { --chart-line:#d6409f } html[data-style="unifi"] #diagnostics[data-metric="score"] { --chart-line:#1a8f4b }
+    html[data-style="unifi"] #diagnostics[data-metric="avg_loss_pct"] { --chart-line:#d12f35 }
+    /* NetProbe style: every metric has its own colour, so loss, delay, jitter and DNS are never the same line */
+    html:not([data-style="unifi"]) #diagnostics[data-metric="avg_loss_pct"] { --chart-line:#ef8b91 } html:not([data-style="unifi"]) #diagnostics[data-metric="avg_latency_ms"] { --chart-line:#6fcdf5 }
+    html:not([data-style="unifi"]) #diagnostics[data-metric="avg_jitter_ms"] { --chart-line:#b79bff } html:not([data-style="unifi"]) #diagnostics[data-metric="avg_dns_latency_ms"] { --chart-line:#7ee787 }
     html[data-style="unifi"] .event { display:flex;padding:10px 4px } html[data-style="unifi"] .event-content { flex:1;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 16px }
     html[data-style="unifi"] .event-time { display:contents }
     html[data-style="unifi"] .event-time .when { grid-column:2;grid-row:1;text-align:right;white-space:nowrap }
@@ -562,8 +566,7 @@
           <p class="card-sub" id="speedServer" style="margin:13px 0 2px">—</p>
           <p class="card-sub" id="speedExtra" style="margin:2px 0 0"></p>
           <div class="sp-chart" id="speedChartBox">
-            <div class="sp-head"><div class="sp-tabs"><button type="button" class="btn" id="spModeSpeed" data-mode="speed" data-i18n="speed.chartSpeed">Скорость</button><button type="button" class="btn" id="spModeDelay" data-mode="delay" data-i18n="speed.chartDelay">Задержка</button><button type="button" class="btn" id="spModeLoss" data-mode="loss" data-i18n="speed.chartLoss" hidden>Потери</button></div>
-              <div class="sp-filters"><label class="hide" for="spService" data-i18n="speed.chartService">Сервис</label><select id="spService" class="chart-select"></select>
+            <div class="sp-head"><div class="sp-filters"><label class="hide" for="spService" data-i18n="speed.chartService">Сервис</label><select id="spService" class="chart-select"></select>
               <label class="hide" for="spRange" data-i18n="speed.chartRange">Период графика</label><select id="spRange" class="chart-select"><option value="86400" data-i18n="speed.r24h"></option><option value="604800" data-i18n="speed.r7d"></option><option value="2592000" data-i18n="speed.r30d"></option><option value="0" data-i18n="speed.rAll"></option></select></div></div>
             <div class="sp-legend" id="speedLegend"></div>
             <svg id="speedChart" viewBox="0 0 640 230" role="img" data-i18n-attr="aria-label:speed.chartAria"></svg>
@@ -669,7 +672,7 @@
       'dns.title':'DNS-серверы','dns.sub':'Ответ на DNS-запросы','dns.none':'Замеров DNS за период нет','dns.unavailable':'Данные DNS недоступны',
       'events.title':'События','events.sub':'Подтверждённые изменения состояния','events.none':'Подтверждённых изменений за период нет','events.unavailable':'События недоступны','events.note':'Предупреждения и восстановление передаются через штатные уведомления Unraid.',
       'reason.noPing':'нет ответа на ping','reason.noDns':'DNS не отвечает','reason.loss':'потери пакетов {v}%','reason.rtt':'задержка {v} мс','reason.jitter':'джиттер {v} мс','reason.dnsSlow':'медленный DNS-ответ, {v} мс',
-      'speed.chartSpeed':'Скорость','speed.chartDelay':'Задержка','speed.chartRange':'Период графика','speed.r24h':'24 часа','speed.r7d':'7 дней','speed.r30d':'30 дней','speed.chartAria':'График результатов Speedtest','speed.chartEmpty':'За этот период тестов нет.','speed.lgDown':'Скачивание ↓ (download)','speed.lgUp':'Отдача ↑ (upload)','speed.lgPing':'Ping без нагрузки','speed.lgLoadDown':'Ping при скачивании','speed.lgLoadUp':'Ping при отдаче','speed.lgJitter':'Джиттер','speed.lgLoss':'Потери пакетов','speed.chartLoss':'Потери','speed.chartService':'Сервис','speed.svcAll':'Все сервисы','speed.rAll':'Всё время','speed.noData':'Нет данных за этот период','speed.chartNothing':'Все линии скрыты: нажмите на название выше, чтобы показать.','speed.histShow':'Показать','speed.hist10':'Последние 10','speed.histRange':'За период графика','speed.histAll':'Все','speed.histCount':'Записей: {n}','speed.histCap':'Показаны последние {n} из {m}','sh.speeds':'Скачивание ↓ / отдача ↑, Mbps','speed.chartNoDelay':'Задержка под нагрузкой измеряется только сервисом Fast.com, джиттер — Fast.com и Ookla; по остальным линиям данных нет.','speed.extra':'Джиттер {j} · задержка под нагрузкой: ↓ {d} / ↑ {u}','speed.extraLoss':' · потери {l} %','speed.histExtra':'джиттер {j} · под нагрузкой ↓ {d} / ↑ {u}','speed.params':'Параметры ручного теста','speed.serverId':'ID сервера (необязательно)','speed.secure':'HTTPS для Python backend','speed.forceAuto':'Игнорировать указанный сервер / выбрать автоматически','speed.scheduledNote':'ID сервера и HTTPS действуют только на ручной запуск; сервис, расписание и уведомления настраиваются выше.','speed.history':'История Speedtest',
+      'speed.gSpeed':'Скорость','speed.gDelay':'Задержка','speed.gLoss':'Потери','speed.keyDashed':'пунктир','speed.chartRange':'Период графика','speed.r24h':'24 часа','speed.r7d':'7 дней','speed.r30d':'30 дней','speed.chartAria':'График результатов Speedtest','speed.chartEmpty':'За этот период тестов нет.','speed.lgDown':'Скачивание ↓ (download)','speed.lgUp':'Отдача ↑ (upload)','speed.lgPing':'Ping без нагрузки','speed.lgLoadDown':'Ping при скачивании','speed.lgLoadUp':'Ping при отдаче','speed.lgJitter':'Джиттер','speed.lgLoss':'Потери пакетов','speed.chartLoss':'Потери','speed.chartService':'Сервис','speed.svcAll':'Все сервисы','speed.rAll':'Всё время','speed.noData':'Нет данных за этот период','speed.chartNothing':'Все линии скрыты: нажмите на название выше, чтобы показать.','speed.histShow':'Показать','speed.hist10':'Последние 10','speed.histRange':'За период графика','speed.histAll':'Все','speed.histCount':'Записей: {n}','speed.histCap':'Показаны последние {n} из {m}','sh.speeds':'Скачивание ↓ / отдача ↑, Mbps','speed.chartNoDelay':'Ping под нагрузкой и джиттер измеряет только Fast.com (джиттер ещё и Ookla CLI), и только начиная с версии 1.1.0: у серых линий за этот период данных нет. Запустите тест Fast.com — они появятся.','speed.extra':'Джиттер {j} · задержка под нагрузкой: ↓ {d} / ↑ {u}','speed.extraLoss':' · потери {l} %','speed.histExtra':'джиттер {j} · под нагрузкой ↓ {d} / ↑ {u}','speed.params':'Параметры ручного теста','speed.serverId':'ID сервера (необязательно)','speed.secure':'HTTPS для Python backend','speed.forceAuto':'Игнорировать указанный сервер / выбрать автоматически','speed.scheduledNote':'ID сервера и HTTPS действуют только на ручной запуск; сервис, расписание и уведомления настраиваются выше.','speed.history':'История Speedtest',
       'speed.last':'Последний тест · {when}','speed.none':'Измерений Speedtest пока нет','speed.unavailable':'Результат Speedtest недоступен','speed.lastErr':'Последний результат: {e}','speed.histErr':'История: {e}','speed.noMeasurements':'Нет измерений','speed.historyUnavailable':'История недоступна',
       'speed.needApi':'Для запуска нужны настройки API.','speed.backendUnavailable':'Выбранный backend недоступен.','speed.ooklaTerms':'Условия Ookla ещё не приняты на сервере.','speed.run':'Запустить тест','speed.running':'Выполняется…',
       'speed.idDigits':'ID сервера должен содержать только цифры.','speed.started':'Тест запущен. Измерение потребляет трафик и может занять несколько минут.','speed.got':'Реальный результат получен · {when}','speed.error':'Ошибка Speedtest: {e}. При тайм-ауте проверьте логи перед повторным запуском.',
@@ -735,7 +738,7 @@
       'dns.title':'DNS servers','dns.sub':'Response to DNS queries','dns.none':'No DNS samples in this period','dns.unavailable':'DNS data unavailable',
       'events.title':'Events','events.sub':'Confirmed state changes','events.none':'No confirmed changes in this period','events.unavailable':'Events unavailable','events.note':'Warnings and recoveries are delivered through the standard Unraid notifications.',
       'reason.noPing':'no ping reply','reason.noDns':'not answering DNS','reason.loss':'packet loss {v}%','reason.rtt':'latency {v} ms','reason.jitter':'jitter {v} ms','reason.dnsSlow':'slow DNS reply, {v} ms',
-      'speed.chartSpeed':'Speed','speed.chartDelay':'Delay','speed.chartRange':'Chart period','speed.r24h':'24 hours','speed.r7d':'7 days','speed.r30d':'30 days','speed.chartAria':'Speedtest results chart','speed.chartEmpty':'No tests in this period.','speed.lgDown':'Download ↓','speed.lgUp':'Upload ↑','speed.lgPing':'Idle ping','speed.lgLoadDown':'Ping while downloading','speed.lgLoadUp':'Ping while uploading','speed.lgJitter':'Jitter','speed.lgLoss':'Packet loss','speed.chartLoss':'Loss','speed.chartService':'Service','speed.svcAll':'All services','speed.rAll':'All time','speed.noData':'No data in this period','speed.chartNothing':'Every line is hidden: click a name above to show it.','speed.histShow':'Show','speed.hist10':'Last 10','speed.histRange':'The chart period','speed.histAll':'All','speed.histCount':'Records: {n}','speed.histCap':'Showing the latest {n} of {m}','sh.speeds':'Download ↓ / upload ↑, Mbps','speed.chartNoDelay':'The delay under load is measured by Fast.com only, jitter by Fast.com and Ookla; the other lines have no data.','speed.extra':'Jitter {j} · delay under load: ↓ {d} / ↑ {u}','speed.extraLoss':' · loss {l} %','speed.histExtra':'jitter {j} · under load ↓ {d} / ↑ {u}','speed.params':'Manual test options','speed.serverId':'Server ID (optional)','speed.secure':'HTTPS for the Python backend','speed.forceAuto':'Ignore the given server / choose automatically','speed.scheduledNote':'The server ID and HTTPS apply to manual runs only; the service, schedule and notifications are set above.','speed.history':'Speedtest history',
+      'speed.gSpeed':'Speed','speed.gDelay':'Delay','speed.gLoss':'Loss','speed.keyDashed':'dashed','speed.chartRange':'Chart period','speed.r24h':'24 hours','speed.r7d':'7 days','speed.r30d':'30 days','speed.chartAria':'Speedtest results chart','speed.chartEmpty':'No tests in this period.','speed.lgDown':'Download ↓','speed.lgUp':'Upload ↑','speed.lgPing':'Idle ping','speed.lgLoadDown':'Ping while downloading','speed.lgLoadUp':'Ping while uploading','speed.lgJitter':'Jitter','speed.lgLoss':'Packet loss','speed.chartLoss':'Loss','speed.chartService':'Service','speed.svcAll':'All services','speed.rAll':'All time','speed.noData':'No data in this period','speed.chartNothing':'Every line is hidden: click a name above to show it.','speed.histShow':'Show','speed.hist10':'Last 10','speed.histRange':'The chart period','speed.histAll':'All','speed.histCount':'Records: {n}','speed.histCap':'Showing the latest {n} of {m}','sh.speeds':'Download ↓ / upload ↑, Mbps','speed.chartNoDelay':'Ping under load and jitter are measured by Fast.com only (jitter also by the Ookla CLI), and only since version 1.1.0: the greyed lines have no data in this period. Run a Fast.com test and they appear.','speed.extra':'Jitter {j} · delay under load: ↓ {d} / ↑ {u}','speed.extraLoss':' · loss {l} %','speed.histExtra':'jitter {j} · under load ↓ {d} / ↑ {u}','speed.params':'Manual test options','speed.serverId':'Server ID (optional)','speed.secure':'HTTPS for the Python backend','speed.forceAuto':'Ignore the given server / choose automatically','speed.scheduledNote':'The server ID and HTTPS apply to manual runs only; the service, schedule and notifications are set above.','speed.history':'Speedtest history',
       'speed.last':'Last test · {when}','speed.none':'No Speedtest results yet','speed.unavailable':'Speedtest result unavailable','speed.lastErr':'Last result: {e}','speed.histErr':'History: {e}','speed.noMeasurements':'No measurements','speed.historyUnavailable':'History unavailable',
       'speed.needApi':'API settings are required to run a test.','speed.backendUnavailable':'The selected backend is unavailable.','speed.ooklaTerms':'The Ookla terms have not been accepted on the server yet.','speed.run':'Run test','speed.running':'Running…',
       'speed.idDigits':'The server ID must contain digits only.','speed.started':'Test started. It uses bandwidth and may take a few minutes.','speed.got':'Real result received · {when}','speed.error':'Speedtest error: {e}. After a timeout check the logs before running it again.',
@@ -920,7 +923,7 @@
     $('seriesLabel').textContent = seriesName + (unit ? ' (' + unit + ')' : '') + (lossMode ? t('chart.peakNote') : '');
     $('periodInfo').textContent = `${t('chart.points', {n: data.length})}${cached ? ' · ' + when(data.at(-1)?.ts) : ''}`;
     $('chartStatus').textContent = state.errors.chart ? t('chart.errPrefix', {kept: cached ? t('chart.kept') : '', err: state.errors.chart}) : !cached ? t('chart.loading') : '';
-    const width = Math.max(300, svg.clientWidth || 900); svg.setAttribute('viewBox', `0 0 ${width} 250`); svg.dataset.metric = state.metric;
+    const width = Math.max(300, svg.clientWidth || 900); svg.setAttribute('viewBox', `0 0 ${width} 250`); svg.dataset.metric = state.metric; $('diagnostics').dataset.metric = state.metric;
     svg._hv = null; svg._tip = $('chartTip'); $('chartTip').hidden = true;
     const vals = data.flatMap(d => [d[key], ...(lossMode ? [d.max_loss ?? d.max_loss_pct] : [])]).filter(numeric);
     if (!vals.length) { svg.innerHTML = '<text class="c-text" x="' + width/2 + '" y="120" text-anchor="middle" font-size="14">' + escape(cached ? t('chart.empty') : t('chart.unavailable')) + '</text>'; return; }
@@ -1030,7 +1033,7 @@
     $('periodInfo').textContent = t('chart.points', {n: pointsTotal}) + (all.length > MAX_SERIES ? ' · ' + t('cmp.capped', {n: MAX_SERIES}) : '');
     const loadedAll = byWanOn() ? [...state.cmp.sources].every(x => overlayWans().every(w => state.charts.has(wanCacheKey(x, w)))) : [...state.cmp.sources].every(x => x === '' || state.charts.has(JSON.stringify([x, '', rangeKey(), wanKey()])));
     $('chartStatus').textContent = state.errors.chart ? t('chart.errPrefix', {kept: '', err: state.errors.chart}) : !loadedAll ? t('chart.loading') : '';
-    const width = Math.max(300, svg.clientWidth || 900); svg.setAttribute('viewBox', `0 0 ${width} 250`); svg.dataset.metric = '';
+    const width = Math.max(300, svg.clientWidth || 900); svg.setAttribute('viewBox', `0 0 ${width} 250`); svg.dataset.metric = ''; $('diagnostics').dataset.metric = '';
     const vals = series.flatMap(x => x.points.map(p => p.v)).filter(numeric);
     svg._hv = null; svg._tip = $('chartTip'); $('chartTip').hidden = true; $('chartTip').innerHTML = '';
     if (!series.length || !vals.length) { $('compareLegend').innerHTML = ''; $('axisNote').textContent = ''; svg.innerHTML = '<text class="c-text" x="' + width/2 + '" y="120" text-anchor="middle" font-size="14">' + escape(!series.length ? t('cmp.none') : loadedAll ? t('chart.empty') : t('chart.loading')) + '</text>'; return; }
@@ -1097,13 +1100,21 @@
     const r = speedExtraFor(ts);
     return r ? `<div class="sub">${escape(t(key, {j: msOrDash(r.jitter_ms), d: msOrDash(r.loaded_down_ms), u: msOrDash(r.loaded_up_ms)}))}</div>` : '';
   }
-  const SPEED_MODES = {
-    speed: {unit: 'Mbps', digits: 1, series: [['download_mbps', 'speed.lgDown', 'var(--s1)'], ['upload_mbps', 'speed.lgUp', 'var(--s2)']]},
-    delay: {unit: 'ms', digits: 1, series: [['ping_ms', 'speed.lgPing', 'var(--s3)'], ['loaded_down_ms', 'speed.lgLoadDown', 'var(--s4)'], ['loaded_up_ms', 'speed.lgLoadUp', 'var(--s5)'], ['jitter_ms', 'speed.lgJitter', 'var(--s6)']]},
-    loss: {unit: '%', digits: 1, series: [['packet_loss_pct', 'speed.lgLoss', 'var(--s7)']]}
-  };
+  /* Speed, delay and loss are three panels one above the other on a common time axis: any of their lines can be shown together. */
+  const SPEED_GROUPS = [
+    {id: 'speed', title: 'speed.gSpeed', unit: 'Mbps', series: [['download_mbps', 'speed.lgDown', '#3b82f6'], ['upload_mbps', 'speed.lgUp', '#ef4444']]},
+    {id: 'delay', title: 'speed.gDelay', unit: 'ms', series: [['ping_ms', 'speed.lgPing', '#22c55e'], ['loaded_down_ms', 'speed.lgLoadDown', '#f59e0b'], ['loaded_up_ms', 'speed.lgLoadUp', '#a855f7'], ['jitter_ms', 'speed.lgJitter', '#06b6d4']]},
+    {id: 'loss', title: 'speed.gLoss', unit: '%', series: [['packet_loss_pct', 'speed.lgLoss', '#db2777']]}
+  ];
+  /* With several services on the chart the colour says which line it is, and the service is told apart by the shade, the dashes and the marker. */
+  const SERVICE_LOOK = {fast: {dash: '', mark: 'circle', glyph: '●'}, python: {dash: '6 4', mark: 'square', glyph: '■'}, ookla: {dash: '2 3', mark: 'triangle', glyph: '▲'}};
+  const serviceLook = b => SERVICE_LOOK[b] || SERVICE_LOOK.fast;
+  const serviceColor = (base, backend, multi) => !multi ? base : backend === 'python' ? `color-mix(in srgb, ${base} 55%, white)` : backend === 'ookla' ? `color-mix(in srgb, ${base} 62%, black)` : base;
+  const markerSvg = (look, cx, cy, color) => look.mark === 'square' ? `<rect x="${(cx - 2.6).toFixed(1)}" y="${(cy - 2.6).toFixed(1)}" width="5.2" height="5.2" fill="${color}"/>`
+    : look.mark === 'triangle' ? `<polygon points="${cx.toFixed(1)},${(cy - 3.4).toFixed(1)} ${(cx + 3.2).toFixed(1)},${(cy + 2.6).toFixed(1)} ${(cx - 3.2).toFixed(1)},${(cy + 2.6).toFixed(1)}" fill="${color}"/>`
+    : `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="2.6" fill="${color}"/>`;
   const speedValue = (k, v) => k.endsWith('_ms') ? (pingOk(v) ? v : null) : (numeric(v) ? v : null);
-  /* The tests the chart draws: the chosen period and service (by default the service of the newest test; services are not mixed on one line). */
+  /* The tests the chart draws: the chosen period and service (by default the service of the newest test). */
   function speedView() {
     const all = state.speedSeries || [], services = [...new Set(all.map(r => r.backend).filter(Boolean))].sort((a, b) => svcShort(a).localeCompare(svcShort(b)));
     const svc = state.speedService === 'all' ? null : services.includes(state.speedService) ? state.speedService : (all.at(-1)?.backend ?? null);
@@ -1113,46 +1124,54 @@
   }
   function renderSpeedChart() {
     const view = speedView(), {rows, services, svc, start, end, range} = view, svg = $('speedChart'), tip = $('speedTip');
+    const multi = svc === null && new Set(rows.map(r => r.backend)).size > 1, hidden = state.speedHidden || new Set();
     const hasLoss = (state.speedSeries || []).some(r => numeric(r.packet_loss_pct));
-    $('spModeLoss').hidden = !hasLoss;
-    const mode = state.speedMode === 'delay' ? 'delay' : state.speedMode === 'loss' && hasLoss ? 'loss' : 'speed', spec = SPEED_MODES[mode];
-    for (const b of document.querySelectorAll('.sp-tabs .btn')) b.classList.toggle('active', b.dataset.mode === mode);
     $('spRange').value = String(range);
     $('spService').innerHTML = [`<option value="all">${escape(t('speed.svcAll'))}</option>`, ...services.map(b => `<option value="${escape(b)}">${escape(svcShort(b))}</option>`)].join('');
     $('spService').value = svc ?? 'all'; $('spService').hidden = services.length < 2;
-    const keys = spec.series, present = keys.filter(([k]) => rows.some(r => speedValue(k, r[k]) !== null));
-    const hidden = state.speedHidden || new Set();
-    $('speedLegend').innerHTML = keys.map(([k, label, color]) => { const has = present.some(x => x[0] === k); return `<button type="button" class="sp-chip" data-sk="${k}" aria-pressed="${has && !hidden.has(k)}"${has ? '' : ` disabled title="${escape(t('speed.noData'))}"`}><i style="background:${color}"></i>${escape(t(label))}</button>`; }).join('');
-    const drawn = present.filter(([k]) => !hidden.has(k));
-    $('speedChartNote').textContent = state.speedSeries === null ? '' : !rows.length ? t('speed.chartEmpty') : !drawn.length ? t('speed.chartNothing') : mode === 'delay' && present.length <= 1 ? t('speed.chartNoDelay') : '';
+    const groups = SPEED_GROUPS.filter(g => g.id !== 'loss' || hasLoss).map(g => ({...g, present: g.series.filter(([k]) => rows.some(r => speedValue(k, r[k]) !== null))}));
+    $('speedLegend').innerHTML = groups.map(g => `<div class="sp-group"><span class="sp-gl">${escape(t(g.title))}</span>` + g.series.map(([k, label, color]) => { const has = g.present.some(x => x[0] === k); return `<button type="button" class="sp-chip" data-sk="${k}" aria-pressed="${has && !hidden.has(k)}"${has ? '' : ` disabled title="${escape(t('speed.noData'))}"`}><i style="background:${color}"></i>${escape(t(label))}</button>`; }).join('') + '</div>').join('')
+      + (multi ? `<div class="sp-key">${[...new Set(rows.map(r => r.backend))].sort((a, b) => svcShort(a).localeCompare(svcShort(b))).map(b => `<span>${serviceLook(b).glyph} ${escape(svcShort(b))}${serviceLook(b).dash ? ' · ' + escape(t('speed.keyDashed')) : ''}</span>`).join('')}</div>` : '');
+    const panels = groups.map(g => ({...g, drawn: g.present.filter(([k]) => !hidden.has(k))})).filter(g => g.drawn.length);
+    const anyMissing = groups.some(g => g.id === 'delay' && g.present.length && g.present.length < g.series.length);
+    $('speedChartNote').textContent = state.speedSeries === null ? '' : !rows.length ? t('speed.chartEmpty') : !panels.length ? t('speed.chartNothing') : anyMissing ? t('speed.chartNoDelay') : '';
     svg._hv = null; svg._tip = tip; tip.hidden = true;
-    if (!rows.length || !drawn.length) { svg.innerHTML = ''; return; }
-    const W = 640, H = 230, T = 20, R = 12, B = 26, h = H - T - B;
-    const max = Math.max(1, ...drawn.flatMap(([k]) => rows.map(r => speedValue(k, r[k])).filter(v => v !== null))) * 1.12;
-    const step = [1, 2, 5, 10].map(m => m * 10 ** Math.floor(Math.log10(max / 4))).find(v => max / v <= 5) || max;
+    if (!rows.length || !panels.length) { svg.innerHTML = ''; svg.setAttribute('viewBox', '0 0 640 10'); return; }
+    const W = 640, R = 12, T0 = 22, GAP = 30, B = 26, ph = panels.length === 1 ? 190 : panels.length === 2 ? 128 : 100;
+    const H = T0 + panels.length * ph + (panels.length - 1) * GAP + B;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     const shortNum = v => v >= 10000 ? +(v / 1000).toFixed(1) + 'k' : v >= 100 ? String(Math.round(v)) : String(+v.toFixed(1));
-    const ticksY = []; for (let v = 0; v <= max; v += step) ticksY.push(v);
-    const L = Math.max(40, 14 + 6.8 * Math.max(...ticksY.map(v => shortNum(v).length)));   // room for the widest axis number
-    const w = W - L - R, span = Math.max(1, end - start);
-    const x = ts => L + (ts - start) / span * w, y = v => T + h - v / max * h;
-    let grid = `<text class="c-text" x="${L - 6}" y="${T - 8}" text-anchor="end">${escape(spec.unit)}</text>`;
-    for (const v of ticksY) grid += `<line class="c-grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="c-text" x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${shortNum(v)}</text>`;
-    const long = span > 86400 * 2, years = span > 86400 * 200;
+    const scale = panels.map(g => {
+      const max = Math.max(1, ...g.drawn.flatMap(([k]) => rows.map(r => speedValue(k, r[k])).filter(v => v !== null))) * 1.12;
+      const step = [1, 2, 5, 10].map(m => m * 10 ** Math.floor(Math.log10(max / 3))).find(v => max / v <= 4) || max, ticks = [];
+      for (let v = 0; v <= max; v += step) ticks.push(v);
+      return {max, ticks};
+    });
+    const L = Math.max(40, 14 + 6.8 * Math.max(...scale.flatMap(sc => sc.ticks.map(v => shortNum(v).length))));   // room for the widest axis number
+    const w = W - L - R, span = Math.max(1, end - start), x = ts => L + (ts - start) / span * w;
+    const dots = rows.length <= 80, lookups = [];
+    let body = '', grid = '';
+    panels.forEach((g, i) => {
+      const top = T0 + i * (ph + GAP), y = v => top + ph - v / scale[i].max * ph;
+      grid += `<text class="c-text" x="${L}" y="${top - 9}" text-anchor="start">${escape(t(g.title) + ', ' + g.unit)}</text>`;
+      for (const v of scale[i].ticks) grid += `<line class="c-grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="c-text" x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${shortNum(v)}</text>`;
+      const lines = multi ? [...new Set(rows.map(r => r.backend))] : [null];
+      for (const [k, name, base] of g.drawn) for (const backend of lines) {
+        const set = backend === null ? rows : rows.filter(r => r.backend === backend), color = serviceColor(base, backend, multi), look = backend === null ? SERVICE_LOOK.fast : serviceLook(backend);
+        let d = '', pen = false;
+        for (const r of set) { const v = speedValue(k, r[k]); if (v !== null) { d += `${pen ? 'L' : 'M'}${x(r.ts).toFixed(1)} ${y(v).toFixed(1)}`; pen = true; } else pen = false; }   // an unmeasured value is a gap, not zero
+        if (!d) continue;
+        body += `<path class="sp-line" d="${d}" stroke="${color}"${look.dash ? ` stroke-dasharray="${look.dash}"` : ''}/>`;
+        if (dots) body += set.filter(r => speedValue(k, r[k]) !== null).map(r => markerSvg(look, x(r.ts), y(r[k]), color)).join('');
+        const note = r => [svcShort(r.backend), r.server_name, r.server_country].filter(Boolean).join(' · ');
+        lookups.push({label: t(name) + (multi ? ' · ' + svcShort(backend) : ''), color, fmt: v => v.toFixed(1) + ' ' + g.unit, points: set.filter(r => speedValue(k, r[k]) !== null).map(r => ({ts: r.ts, v: r[k], note: note(r)}))});
+      }
+    });
+    const long = span > 86400 * 2, years = span > 86400 * 200, bottom = T0 + panels.length * ph + (panels.length - 1) * GAP;
     const label = ts => new Date(ts * 1000).toLocaleString(locale(), long ? (years ? {day:'2-digit', month:'short', year:'2-digit'} : {day:'2-digit', month:'short'}) : {hour:'2-digit', minute:'2-digit'});
-    const xt = [0, .25, .5, .75, 1].map(f => start + span * f);
-    const ticks = xt.map((ts, i) => `<text class="c-text" x="${x(ts)}" y="${H - 8}" text-anchor="${i === 0 ? 'start' : i === 4 ? 'end' : 'middle'}">${escape(label(ts))}</text>`).join('');
-    const dots = rows.length <= 80;
-    let body = '';
-    for (const [k, , color] of drawn) {
-      let d = '', pen = false;
-      for (const r of rows) { const v = speedValue(k, r[k]); if (v !== null) { d += `${pen ? 'L' : 'M'}${x(r.ts).toFixed(1)} ${y(v).toFixed(1)}`; pen = true; } else pen = false; }   // an unmeasured value is a gap, not zero
-      body += `<path class="sp-line" d="${d}" stroke="${color}"/>`;
-      if (dots) body += rows.filter(r => speedValue(k, r[k]) !== null).map(r => `<circle cx="${x(r.ts).toFixed(1)}" cy="${y(r[k]).toFixed(1)}" r="2.6" fill="${color}"/>`).join('');
-    }
-    svg.innerHTML = grid + ticks + body + `<line class="c-cursor" y1="${T}" y2="${T + h}" x1="0" x2="0" visibility="hidden"/>`;
-    const note = r => [svcShort(r.backend), r.server_name, r.server_country].filter(Boolean).join(' · ');
-    svg._hv = {L, w, first: start, last: end, T, h, series: drawn.map(([k, name, color]) => ({label: t(name), color, fmt: v => v.toFixed(spec.digits) + ' ' + spec.unit,
-      points: rows.filter(r => speedValue(k, r[k]) !== null).map(r => ({ts: r.ts, v: r[k], note: note(r)}))}))};
+    const ticks = [0, .25, .5, .75, 1].map((f, i) => `<text class="c-text" x="${x(start + span * f)}" y="${H - 8}" text-anchor="${i === 0 ? 'start' : i === 4 ? 'end' : 'middle'}">${escape(label(start + span * f))}</text>`).join('');
+    svg.innerHTML = grid + ticks + body + `<line class="c-cursor" y1="${T0}" y2="${bottom}" x1="0" x2="0" visibility="hidden"/>`;
+    svg._hv = {L, w, first: start, last: end, T: T0, h: bottom - T0, series: lookups};
   }
   /* The table under the chart: newest first; the last 10, the chart's period, or everything. */
   const SPEED_TABLE_CAP = 500;
@@ -1429,7 +1448,7 @@
     if (state.cmp.on && avail !== state.cmpOverlayAvail) cmpMenu();   // the per-source option appears once there are two sources
     state.cmpOverlayAvail = avail;
   }
-  const saveSpeedChart = () => store('netprobe.speedchart', JSON.stringify({mode: state.speedMode, range: state.speedRange, service: state.speedService, hidden: [...(state.speedHidden || [])], hist: state.speedHist}));
+  const saveSpeedChart = () => store('netprobe.speedchart', JSON.stringify({range: state.speedRange, service: state.speedService, hidden: [...(state.speedHidden || [])], hist: state.speedHist}));
   function saveFilters() { store(FILTERS_KEY, JSON.stringify({range: state.range, wan: state.wanSel, metric: state.metric})); }
   function chooseWan(value) {
     const row = value === 'all' ? null : state.wanRows?.[Number(value)];
@@ -1793,7 +1812,7 @@
   $('goSettings').addEventListener('click', () => { openTab('settings'); $('unifiTabs').scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block:'start'}); });
   $('tilesRow').addEventListener('click', event => { const b = event.target.closest('[data-target]'); if (b) { selectTarget(b.dataset.target); $('diagnostics').scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block:'start'}); } });
   $('chartTarget').addEventListener('change', () => selectTarget($('chartTarget').value));
-  $('refreshBtn').addEventListener('click', refresh); $('speedBtn').addEventListener('click', runSpeed); $('speedBackend').addEventListener('change', saveService); $('schedForm').addEventListener('submit', saveSchedule); $('show_public_ip').addEventListener('change', () => { state.ipEditing = true; say('ipMessage', null); renderIpForm(); }); $('wan_notify').addEventListener('change', () => { state.ipEditing = true; say('ipMessage', null); renderIpForm(); }); $('wan_check').addEventListener('change', () => { state.ipEditing = true; say('ipMessage', null); renderIpForm(); }); $('ipSave').addEventListener('click', saveIpSettings); $('bkCreate').addEventListener('click', createBackup); $('bkList').addEventListener('click', event => { const b = event.target.closest('[data-bk-del]'); if (b) deleteBackup(b.dataset.bkDel); }); for (const b of document.querySelectorAll('.sp-tabs .btn')) b.addEventListener('click', () => { state.speedMode = b.dataset.mode; saveSpeedChart(); renderSpeedChart(); }); $('spRange').addEventListener('change', () => { state.speedRange = Number($('spRange').value); saveSpeedChart(); renderSpeed(); }); $('spService').addEventListener('change', () => { state.speedService = $('spService').value; saveSpeedChart(); renderSpeed(); }); $('spHist').addEventListener('change', () => { state.speedHist = $('spHist').value; saveSpeedChart(); renderSpeedTable(); }); $('speedLegend').addEventListener('click', event => { const b = event.target.closest('[data-sk]'); if (!b || b.disabled) return; const hide = state.speedHidden || (state.speedHidden = new Set()); hide.has(b.dataset.sk) ? hide.delete(b.dataset.sk) : hide.add(b.dataset.sk); saveSpeedChart(); renderSpeedChart(); }); for (const id of ['int_unraid', 'tg_enabled', 'tg_token', 'tg_chat']) $(id).addEventListener('input', () => { state.tgEditing = true; say('tgMessage', null); renderTelegram(); }); $('intSave').addEventListener('click', saveIntegrations); $('tgTest').addEventListener('click', testTelegram); $('tgClear').addEventListener('click', clearTelegram); $('wanRefresh').addEventListener('click', refreshWan); $('retKeep').addEventListener('focus', () => { state.historyEditing = true; }); $('retKeep').addEventListener('change', saveRetention); $('retKeep').addEventListener('blur', () => { state.historyEditing = false; }); $('wanSelectChart').addEventListener('change', event => chooseWan(event.target.value)); $('wanSelectTargets').addEventListener('change', event => chooseWan(event.target.value)); $('wanForget').addEventListener('click', forgetWan); $('retPreview').addEventListener('click', () => previewHistory(false)); $('retDelete').addEventListener('click', () => previewHistory(true)); $('schedMode').addEventListener('change', renderSchedule); $('forceAuto').addEventListener('change', updateSpeedControls);
+  $('refreshBtn').addEventListener('click', refresh); $('speedBtn').addEventListener('click', runSpeed); $('speedBackend').addEventListener('change', saveService); $('schedForm').addEventListener('submit', saveSchedule); $('show_public_ip').addEventListener('change', () => { state.ipEditing = true; say('ipMessage', null); renderIpForm(); }); $('wan_notify').addEventListener('change', () => { state.ipEditing = true; say('ipMessage', null); renderIpForm(); }); $('wan_check').addEventListener('change', () => { state.ipEditing = true; say('ipMessage', null); renderIpForm(); }); $('ipSave').addEventListener('click', saveIpSettings); $('bkCreate').addEventListener('click', createBackup); $('bkList').addEventListener('click', event => { const b = event.target.closest('[data-bk-del]'); if (b) deleteBackup(b.dataset.bkDel); }); $('spRange').addEventListener('change', () => { state.speedRange = Number($('spRange').value); saveSpeedChart(); renderSpeed(); }); $('spService').addEventListener('change', () => { state.speedService = $('spService').value; saveSpeedChart(); renderSpeed(); }); $('spHist').addEventListener('change', () => { state.speedHist = $('spHist').value; saveSpeedChart(); renderSpeedTable(); }); $('speedLegend').addEventListener('click', event => { const b = event.target.closest('[data-sk]'); if (!b || b.disabled) return; const hide = state.speedHidden || (state.speedHidden = new Set()); hide.has(b.dataset.sk) ? hide.delete(b.dataset.sk) : hide.add(b.dataset.sk); saveSpeedChart(); renderSpeedChart(); }); for (const id of ['int_unraid', 'tg_enabled', 'tg_token', 'tg_chat']) $(id).addEventListener('input', () => { state.tgEditing = true; say('tgMessage', null); renderTelegram(); }); $('intSave').addEventListener('click', saveIntegrations); $('tgTest').addEventListener('click', testTelegram); $('tgClear').addEventListener('click', clearTelegram); $('wanRefresh').addEventListener('click', refreshWan); $('retKeep').addEventListener('focus', () => { state.historyEditing = true; }); $('retKeep').addEventListener('change', saveRetention); $('retKeep').addEventListener('blur', () => { state.historyEditing = false; }); $('wanSelectChart').addEventListener('change', event => chooseWan(event.target.value)); $('wanSelectTargets').addEventListener('change', event => chooseWan(event.target.value)); $('wanForget').addEventListener('click', forgetWan); $('retPreview').addEventListener('click', () => previewHistory(false)); $('retDelete').addEventListener('click', () => previewHistory(true)); $('schedMode').addEventListener('change', renderSchedule); $('forceAuto').addEventListener('change', updateSpeedControls);
   $('settingsForm').addEventListener('submit', saveSettings); $('settingsForm').addEventListener('input', () => { state.settingsDirty = true; say('settingsMessage', 'set.dirty'); });
   $('detailsLog').addEventListener('toggle', loadLogs);
   $('turboInfo').addEventListener('click', () => $('turboDialog').showModal());
@@ -1810,7 +1829,6 @@
   }
   try {
     const sc = JSON.parse(localStorage.getItem('netprobe.speedchart') || 'null');
-    if (sc && ['speed', 'delay', 'loss'].includes(sc.mode)) state.speedMode = sc.mode;
     if (sc && [86400, 604800, 2592000, 0].includes(sc.range)) state.speedRange = sc.range;
     if (sc && typeof sc.service === 'string' && /^[a-z]{1,12}$/.test(sc.service)) state.speedService = sc.service;
     if (sc && Array.isArray(sc.hidden)) state.speedHidden = new Set(sc.hidden.filter(k => typeof k === 'string' && /^[a-z_]{1,24}$/.test(k)));

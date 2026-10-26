@@ -5,6 +5,15 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+- **Speedtest chart: speed, delay and loss together.** The Speed / Delay tabs are gone: speed (Mbps), delay (ms) and packet loss (%) are three
+  panels on one time axis, each with its own scale, and every line has its own on / off button, so any combination can be shown at once. The
+  colours are fixed and conventional: download blue, upload red, idle ping green, ping while downloading amber, ping while uploading purple,
+  jitter cyan, loss pink. With *All services* every service keeps the colour of the line but gets its own shade, dashes and marker
+  (Fast.com solid ●, Speedtest.net lighter and dashed ■, Ookla CLI darker and dotted ▲), with a key under the buttons; the popup names the service.
+  The grey buttons say why a line is empty: the delay under load and jitter come from Fast.com tests made since 1.1.0.
+- **The main chart has a colour per metric** in the NetProbe style too (loss coral, delay blue, jitter violet, DNS green), and the legend swatch
+  follows it; the peak markers of the loss chart stay amber.
+
 ## 1.2.1 — 2026-10-26
 
 - **The Speedtest chart, rebuilt.** Speed, delay and (when measured) packet-loss views; every line has a button to show or hide it (remembered);

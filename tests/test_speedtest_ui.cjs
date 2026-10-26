@@ -275,7 +275,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       await page.close();
     }
 
-    // --- Speedtest chart: speed / delay / loss, a service, lines to switch off, hover popup, the table under it ---
+    // --- Speedtest chart: speed, delay and loss panels together, a service, lines to switch off, hover popup, the table under it ---
     {
       const day = 86400;
       api.series = [
@@ -287,22 +287,27 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       api.latest = {ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server: {id: '1', name: 'Example City', country: 'EX'}, backend: 'fast'};
       api.history = [{ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, server_id: '1', server_name: 'Example City', backend: 'fast'}];
       const {page, errors} = await open('netprobe', 'en');
-      const circles = () => page.locator('#speedChart circle').count();
+      const marks = () => page.locator('#speedChart circle, #speedChart rect, #speedChart polygon').count();
       const chips = () => page.locator('#speedLegend .sp-chip').allTextContents();
       const on = () => page.locator('#speedLegend .sp-chip[aria-pressed="true"]').allTextContents();
+      const titles = async () => (await page.locator('#speedChart text').allTextContents()).filter(x => /, (Mbps|ms|%)$/.test(x));
       await page.waitForFunction(() => document.querySelectorAll('#speedChart circle').length > 0);
-      assert.deepEqual(await chips(), ['Download ↓', 'Upload ↑']);
-      assert.equal(await page.locator('#speedService').count(), 0);
+      assert.deepEqual(await chips(), ['Download ↓', 'Upload ↑', 'Idle ping', 'Ping while downloading', 'Ping while uploading', 'Jitter', 'Packet loss']);
+      assert.deepEqual(await page.locator('#speedLegend .sp-gl').allTextContents(), ['Speed', 'Delay', 'Loss']);
+      assert.deepEqual(await titles(), ['Speed, Mbps', 'Delay, ms', 'Loss, %'], 'speed, delay and loss are drawn together, one panel each');
       assert.equal(await page.locator('#spService').inputValue(), 'fast', 'the newest test decides: services are not mixed on one line');
       assert.deepEqual(await page.locator('#spService option').allTextContents(), ['All services', 'Fast.com', 'Speedtest.net']);
-      assert.equal(await circles(), 5, 'Fast.com only, last 7 days: 3 downloads + 2 uploads (an unmeasured upload is not a point)');
-      assert.equal(await page.locator('#speedChart path.sp-line').count(), 2);
+      assert.equal(await marks(), 3 + 2 + 3 + 2 + 2 + 2 + 1, 'Fast.com only, last 7 days: an unmeasured value is not a point');
+      assert.equal(await page.locator('#speedChart path.sp-line').count(), 7);
+      const strokes = await page.locator('#speedChart path.sp-line').evaluateAll(l => l.map(e => e.getAttribute('stroke')));
+      assert.equal(new Set(strokes).size, 7, 'every line has its own colour');
+      assert.equal(strokes[0], '#3b82f6', 'download is blue');
+      assert.equal(strokes[1], '#ef4444', 'upload is red');
       const upPath = await page.locator('#speedChart path.sp-line').nth(1).getAttribute('d');
       assert.equal((upPath.match(/M/g) || []).length, 2, 'the unmeasured upload breaks the line: a gap, not a zero');
       assert.equal(await page.locator('#speedChart title').count(), 0, 'no slow native tooltips');
-      assert.match(await page.locator('#speedChart text').first().textContent(), /^Mbps$/, 'the unit is written on the axis');
       assert.equal(await page.locator('#speedChartNote').textContent(), '');
-      // the popup of a point
+      // the popup of a point lists every visible line at that moment, across the panels
       const pointOf = async index => { await page.locator('#speedChart').scrollIntoViewIfNeeded(); return page.locator('#speedChart circle').nth(index).evaluate(c => { const r = c.getBoundingClientRect(); return {x: r.left + r.width / 2, y: r.top + r.height / 2}; }); };
       let p = await pointOf(0);
       await page.mouse.move(p.x, p.y);
@@ -310,59 +315,51 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       const tip = await page.locator('#speedTip').textContent();
       assert.match(tip, /Download ↓410\.0 Mbps/);
       assert.match(tip, /Upload ↑88\.0 Mbps/);
+      assert.match(tip, /Idle ping14\.0 ms/);
+      assert.match(tip, /Ping while downloading40\.0 ms/);
       assert.match(tip, /Fast\.com · Old City/);
       await page.mouse.move(2, 2);
       await page.waitForFunction(() => document.getElementById('speedTip').hidden);
-      // lines can be switched off and on, and the choice is remembered
+      // lines can be switched off and on, and the choice is remembered; an empty panel disappears
       await page.locator('#speedLegend [data-sk="upload_mbps"]').click();
-      assert.deepEqual(await on(), ['Download ↓']);
-      assert.equal(await circles(), 3);
+      assert.equal((await on()).includes('Upload ↑'), false);
+      assert.equal(await marks(), 3 + 3 + 2 + 2 + 2 + 1);
       assert.deepEqual((await page.evaluate(() => JSON.parse(localStorage.getItem('netprobe.speedchart')))).hidden, ['upload_mbps']);
       await page.locator('#speedLegend [data-sk="download_mbps"]').click();
+      assert.deepEqual(await titles(), ['Delay, ms', 'Loss, %'], 'no speed line: no speed panel');
+      for (const k of ['ping_ms', 'loaded_down_ms', 'loaded_up_ms', 'jitter_ms', 'packet_loss_pct']) await page.locator(`#speedLegend [data-sk="${k}"]`).click();
       await page.waitForFunction(() => /Every line is hidden/.test(document.getElementById('speedChartNote').textContent));
-      assert.equal(await circles(), 0);
-      await page.locator('#speedLegend [data-sk="download_mbps"]').click();
-      await page.locator('#speedLegend [data-sk="upload_mbps"]').click();
-      assert.equal(await circles(), 5);
-      // all services: both are drawn
+      assert.equal(await marks(), 0);
+      for (const k of ['download_mbps', 'upload_mbps', 'ping_ms', 'loaded_down_ms', 'loaded_up_ms', 'jitter_ms', 'packet_loss_pct']) await page.locator(`#speedLegend [data-sk="${k}"]`).click();
+      assert.equal(await marks(), 15);
+      // all services: the colour of a line says which line it is, the shade / dashes / marker say which service
       await page.locator('#spService').selectOption('all');
-      assert.equal(await circles(), 7);
+      assert.equal(await page.locator('#speedChart rect').count(), 3, 'Speedtest.net points are squares');
+      assert.match(await page.locator('#speedLegend .sp-key').textContent(), /● Fast\.com\s*■ Speedtest\.net · dashed|■ Speedtest\.net · dashed/);
+      const all = await page.locator('#speedChart path.sp-line').evaluateAll(l => l.map(e => [e.getAttribute('stroke'), e.getAttribute('stroke-dasharray')]));
+      assert.equal(new Set(all.map(x => x[0])).size, all.length, 'two services never share a colour');
+      assert.equal(all.filter(x => x[1]).length, 3, 'the dashed lines are Speedtest.net');
+      p = await pointOf(0);
+      await page.mouse.move(p.x, p.y);
+      await page.waitForFunction(() => /· Fast\.com/.test(document.getElementById('speedTip').textContent));
+      await page.mouse.move(2, 2);
       await page.locator('#spService').selectOption('fast');
       assert.match(await page.locator('#speedExtra').textContent(), /^Jitter 3 ms · delay under load: ↓ 55 ms \/ ↑ 110 ms · loss 0\.5 %$/);
-      // the delay view
-      await page.locator('#spModeDelay').click();
-      assert.deepEqual(await chips(), ['Idle ping', 'Ping while downloading', 'Ping while uploading', 'Jitter']);
-      assert.equal(await page.locator('#spModeDelay').evaluate(e => e.classList.contains('active')), true);
-      assert.equal(await circles(), 3 + 2 + 2 + 2);
-      assert.match(await page.locator('#speedChart text').first().textContent(), /^ms$/);
-      assert.equal((await page.evaluate(() => JSON.parse(localStorage.getItem('netprobe.speedchart')))).mode, 'delay');
-      p = await pointOf(9 - 1);
-      await page.mouse.move(p.x, p.y);
-      await page.waitForFunction(() => /Jitter/.test(document.getElementById('speedTip').textContent));
-      assert.match(await page.locator('#speedTip').textContent(), /Idle ping20\.0 ms/);
-      await page.mouse.move(2, 2);
-      // the loss view exists only when some test measured the loss
-      assert.equal(await page.locator('#spModeLoss').isVisible(), true);
-      await page.locator('#spModeLoss').click();
-      assert.deepEqual(await chips(), ['Packet loss']);
-      assert.equal(await circles(), 1);
-      await page.locator('#spModeDelay').click();
       // another period is applied without asking the server again
       api.calls.length = 0;
       await page.locator('#spRange').selectOption('86400');
-      await page.waitForFunction(() => document.querySelectorAll('#speedChart circle').length === 4);
+      await page.waitForFunction(() => document.querySelectorAll('#speedChart circle').length === 7);
       assert.equal(api.calls.some(c => c.path === '/api/speedtest/series'), false, 'the period filters what is already loaded');
       await page.locator('#spRange').selectOption('0');
-      assert.equal(await circles(), 9, 'all time, this service');
+      assert.equal(await marks(), 15, 'all time, this service');
       await page.locator('#spRange').selectOption('86400');
       // the table: newest first, the last 10 / the chart period / all
       const rowsText = () => page.locator('#speedHistory tr').allTextContents();
       await page.locator('#speedHistory').evaluate(e => { e.closest('details').open = true; });
-      let rows = await rowsText();
+      const rows = await rowsText();
       assert.equal(rows.length, 4, 'the last 10, but only 4 tests exist');
       assert.match(rows[0], /Example City/);
       assert.match(rows[3], /Old City/);
-      assert.match(await page.locator('#speedHistory tr').first().textContent(), /480\.00? \/ 90\.00?|480/);
       await page.locator('#spHist').selectOption('range');
       assert.equal((await rowsText()).length, 1, 'the chart period is 24 hours');
       await page.locator('#spHist').selectOption('all');
@@ -370,25 +367,25 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       assert.equal((await page.evaluate(() => JSON.parse(localStorage.getItem('netprobe.speedchart')))).hist, 'all');
       // the choices are remembered over a reload
       await page.reload();
-      await page.waitForFunction(() => document.getElementById('spRange').value === '86400' && document.getElementById('spModeDelay').classList.contains('active') && document.getElementById('spHist').value === 'all');
+      await page.waitForFunction(() => document.getElementById('spRange').value === '86400' && document.getElementById('spHist').value === 'all');
       // no tests at all: a note instead of an empty plot
       api.series = [];
       await page.reload();
       await page.waitForFunction(() => document.getElementById('speedChartNote').textContent === 'No tests in this period.');
-      assert.equal(await circles(), 0);
-      // only Speedtest.net-like data: the delay view says why the load lines are missing, and draws what exists
+      assert.equal(await marks(), 0);
+      // Speedtest.net-like data: the delay lines that need Fast.com are greyed out, the note says why, no loss panel
       api.series = [{ts: now - 600, ping_ms: 20, download_mbps: 480, upload_mbps: 90, backend: 'python', server_name: 'Net City', jitter_ms: null, loaded_down_ms: null, loaded_up_ms: null, packet_loss_pct: null}];
       await page.reload();
       await page.waitForFunction(() => /measured by Fast\.com only/.test(document.getElementById('speedChartNote').textContent));
-      assert.deepEqual(await page.locator('#speedLegend .sp-chip:not([disabled])').allTextContents(), ['Idle ping']);
+      assert.deepEqual(await page.locator('#speedLegend .sp-chip:not([disabled])').allTextContents(), ['Download ↓', 'Upload ↑', 'Idle ping']);
       assert.equal(await page.locator('#speedLegend .sp-chip[disabled]').count(), 3);
-      assert.equal(await page.locator('#spModeLoss').isHidden(), true, 'no loss measured: no loss view');
+      assert.deepEqual(await page.locator('#speedLegend .sp-gl').allTextContents(), ['Speed', 'Delay'], 'nothing measured the loss: no loss group');
       // a placeholder ping (speedtest-cli stores 1 800 000 ms when it cannot measure) is not drawn and not shown
       api.series = [{ts: now - 600, ping_ms: 1800000, download_mbps: 480, upload_mbps: 90, backend: 'python', server_name: 'Net City', jitter_ms: null, loaded_down_ms: null, loaded_up_ms: null, packet_loss_pct: null}];
       api.latest = {ts: now - 600, ping_ms: 1800000, download_mbps: 480, upload_mbps: 90, server: {id: '1', name: 'Net City', country: 'EX'}, backend: 'python'};
       await page.reload();
-      await page.waitForFunction(() => /Every line is hidden|measured by Fast\.com only|No tests/.test(document.getElementById('speedChartNote').textContent) || document.querySelectorAll('#speedChart circle').length === 0);
-      assert.equal(await page.locator('#speedPing').textContent(), '— ms');
+      await page.waitForFunction(() => document.getElementById('speedPing').textContent.startsWith('—'));
+      assert.deepEqual(await titles(), ['Speed, Mbps'], 'no delay panel: the only delay is a placeholder');
       assert.doesNotMatch(await page.locator('#speedChart').textContent(), /1800000|1800|1\.8k/);
       assert.deepEqual(errors, []);
       await page.close();

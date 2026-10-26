@@ -112,9 +112,7 @@ web UI. It adds its own tables (`np_*`) next to NetProbe's and leaves NetProbe's
 
 ![Speedtest: service, schedule and notifications](docs/screenshots/speedtest-schedule.png)
 
-![Speedtest chart: speed](docs/screenshots/speedtest-chart.png)
-
-![Speedtest chart: delay under load](docs/screenshots/speedtest-delay.png)
+![Speedtest chart: speed and delay on one time axis](docs/screenshots/speedtest-chart.png)
 
 ![Settings: history retention and external IP](docs/screenshots/settings-history.png)
 
