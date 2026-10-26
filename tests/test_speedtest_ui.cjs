@@ -298,6 +298,20 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       const titles = async () => (await page.locator('#speedChart text').allTextContents()).filter(x => /, (Mbps|ms|%)$/.test(x));
       await page.waitForFunction(() => document.querySelectorAll('#speedChart circle').length > 0);
       assert.deepEqual(await chips(), ['Download ↓', 'Upload ↑', 'Idle ping', 'Ping while downloading', 'Ping while uploading', 'Jitter', 'Packet loss']);
+      // the chart is drawn in real pixels: wide windows must not blow the axis text up (a fixed viewBox once scaled it 2.7 times)
+      const textScale = () => page.locator('#speedChart').evaluate(svg => {
+        const vb = svg.viewBox.baseVal, box = svg.getBoundingClientRect(), tick = [...svg.querySelectorAll('text')].find(x => /^\d+$/.test(x.textContent));
+        return {scale: box.width / vb.width, width: box.width, tickHeight: tick.getBoundingClientRect().height};
+      });
+      for (const [w, h] of [[1280, 900], [1780, 1000], [2400, 1000], [800, 900], [390, 800]]) {
+        await page.setViewportSize({width: w, height: h});
+        await page.waitForFunction(() => { const s = document.getElementById('speedChart'), vb = s.viewBox.baseVal; return Math.abs(s.getBoundingClientRect().width / vb.width - 1) < 0.02; }, null, {timeout: 3000})
+          .catch(async () => assert.fail(`speed chart text is scaled at ${w}px: ${JSON.stringify(await textScale())}`));
+        const m = await textScale();
+        assert.ok(m.tickHeight > 6 && m.tickHeight < 16, `axis text height ${m.tickHeight}px at ${w}px`);
+      }
+      await page.setViewportSize({width: 1280, height: 900});
+      await page.waitForFunction(() => Math.abs(document.getElementById('speedChart').getBoundingClientRect().width / document.getElementById('speedChart').viewBox.baseVal.width - 1) < 0.02);
       assert.deepEqual(await page.locator('#speedLegend .sp-gl').allTextContents(), ['Speed', 'Delay', 'Loss']);
       assert.deepEqual(await titles(), ['Speed, Mbps', 'Delay, ms', 'Loss, %'], 'speed, delay and loss are drawn together, one panel each');
       assert.equal(await page.locator('#spService').inputValue(), 'fast', 'the newest test decides: services are not mixed on one line');

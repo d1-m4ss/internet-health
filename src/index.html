@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark" id="colorSchemeMeta">
-  <title>Internet Health · Unraid monitor</title>
+  <title>Internet Health · Network monitor</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%20role='img'%20aria-label='Internet%20Pulse'%3E%3Cdefs%3E%3ClinearGradient%20id='bg'%20x1='0'%20y1='0'%20x2='1'%20y2='1'%3E%3Cstop%20offset='0'%20stop-color='%2316464a'/%3E%3Cstop%20offset='1'%20stop-color='%230a1c22'/%3E%3C/linearGradient%3E%3ClinearGradient%20id='line'%20x1='0'%20y1='0'%20x2='1'%20y2='0'%3E%3Cstop%20offset='0'%20stop-color='%235eead4'/%3E%3Cstop%20offset='1'%20stop-color='%2338bdf8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20rx='15'%20fill='url(%23bg)'/%3E%3Ccircle%20cx='32'%20cy='32'%20r='22'%20fill='none'%20stroke='%235eead4'%20stroke-opacity='.28'%20stroke-width='3'/%3E%3Cpath%20d='M9%2034h12l5-14%208%2025%206-16%203%205h12'%20fill='none'%20stroke='url(%23line)'%20stroke-width='4.6'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E%3Ccircle%20cx='55'%20cy='34'%20r='3'%20fill='%2338bdf8'/%3E%3C/svg%3E">
   <script>
     /* Apply the saved language and style before the first paint (no flash). Storage may be unavailable. */
@@ -526,7 +526,7 @@
       <div class="metric"><div class="metric-label" data-i18n="metric.score">Качество соединения</div><div class="metric-val value-ok"><span id="scoreValue">—</span><small> / 100</small></div><div class="metric-footer" data-i18n="mf.score">Комплексная оценка NetProbe</div></div>
       <div class="metric"><div class="metric-label" data-i18n="metric.loss">Потеря пакетов</div><div class="metric-val"><span id="lossValue">—</span><small> %</small></div><div class="metric-footer" data-i18n="mf.loss">Среднее по всем ICMP-целям</div></div>
       <div class="metric"><div class="metric-label" data-i18n="metric.latency">Задержка</div><div class="metric-val"><span id="latencyValue">—</span><small> ms</small></div><div class="metric-footer" data-i18n="mf.latency">Средняя RTT</div></div>
-      <div class="metric"><div class="metric-label" data-i18n="metric.jitter">Джиттер</div><div class="metric-val"><span id="jitterValue">—</span><small> ms</small></div><div class="metric-footer" data-i18n="mf.jitter">NetProbe: max − min RTT</div></div>
+      <div class="metric"><div class="metric-label" data-i18n="metric.jitter">Джиттер</div><div class="metric-val"><span id="jitterValue">—</span><small> ms</small></div><div class="metric-footer" data-i18n="mf.jitter">max − min RTT</div></div>
       <div class="metric"><div class="metric-label" data-i18n="metric.dns">Ответ DNS</div><div class="metric-val"><span id="dnsValue">—</span><small> ms</small></div><div class="metric-footer" data-i18n="mf.dns">Среднее по DNS-серверам</div></div>
     </section>
     <section class="card" id="diagnostics" data-compare="0">
@@ -620,7 +620,7 @@
         <section class="card" id="diagCard"><div class="card-head"><div><h2 data-i18n="diag.title">Диагностика</h2><div class="card-sub" data-i18n="diag.sub">Логи и активные настройки</div></div></div><details id="detailsLog"><summary data-i18n="diag.logs">Логи приложения</summary><pre class="log-box" id="logOutput"></pre><div class="section-status" id="logStatus" role="status"></div></details><details><summary data-i18n="diag.config">Конфигурация (без секретов)</summary><pre class="log-box" id="configOutput">…</pre></details></section>
       </div>
     </div>
-    <div class="footer">NETPROBE · SQLite history · <span id="footerMode">—</span> · <span id="footerVersion"></span></div>
+    <div class="footer">Internet Health · SQLite history · <span id="footerMode">—</span> · <span id="footerVersion"></span></div>
   </main>
 </div>
 <dialog class="turbo-dialog" id="turboDialog" aria-labelledby="turboTitle">
@@ -1137,7 +1137,7 @@
     $('speedChartNote').textContent = state.speedSeries === null ? '' : !rows.length ? t('speed.chartEmpty') : !panels.length ? t('speed.chartNothing') : anyMissing ? t('speed.chartNoDelay') : '';
     svg._hv = null; svg._tip = tip; tip.hidden = true;
     if (!rows.length || !panels.length) { svg.innerHTML = ''; svg.setAttribute('viewBox', '0 0 640 10'); return; }
-    const W = 640, R = 12, T0 = 22, GAP = 30, B = 26, ph = panels.length === 1 ? 190 : panels.length === 2 ? 128 : 100;
+    const W = Math.max(300, Math.round(svg.clientWidth || 640)), R = 12, T0 = 22, GAP = 30, B = 26, ph = panels.length === 1 ? 190 : panels.length === 2 ? 128 : 100;
     const H = T0 + panels.length * ph + (panels.length - 1) * GAP + B;
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     const shortNum = v => v >= 10000 ? +(v / 1000).toFixed(1) + 'k' : v >= 100 ? String(Math.round(v)) : String(+v.toFixed(1));
@@ -1816,6 +1816,7 @@
   $('langSelect').addEventListener('change', () => { lang = $('langSelect').value === 'en' ? 'en' : 'ru'; store('netprobe.lang', lang); applyStatic(); draw(); });
   $('styleSelect').addEventListener('change', () => { styleName = $('styleSelect').value === 'unifi' ? 'unifi' : 'netprobe'; store('netprobe.style', styleName); document.documentElement.dataset.style = styleName; applyStatic(); renderChart(); renderUnifi(); });
   new ResizeObserver(() => renderChart()).observe($('primaryChart'));
+  { let w = 0; new ResizeObserver(() => { const n = Math.round($('speedChart').clientWidth); if (n && n !== w) { w = n; renderSpeedChart(); } }).observe($('speedChart')); }
   { const bar = document.querySelector('aside'), pin = () => document.documentElement.style.setProperty('--stick-h', (matchMedia('(max-width:930px)').matches ? Math.ceil(bar.getBoundingClientRect().height) : 0) + 'px'); new ResizeObserver(pin).observe(bar); pin(); }
   {
     const saved = readFilters(), options = [...$('periodSelect').options].map(o => o.value).filter(v => v !== 'custom');

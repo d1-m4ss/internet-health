@@ -5,6 +5,11 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+- **Fixed: the Speedtest chart blew its text up on wide screens.** It was drawn in a fixed 640-unit canvas and stretched to the card, so on a
+  1700 px window the axis text was about 2.7 times too large. It is now drawn in real pixels (like the main chart) and redrawn when the
+  window is resized; a UI test checks the text size at 390–2400 px.
+- The page footer, the browser tab title, the jitter caption and the start-up log line no longer say *NetProbe* / *Unraid monitor*.
+
 ## 1.4.0 — 2026-10-26
 
 - **Not tied to Unraid or NetProbe any more.** The README and the install guides are written for any Docker machine (mini PC, NAS, Proxmox,

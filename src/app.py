@@ -255,7 +255,7 @@ except (TypeError, ValueError):
     LIVE_LOG_POLL_SECONDS = 2
 
 logger.info(
-    "Netprobe 2.0 starting with PROBE_INTERVAL=%ss, PING_COUNT=%s",
+    "Internet Health starting with PROBE_INTERVAL=%ss, PING_COUNT=%s",
     PROBE_INTERVAL,
     PING_COUNT,
 )
