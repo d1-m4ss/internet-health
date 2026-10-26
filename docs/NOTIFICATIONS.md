@@ -166,8 +166,12 @@ breaks, sent as plain text. To set it up: create a bot with @BotFather and copy 
 enter both, press *Send test* and Save.
 
 - It works with or without the Unraid bridge; with both you get both.
-- Messages created before you switched it on are not sent; a message that cannot be delivered is retried with a growing pause
-  (30 s … 15 min, or the wait Telegram asks for) and given up after a day. The settings show the last delivery or the last error.
+- Messages created before you switched it on are not sent. Every message is first written to the database queue, so nothing is lost when the
+  link is down or the container restarts: a message that cannot be delivered is retried with a growing pause (30 s … 15 min, or the wait
+  Telegram asks for), in the original order, and given up after a day. When the link comes back the messages arrive one after another; one that
+  waited more than two minutes ends with a line such as `⏱ Delivered 12 min late: the event happened at 03:33` (with the date when it was
+  another day), so a late "No internet" is not mistaken for a current one.
+- The settings show the last delivery or the last error and, while messages wait, how many, since when and when the next attempt is.
 - The token is never shown again; *Forget token…* removes it.
 
 ## WAN change

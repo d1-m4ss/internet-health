@@ -6,6 +6,7 @@ from pathlib import Path
 import sqlite3
 import sys
 import tempfile
+import time
 import threading
 import unittest
 from unittest.mock import patch
@@ -71,7 +72,8 @@ class ConfigTests(TelegramBase):
     def test_off_and_empty_by_default(self):
         view = self.client.get("/api/telegram").get_json()
         self.assertEqual(view, {"enabled": False, "configured": False, "token_set": False, "chat_id": "", "source": None,
-                                "last_ok_ts": None, "last_error": None, "last_error_ts": None})
+                                "last_ok_ts": None, "last_error": None, "last_error_ts": None,
+                                "queued": 0, "oldest_ts": None, "retry_ts": None})
         self.assertEqual(self.ext.telegram_tick(), 0)
         self.assertEqual(self.sent, [])
 
@@ -248,6 +250,84 @@ class DeliveryTests(TelegramBase):
         self.assertIs(self.start_sender(), thread, "one sender per process")
         thread.join(5)
         self.assertEqual([p["text"] for _, p in self.sent], ["second"])
+
+
+class LateDeliveryTests(TelegramBase):
+    def setUp(self):
+        super().setUp()
+        os.environ["TZ"] = "UTC"
+        time.tzset()
+        self.addCleanup(lambda: (os.environ.pop("TZ", None), time.tzset()))
+        self.configure()
+        self.now += 1
+
+    def test_a_prompt_message_is_sent_as_it_is(self):
+        self.notify("🔴 No internet")
+        self.now += npx.TELEGRAM_LATE - 1
+        self.assertEqual(self.ext.telegram_tick(), 1)
+        self.assertEqual(self.sent[0][1]["text"], "🔴 No internet")
+
+    def test_a_message_that_waited_says_when_it_happened_and_how_late_it_is(self):
+        event = self.now  # 2033-05-18 03:33:21 UTC
+        self.notify("🔴 No internet" + NL + "Time: 03:33")
+        self.now += 12 * 60 + 30
+        self.assertEqual(self.ext.telegram_tick(), 1)
+        self.assertEqual(self.sent[0][1]["text"], "🔴 No internet\nTime: 03:33\n\n⏱ Delivered 12 min late: the event happened at 03:33")
+        self.assertEqual(npx.Extension.late_note(event, event + 3 * 3600 + 5 * 60), "⏱ Delivered 3 h 05 min late: the event happened at 03:33")
+
+    def test_the_date_is_added_when_the_event_was_on_another_day(self):
+        self.assertEqual(npx.Extension.late_note(self.now, self.now + 86400),
+                         "⏱ Delivered 24 h 00 min late: the event happened at 03:33, 18.05")
+
+    def test_an_outage_delivers_every_message_in_order_with_its_own_delay(self):
+        self.notify("down", offset=0)
+        self.notify("up", offset=420)
+        self.outcome = OSError("network is unreachable")
+        for _ in range(3):
+            self.ext.telegram_tick()
+            self.now += 900
+        self.assertEqual(self.tg_of(), [0, 0])
+        self.outcome = (200, {"ok": True})
+        self.now += 900
+        with patch("time.sleep"):
+            self.assertEqual(self.ext.telegram_tick(), 2)
+        texts = [p["text"] for _, p in self.sent[-2:]]  # (the earlier entries are the attempts that failed)
+        self.assertTrue(texts[0].startswith("down\n\n⏱ Delivered ") and texts[0].endswith("the event happened at 03:33"), texts[0])
+        self.assertTrue(texts[1].startswith("up\n\n⏱ Delivered ") and texts[1].endswith("the event happened at 03:40"), texts[1])
+
+    def test_the_note_survives_the_length_limit(self):
+        self.notify("x" * 5000)
+        self.now += 600
+        self.ext.telegram_tick()
+        text = self.sent[0][1]["text"]
+        self.assertEqual(len(text), 4096)
+        self.assertTrue(text.endswith("⏱ Delivered 10 min late: the event happened at 03:33"))
+
+    def test_the_queue_is_shown_with_its_oldest_message_and_the_next_attempt(self):
+        view = self.ext.telegram_view()
+        self.assertEqual((view["queued"], view["oldest_ts"], view["retry_ts"]), (0, None, None))
+        self.notify("one", offset=0)
+        self.notify("two", offset=5)
+        view = self.ext.telegram_view()
+        self.assertEqual((view["queued"], view["oldest_ts"], view["retry_ts"]), (2, self.now, None))
+        self.outcome = (401, {"ok": False, "description": "Unauthorized"})
+        self.ext.telegram_tick()
+        view = self.client.get("/api/telegram").get_json()
+        self.assertEqual((view["queued"], view["retry_ts"]), (2, self.now + 30))
+        self.now += 31
+        self.outcome = (200, {"ok": True})
+        with patch("time.sleep"):
+            self.ext.telegram_tick()
+        view = self.ext.telegram_view()
+        self.assertEqual((view["queued"], view["oldest_ts"], view["retry_ts"]), (0, None, None))
+
+    def test_expired_and_skipped_messages_are_not_counted(self):
+        self.notify("old", offset=0)
+        self.now += npx.TELEGRAM_MAX_AGE + 10
+        self.assertEqual(self.ext.telegram_view()["queued"], 0, "too old to be sent, so not waiting")
+        self.ext.update_telegram({"enabled": False})
+        self.notify("while off")
+        self.assertEqual(self.ext.telegram_view()["queued"], 0, "nothing waits while Telegram is off")
 
 
 class TestMessageTests(TelegramBase):

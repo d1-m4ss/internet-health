@@ -471,6 +471,16 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       await page.locator('#langSelect').selectOption('ru');
       assert.match(await page.locator('#tgStatus').textContent(), /Ошибка доставки \(/);
       assert.equal(await page.locator('#tgBox strong').textContent(), 'Интеграции');
+      // messages waiting while the network is down: how many, since when, and when the next attempt is
+      api.tg = {...api.tg, last_error: 'api.telegram.org is not reachable: network is unreachable', queued: 3, oldest_ts: now - 900, retry_ts: now + 120};
+      await page.reload();
+      await page.waitForFunction(() => /Waiting to be sent: 3 \(the oldest from .+\)\. Next attempt at /.test(document.getElementById('tgStatus').textContent));
+      assert.match(await page.locator('#tgStatus').textContent(), /^Delivery error \(.+\): api\.telegram\.org is not reachable/);
+      await page.locator('#langSelect').selectOption('ru');
+      assert.match(await page.locator('#tgStatus').textContent(), /Ждут отправки: 3 \(самое старое — .+\)\. Следующая попытка — /);
+      api.tg = {...api.tg, last_error: null, last_ok_ts: now, queued: 0, oldest_ts: null, retry_ts: null};
+      await page.reload();
+      await page.waitForFunction(() => /^Last delivery: .+\.$/.test(document.getElementById('tgStatus').textContent) && !/Waiting/.test(document.getElementById('tgStatus').textContent));
       assert.deepEqual(errors, []);
       await page.close();
     }

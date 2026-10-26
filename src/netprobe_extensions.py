@@ -119,6 +119,7 @@ TELEGRAM_POLL = 5       # seconds between looks at the queue (only while Telegra
 TELEGRAM_TIMEOUT = 10
 TELEGRAM_MAX_AGE = 86400  # a message that could not be delivered for a day is given up
 TELEGRAM_BATCH = 10
+TELEGRAM_LATE = 120     # a message delivered later than this after the event says so
 GZIP_TYPES = ("text/html", "application/json", "text/csv")  # compressed when the browser accepts gzip
 GZIP_MIN = 1024
 # fast.com client: the same public endpoints the fast.com page uses, no account or key.
@@ -1101,8 +1102,16 @@ class Extension:
     def telegram_view(self):
         """What the browser may see: never the token itself."""
         cfg, state = self.telegram_config(), self._read_json(self.telegram_state_path)
+        queued, oldest, retry = 0, None, None
+        if cfg["enabled"] and cfg["ready"]:
+            now = int(self.clock())
+            with self.db() as conn:  # the same window the sender uses: not older than a day, not from before it was switched on
+                queued, oldest = conn.execute("SELECT COUNT(*),MIN(ts) FROM np_notifications WHERE tg=0 AND ts>=?",
+                                              (max(cfg["armed_at"], now - TELEGRAM_MAX_AGE),)).fetchone()
+            retry = int(self.tg_retry_at) if queued and self.tg_retry_at > now else None
         return dict(enabled=cfg["enabled"], configured=cfg["ready"], token_set=bool(cfg["token"]), chat_id=cfg["chat_id"], source=cfg["source"],
-                    last_ok_ts=state.get("last_ok_ts"), last_error=state.get("last_error"), last_error_ts=state.get("last_error_ts"))
+                    last_ok_ts=state.get("last_ok_ts"), last_error=state.get("last_error"), last_error_ts=state.get("last_error_ts"),
+                    queued=queued, oldest_ts=oldest, retry_ts=retry)
 
     def update_telegram(self, patch):
         """patch: any of enabled (bool), token (str, empty = keep), chat_id (str), clear (True forgets token and chat)."""
@@ -1180,9 +1189,22 @@ class Extension:
         self.telegram_send("✅ Internet Health: test message\nTelegram is connected; alerts will arrive in this chat.", token, chat_id)
         self._telegram_note()
 
+    @staticmethod
+    def late_note(event_ts, now):
+        """The line added to a message that reaches Telegram well after the event (the network was down, a restart, a long queue)."""
+        wait = int(now - event_ts)
+        if wait < TELEGRAM_LATE:
+            return ""
+        minutes = wait // 60
+        late = "%d min" % minutes if minutes < 60 else "%d h %02d min" % (minutes // 60, minutes % 60)
+        same_day = time.strftime("%Y%m%d", time.localtime(event_ts)) == time.strftime("%Y%m%d", time.localtime(now))
+        when = time.strftime("%H:%M" if same_day else "%H:%M, %d.%m", time.localtime(event_ts))
+        return "⏱ Delivered %s late: the event happened at %s" % (late, when)
+
     def telegram_tick(self):
         """Deliver queued notifications that Telegram has not seen yet (oldest first, a few per round, ~1 per second);
-        -> number sent. A failure backs off (30 s doubling to 15 min) and keeps the message; after a day it is given up."""
+        -> number sent. A failure backs off (30 s doubling to 15 min) and keeps the message; after a day it is given up.
+        A message that waited longer than two minutes carries the time of the event and how late it is."""
         cfg = self.telegram_config()
         if not (cfg["enabled"] and cfg["ready"]) or not self.effective_settings()["enabled"]:
             return 0  # (the global "notifications enabled" switch of the alert settings silences every integration)
@@ -1193,9 +1215,12 @@ class Extension:
         with self.db() as conn:
             # not for messages from before it was switched on, nor ones too old to matter
             conn.execute("UPDATE np_notifications SET tg=2 WHERE tg=0 AND ts<?", (max(cfg["armed_at"], now - TELEGRAM_MAX_AGE),))
-            rows = conn.execute("SELECT id,subject,message FROM np_notifications WHERE tg=0 ORDER BY id LIMIT ?", (TELEGRAM_BATCH,)).fetchall()
+            rows = conn.execute("SELECT id,ts,subject,message FROM np_notifications WHERE tg=0 ORDER BY id LIMIT ?", (TELEGRAM_BATCH,)).fetchall()
         for row in rows:
             text = (row["message"] or "").replace(NEWLINE, "\n").strip() or row["subject"]
+            note = self.late_note(row["ts"], self.clock())
+            if note:  # the Bot API cuts at 4096 characters: shorten the message, never the note
+                text = text[:4096 - len(note) - 2] + "\n\n" + note
             try:
                 self.telegram_send(text)
             except TelegramError as exc:
@@ -1208,7 +1233,7 @@ class Extension:
                 return sent
             with self.db() as conn:
                 conn.execute("UPDATE np_notifications SET tg=1 WHERE id=?", (row["id"],))
-            self.tg_fails, sent = 0, sent + 1
+            self.tg_fails, self.tg_retry_at, sent = 0, 0, sent + 1
             self._telegram_note(None, now)
             if len(rows) > 1:
                 time.sleep(1)  # the Bot API allows about one message a second per chat

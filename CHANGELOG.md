@@ -5,6 +5,11 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+- **Telegram, when the link is down.** The queue and its retries already existed (stored in the database, 30 s … 15 min pauses, a day); now a
+  message that waited more than two minutes ends with `⏱ Delivered N min late: the event happened at HH:MM`, so a late alert is not taken for a
+  current one, and the note is kept even when the text has to be cut to Telegram's 4096 characters. *Settings → Integrations* shows how many
+  messages are waiting, since when and when the next attempt is; `GET /api/telegram` gained `queued`, `oldest_ts`, `retry_ts`.
+
 ## 1.1.0 — 2026-10-26
 
 - **Documentation for the image-first install.** README (EN/RU), INSTALL-UNRAID and INSTALL-COMPOSE now start from the ready image and the Unraid
