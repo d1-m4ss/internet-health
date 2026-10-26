@@ -109,14 +109,15 @@ class FastClientTests(unittest.TestCase):
         self.assertTrue(any(p.startswith("/speedtest/range/0-%d?" % npx.FAST_CHUNK) for _, p in self.server.hits), "download asks for a large range")
 
     def test_the_delay_under_load_is_measured_while_the_transfer_runs(self):
+        # long transfers, so that a slow shared runner still gets the minimum number of answers inside each window
         with patch.object(npx, "FAST_LOADED_EVERY", 0.05):
-            result = self.run_test()
+            result = npx.run_fast_test(self.page, self.api, down_seconds=3.0, up_seconds=3.0, warmup=0.4)
         for key in ("loaded_ping_ms", "loaded_up_ping_ms"):
             self.assertIsInstance(result[key], float, key)
             self.assertGreater(result[key], 0)
         self.assertGreaterEqual(result["jitter_ms"] or 0, 0)
         zero_range = [p for m, p in self.server.hits if m == "GET" and p.startswith("/speedtest/range/0-0?")]
-        self.assertGreater(len(zero_range), 12, "idle probes plus the probes made during both transfers")
+        self.assertGreater(len(zero_range), 2 * npx.FAST_LOADED_MIN, "idle probes plus the probes made during both transfers")
 
     def test_too_few_answers_is_not_a_measurement(self):
         result = self.run_test()      # the default probe interval is longer than this short run
