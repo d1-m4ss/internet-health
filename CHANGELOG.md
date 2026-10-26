@@ -5,6 +5,8 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+## 1.4.0 — 2026-10-26
+
 - **Not tied to Unraid or NetProbe any more.** The README and the install guides are written for any Docker machine (mini PC, NAS, Proxmox,
   Docker Desktop), with a `docker run` quick start, compose (`examples/docker-compose.yml`, data in `./data`) and the NAS GUIs; Unraid has its own
   guide. New guides in Russian: `docs/INSTALL.ru.md`, `docs/INSTALL-UNRAID.ru.md` (`docs/INSTALL-COMPOSE.md` became `docs/INSTALL.md`).
