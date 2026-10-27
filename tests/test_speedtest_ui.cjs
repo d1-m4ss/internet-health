@@ -557,7 +557,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       api.tg = {enabled: true, configured: true, token_set: true, chat_set: true, source: 'ui', last_ok_ts: null, last_error: 'Telegram refused the message (403): Forbidden: bot was blocked by the user', last_error_ts: now};
       await page.reload();
       await page.waitForFunction(() => /Delivery error \(.+\): Telegram refused the message \(403\)/.test(document.getElementById('tgStatus').textContent));
-      await page.locator('#langSelect').selectOption('ru');
+      await page.locator('#langSeg [data-lang=\"ru\"]').click();
       assert.match(await page.locator('#tgStatus').textContent(), /Ошибка доставки \(/);
       assert.equal(await page.locator('#tgBox strong').textContent(), 'Интеграции');
       // messages waiting while the network is down: how many, since when, and when the next attempt is
@@ -565,7 +565,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
       await page.reload();
       await page.waitForFunction(() => /Waiting to be sent: 3 \(the oldest from .+\)\. Next attempt at /.test(document.getElementById('tgStatus').textContent));
       assert.match(await page.locator('#tgStatus').textContent(), /^Delivery error \(.+\): api\.telegram\.org is not reachable/);
-      await page.locator('#langSelect').selectOption('ru');
+      await page.locator('#langSeg [data-lang=\"ru\"]').click();
       assert.match(await page.locator('#tgStatus').textContent(), /Ждут отправки: 3 \(самое старое — .+\)\. Следующая попытка — /);
       api.tg = {...api.tg, last_error: null, last_ok_ts: now, queued: 0, oldest_ts: null, retry_ts: null};
       await page.reload();

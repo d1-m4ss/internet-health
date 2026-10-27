@@ -7,15 +7,18 @@
   <title>Internet Health · Network monitor</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%20role='img'%20aria-label='Internet%20Pulse'%3E%3Cdefs%3E%3ClinearGradient%20id='bg'%20x1='0'%20y1='0'%20x2='1'%20y2='1'%3E%3Cstop%20offset='0'%20stop-color='%2316464a'/%3E%3Cstop%20offset='1'%20stop-color='%230a1c22'/%3E%3C/linearGradient%3E%3ClinearGradient%20id='line'%20x1='0'%20y1='0'%20x2='1'%20y2='0'%3E%3Cstop%20offset='0'%20stop-color='%235eead4'/%3E%3Cstop%20offset='1'%20stop-color='%2338bdf8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20rx='15'%20fill='url(%23bg)'/%3E%3Ccircle%20cx='32'%20cy='32'%20r='22'%20fill='none'%20stroke='%235eead4'%20stroke-opacity='.28'%20stroke-width='3'/%3E%3Cpath%20d='M9%2034h12l5-14%208%2025%206-16%203%205h12'%20fill='none'%20stroke='url(%23line)'%20stroke-width='4.6'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E%3Ccircle%20cx='55'%20cy='34'%20r='3'%20fill='%2338bdf8'/%3E%3C/svg%3E">
   <script>
-    /* Apply the saved language and style before the first paint (no flash). Storage may be unavailable. */
+    /* Apply the saved language, style and theme before the first paint (no flash). Storage may be unavailable.
+       data-theme is the choice (auto / light / dark); data-scheme is what is shown (light / dark), "auto" follows the browser. */
     (function () {
-      var lang = null, style = null;
-      try { lang = localStorage.getItem('netprobe.lang'); style = localStorage.getItem('netprobe.style'); } catch (e) {}
+      var lang = null, style = null, theme = null;
+      try { lang = localStorage.getItem('netprobe.lang'); style = localStorage.getItem('netprobe.style'); theme = localStorage.getItem('netprobe.theme'); } catch (e) {}
       if (lang !== 'ru' && lang !== 'en') lang = /^(ru|uk|be|kk)/i.test(navigator.language || '') ? 'ru' : 'en';
       if (style !== 'netprobe' && style !== 'unifi') style = 'netprobe';
+      if (theme !== 'light' && theme !== 'dark') theme = 'auto';
+      var scheme = theme === 'auto' ? (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme;
       var root = document.documentElement;
-      root.lang = lang; root.dataset.style = style;
-      document.getElementById('colorSchemeMeta').content = style === 'unifi' ? 'light dark' : 'dark';
+      root.lang = lang; root.dataset.style = style; root.dataset.theme = theme; root.dataset.scheme = scheme;
+      document.getElementById('colorSchemeMeta').content = scheme;
     })();
   </script>
   <style>
@@ -197,7 +200,7 @@
     @media(max-width:560px) { .metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px} .metric{padding:15px} .metric-val{font-size:25px} .main-status{padding:16px;align-items:flex-start} .status-right{display:none} .card{padding:17px} .head h1{font-size:23px} .flex-tabs{max-width:100%;overflow-x:auto} .table{min-width:0} .table th:nth-child(3),.table td:nth-child(3){display:none} .metrics .metric:first-child{grid-column:span 2} .chart-select{width:100%} .head-actions .tag{max-width:100%;white-space:normal} .head-actions{width:100%} .setting-grid{gap:9px} }
 
     /* ===== Style "unifi": calm neutral palette, one blue accent, flat bordered cards, icon rail ===== */
-    html[data-style="unifi"] {
+    html[data-style="unifi"], html[data-scheme="light"] {
       --page:#f4f6f9;--side:#ffffff;--panel:#ffffff;--line:#dde2e9;--line2:#e9edf2;
       --text:#18212d;--text2:#3d4a5a;--mute:#566274;--accent:#0a62d0;--accent-ink:#0a4fa6;
       --nav-hover:#eaf1fb;--btn-bg:#ffffff;--btn-line:#c9d1db;--btn-hover:#f1f4f8;--btn-ink:#18212d;
@@ -208,10 +211,9 @@
       --ok-line:#a6d9b7;--warn-line:#ecd08a;--bad-line:#efb4af;--unk-line:#ccd3dc;
       --chart-line:#0a62d0;--chart-fill-opacity:.12;--chart-peak:#c26a00;--chart-grid:#e3e8ee;--chart-text:#566274;
       --log-bg:#f1f4f8;--status-bg:var(--panel);--sel-row:#eaf1fb;
-      --rad:10px;--rad-sm:8px;--pad:16px 18px;
     }
-    @media (prefers-color-scheme: dark) {
-      html[data-style="unifi"] {
+    html[data-style="unifi"] { --rad:10px;--rad-sm:8px;--pad:16px 18px }
+    html[data-style="unifi"][data-scheme="dark"] {
         --page:#0f1318;--side:#151a21;--panel:#181e26;--line:#2a323d;--line2:#232a34;
         --text:#e8edf3;--text2:#c2cbd6;--mute:#9aa6b5;--accent:#5aa2ff;--accent-ink:#9cc8ff;
         --nav-hover:#1d2733;--btn-bg:#1d242d;--btn-line:#374150;--btn-hover:#252d38;--btn-ink:#e8edf3;
@@ -222,7 +224,6 @@
         --ok-line:#2c6a42;--warn-line:#6e5416;--bad-line:#7a3a35;--unk-line:#3a4452;
         --chart-line:#5aa2ff;--chart-fill-opacity:.16;--chart-peak:#f0b840;--chart-grid:#252d38;--chart-text:#9aa6b5;
         --log-bg:#10151b;--status-bg:var(--panel);--sel-row:#1c2836;
-      }
     }
     html[data-style="unifi"] body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;letter-spacing:0 }
     html[data-style="unifi"] .layout { grid-template-columns:64px minmax(0,1fr) }
@@ -384,10 +385,27 @@
       html[data-style="unifi"] .unifi-tabs button { padding:8px 9px;font-size:13px }
     }
 
+    /* Classic in the light theme: it reuses the light palette above; the few text colours written for the dark page become tokens */
+    html[data-style="netprobe"][data-scheme="light"] .tag { color:var(--ok) }
+    html[data-style="netprobe"][data-scheme="light"] .tag.offline { color:var(--bad) }
+    html[data-style="netprobe"][data-scheme="light"] .brand-icon { background:var(--nav-hover);border-color:var(--line) }
+    html[data-style="netprobe"][data-scheme="light"] .nav-head { color:var(--mute) }
+    html[data-style="netprobe"][data-scheme="light"] nav a { color:var(--text2) }
+    html[data-style="netprobe"][data-scheme="light"] .side-foot strong { color:var(--text) }
+    html[data-style="netprobe"][data-scheme="light"] .metric-label,html[data-style="netprobe"][data-scheme="light"] .metric-val small,html[data-style="netprobe"][data-scheme="light"] .metric-footer,html[data-style="netprobe"][data-scheme="light"] .table th,html[data-style="netprobe"][data-scheme="light"] .form-line label,html[data-style="netprobe"][data-scheme="light"] .footer,html[data-style="netprobe"][data-scheme="light"] .event .event-time { color:var(--mute) }
+    html[data-style="netprobe"][data-scheme="light"] .pill,html[data-style="netprobe"][data-scheme="light"] summary,html[data-style="netprobe"][data-scheme="light"] .log-box { color:var(--text2) }
+    html[data-style="netprobe"][data-scheme="light"] .event-dot { background:var(--unk) }
+
+    /* ----- language and theme: one-click segmented buttons in the header ----- */
+    .toggle { display:inline-flex;gap:2px;padding:3px;border:1px solid var(--input-line);border-radius:var(--rad-sm);background:var(--tabs-bg) }
+    .toggle button { background:none;border:0;border-radius:6px;color:var(--tab-ink);padding:5px 10px;font-size:12px;font-weight:600;white-space:nowrap }
+    .toggle button:hover { color:var(--text) }
+    .toggle button[aria-pressed="true"] { background:var(--tab-active);color:var(--tab-active-ink);box-shadow:inset 0 0 0 1px var(--btn-line) }
+
     /* ----- compare mode: several metrics / several targets (e.g. DNS servers) on one chart ----- */
     :root { --s1:#4edbc0;--s2:#6fcdf5;--s3:#f0bf78;--s4:#ef8b91;--s5:#b79bff;--s6:#7ee787;--s7:#ffa657;--s8:#ff7eb6;--s9:#79c0ff;--s10:#d2a8ff }
-    html[data-style="unifi"] { --s1:#0a62d0;--s2:#7a4cdb;--s3:#0e8f9b;--s4:#d6409f;--s5:#1a8f4b;--s6:#c26a00;--s7:#d12f35;--s8:#5b6b7f;--s9:#6d8a00;--s10:#0b86b3 }
-    @media (prefers-color-scheme: dark) { html[data-style="unifi"] { --s1:#5aa2ff;--s2:#a98bff;--s3:#4cc9d4;--s4:#f080c8;--s5:#54c47f;--s6:#f0a23a;--s7:#f27b74;--s8:#9aa6b5;--s9:#b4d44a;--s10:#52c1ec } }
+    html[data-style="unifi"], html[data-scheme="light"] { --s1:#0a62d0;--s2:#7a4cdb;--s3:#0e8f9b;--s4:#d6409f;--s5:#1a8f4b;--s6:#c26a00;--s7:#d12f35;--s8:#5b6b7f;--s9:#6d8a00;--s10:#0b86b3 }
+    html[data-style="unifi"][data-scheme="dark"] { --s1:#5aa2ff;--s2:#a98bff;--s3:#4cc9d4;--s4:#f080c8;--s5:#54c47f;--s6:#f0a23a;--s7:#f27b74;--s8:#9aa6b5;--s9:#b4d44a;--s10:#52c1ec }
     .chart-wrap { position:relative }
     .cmp-toggle { padding:6px 12px;font-size:12px }
     #diagnostics[data-compare="1"] .cmp-toggle { background:var(--tab-active);color:var(--tab-active-ink);border-color:var(--accent) }
@@ -470,7 +488,8 @@
       <span class="wordmark unifi-only" aria-hidden="true">Internet Health</span>
       <div><div class="eyebrow" data-i18n="head.eyebrow">Internet monitoring</div><h1 data-i18n="head.title">Состояние сети</h1></div>
       <div class="head-actions">
-        <label class="pick"><span data-i18n="ctl.language">Язык</span><select id="langSelect"><option value="ru">Русский</option><option value="en">English</option></select></label>
+        <div class="toggle" id="langSeg" role="group" data-i18n-attr="aria-label:ctl.language"><button type="button" data-lang="ru" lang="ru">RU</button><button type="button" data-lang="en" lang="en">EN</button></div>
+        <div class="toggle" id="themeSeg" role="group" data-i18n-attr="aria-label:ctl.theme"><button type="button" data-theme="light" data-i18n="theme.light">Светлая</button><button type="button" data-theme="dark" data-i18n="theme.dark">Тёмная</button><button type="button" data-theme="auto" data-i18n="theme.auto" data-i18n-attr="title:theme.autoTip">Авто</button></div>
         <label class="pick"><span data-i18n="ctl.style">Стиль</span><select id="styleSelect"><option value="netprobe">Classic</option><option value="unifi">UniFi</option></select></label>
         <span class="tag" id="sourceTag">…</span><button class="btn" id="refreshBtn" data-i18n="head.refresh">Обновить данные</button>
       </div>
@@ -636,7 +655,7 @@
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
-  /* ---------- i18n: Russian and English, chosen from the dropdown, remembered in localStorage ---------- */
+  /* ---------- i18n: Russian and English, chosen with the header buttons, remembered in localStorage ---------- */
   const I18N = {
     ru: {
       'period.custom':'Свой период…','range.from':'С','range.to':'По','range.apply':'Применить','range.errOrder':'Начало должно быть раньше конца','range.errLimit':'Период не должен превышать 31 день','range.errEmpty':'Укажите начало и конец периода',
@@ -653,7 +672,7 @@
       'kv.score':'Качество','kv.hosts':'Узлы отвечают','kv.avgRtt':'Средняя RTT','kv.loss':'Потеря пакетов','kv.speed':'Последний Speedtest',
       'thr.loss':'потери ≥ {v}%','thr.rtt':'RTT ≥ {v} мс','thr.jitter':'джиттер ≥ {v} мс','thr.dns':'DNS ≥ {v} мс','thr.confirm':'тревога: {n} зам.','thr.recover':'восстановление: {n} зам.',
       'brand.sub':'NETWORK HEALTH','nav.aria':'Навигация','nav.overview':'Обзор','nav.targets':'Цели','nav.diagnostics':'Диагностика',
-      'ctl.language':'Язык','ctl.style':'Стиль','head.eyebrow':'Мониторинг интернета','path.server':'Сервер','head.title':'Состояние сети','head.refresh':'Обновить данные',
+      'ctl.language':'Язык','ctl.theme':'Тема','theme.light':'Светлая','theme.dark':'Тёмная','theme.auto':'Авто','theme.autoTip':'Как в браузере','ctl.style':'Стиль','head.eyebrow':'Мониторинг интернета','path.server':'Сервер','head.title':'Состояние сети','head.refresh':'Обновить данные',
       'side.connecting':'Подключение…','side.live':'Данные получены','side.stale':'Замеры устарели','side.offline':'Нет полного ответа API',
       'status.last':'Последний замер','status.checking':'Проверяем сеть…','status.waiting':'Ожидание данных мониторинга',
       'status.unavailable':'API недоступен или ответ неполный','status.noFresh':'Нет свежих замеров','status.down':'Нет ответа: {n} из {total} проверок','status.degraded':'Перебои: {n} из {total} проверок','status.d.bad':'Проблемные проверки: {names}','status.dnsPing':'(ping проходит, на DNS-запросы не отвечает)','status.unconfirmed':'Состояние целей ещё не подтверждено','status.ok':'Цели работают штатно',
@@ -719,7 +738,7 @@
       'kv.score':'Quality','kv.hosts':'Hosts reachable','kv.avgRtt':'Average RTT','kv.loss':'Packet loss','kv.speed':'Last Speedtest',
       'thr.loss':'loss ≥ {v}%','thr.rtt':'RTT ≥ {v} ms','thr.jitter':'jitter ≥ {v} ms','thr.dns':'DNS ≥ {v} ms','thr.confirm':'alert after {n} samples','thr.recover':'recover after {n} samples',
       'brand.sub':'NETWORK HEALTH','nav.aria':'Navigation','nav.overview':'Overview','nav.targets':'Targets','nav.diagnostics':'Diagnostics',
-      'ctl.language':'Language','ctl.style':'Style','head.eyebrow':'Internet monitoring','path.server':'Server','head.title':'Network status','head.refresh':'Refresh',
+      'ctl.language':'Language','ctl.theme':'Theme','theme.light':'Light','theme.dark':'Dark','theme.auto':'Auto','theme.autoTip':'Follow the browser','ctl.style':'Style','head.eyebrow':'Internet monitoring','path.server':'Server','head.title':'Network status','head.refresh':'Refresh',
       'side.connecting':'Connecting…','side.live':'Data received','side.stale':'Samples are stale','side.offline':'API response incomplete',
       'status.last':'Last sample','status.checking':'Checking the network…','status.waiting':'Waiting for monitoring data',
       'status.unavailable':'API unavailable or response incomplete','status.noFresh':'No fresh samples','status.down':'No response from {n} of {total} checks','status.degraded':'Interruptions: {n} of {total} checks','status.d.bad':'Problem checks: {names}','status.dnsPing':'(answers ping, not DNS queries)','status.unconfirmed':'Target state is not confirmed yet','status.ok':'All targets are healthy',
@@ -773,8 +792,18 @@
   };
   let lang = document.documentElement.lang === 'en' ? 'en' : 'ru';
   let styleName = document.documentElement.dataset.style === 'unifi' ? 'unifi' : 'netprobe';
+  /* theme: 'auto' follows the browser's light/dark setting live; the choice is remembered in this browser only */
+  let theme = ['light', 'dark'].includes(document.documentElement.dataset.theme) ? document.documentElement.dataset.theme : 'auto';
+  const darkQuery = window.matchMedia ? matchMedia('(prefers-color-scheme: dark)') : null;
+  function applyTheme() {
+    const scheme = theme === 'auto' ? (darkQuery && darkQuery.matches ? 'dark' : 'light') : theme;
+    const root = document.documentElement;
+    root.dataset.theme = theme; root.dataset.scheme = scheme;
+    document.getElementById('colorSchemeMeta').content = scheme;
+  }
+  if (darkQuery) darkQuery.addEventListener('change', () => { if (theme === 'auto') applyTheme(); });
   const t = (key, params) => { let s = I18N[lang][key] ?? I18N.en[key] ?? key; if (params) s = s.replace(/\{(\w+)\}/g, (_, k) => { const v = params[k]; return (typeof v === 'function' ? v() : v) ?? ''; }); return s; };
-  /* Transient messages are kept as key+params so they follow the language dropdown. */
+  /* Transient messages are kept as key+params so they follow the language buttons. */
   const msgs = {};
   const say = (id, key, params) => { if (key === null) { delete msgs[id]; $(id).textContent = ''; } else { msgs[id] = [key, params]; $(id).textContent = t(key, params); } };
   const renderMsgs = () => { for (const [id, [key, params]] of Object.entries(msgs)) $(id).textContent = t(key, params); };
@@ -792,8 +821,9 @@
     document.documentElement.lang = lang;
     document.querySelectorAll('[data-i18n]').forEach(e => { e.textContent = t(e.dataset.i18n); });
     document.querySelectorAll('[data-i18n-attr]').forEach(e => { for (const pair of e.dataset.i18nAttr.split(';')) { const [attr, key] = pair.split(':'); e.setAttribute(attr, t(key)); } });
-    $('langSelect').value = lang; $('styleSelect').value = styleName;
-    document.getElementById('colorSchemeMeta').content = styleName === 'unifi' ? 'light dark' : 'dark';
+    $('styleSelect').value = styleName;
+    document.querySelectorAll('#langSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.lang === lang)));
+    document.querySelectorAll('#themeSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.theme === theme)));
   }
   /* ---------- helpers ---------- */
   const numeric = v => typeof v === 'number' && Number.isFinite(v);
@@ -1817,7 +1847,8 @@
   $('detailsLog').addEventListener('toggle', loadLogs);
   $('turboInfo').addEventListener('click', () => $('turboDialog').showModal());
   $('turboDialog').addEventListener('close', () => $('turboInfo').focus());
-  $('langSelect').addEventListener('change', () => { lang = $('langSelect').value === 'en' ? 'en' : 'ru'; store('netprobe.lang', lang); applyStatic(); draw(); });
+  $('langSeg').addEventListener('click', e => { const b = e.target.closest('button[data-lang]'); if (!b) return; lang = b.dataset.lang === 'en' ? 'en' : 'ru'; store('netprobe.lang', lang); applyStatic(); draw(); });
+  $('themeSeg').addEventListener('click', e => { const b = e.target.closest('button[data-theme]'); if (!b) return; theme = ['light', 'dark'].includes(b.dataset.theme) ? b.dataset.theme : 'auto'; store('netprobe.theme', theme); applyTheme(); applyStatic(); });
   $('styleSelect').addEventListener('change', () => { styleName = $('styleSelect').value === 'unifi' ? 'unifi' : 'netprobe'; store('netprobe.style', styleName); document.documentElement.dataset.style = styleName; applyStatic(); renderChart(); renderUnifi(); });
   new ResizeObserver(() => renderChart()).observe($('primaryChart'));
   { let w = 0; new ResizeObserver(() => { const n = Math.round($('speedChart').clientWidth); if (n && n !== w) { w = n; renderSpeedChart(); } }).observe($('speedChart')); }

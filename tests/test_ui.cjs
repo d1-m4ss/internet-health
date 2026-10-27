@@ -215,18 +215,18 @@ const shots = process.env.NETPROBE_SHOTS || os.tmpdir();
     routerName = undefined; await page.locator('#refreshBtn').click(); await page.waitForFunction(()=>document.querySelector('#nodeRouter .node-name').textContent==='Роутер');
     routerName = 'ASUS RT-AX86U'; await page.locator('#refreshBtn').click(); await page.waitForFunction(()=>document.querySelector('#nodeRouter .node-name').textContent==='ASUS RT-AX86U');
 
-    // ---- language dropdown: English leaves no Russian text, choice survives reload
+    // ---- language buttons: English leaves no Russian text, choice survives reload
     const russian = () => page.evaluate(()=>{const c=document.body.cloneNode(true);c.querySelectorAll('select,script,style').forEach(e=>e.remove());return (c.innerText.match(/[Ѐ-ӿ][Ѐ-ӿ\s·,.:()\-–—]*/g)||[]).slice(0,8)});
-    await page.locator('#langSelect').selectOption('en');
+    await page.locator('#langSeg [data-lang="en"]').click();
     await page.waitForFunction(()=>document.documentElement.lang==='en'&&document.querySelector('h1').textContent==='Network status');
     assert.equal(await page.locator('#refreshBtn').textContent(),'Refresh');
     assert.deepEqual(await russian(),[],'English mode must not contain Russian text');
     assert.match(await page.locator('#eventList').textContent(),/OK → Down/);
     assert.match(await page.locator('#turboDialog').textContent(),/every 5 seconds.*9 MB.*Off by default/s,'the Turbo dialog is translated');
     assert.match(await page.locator('#lossOutages').textContent(),/Internet outage/);
-    await page.locator('#langSelect').selectOption('ru');
+    await page.locator('#langSeg [data-lang="ru"]').click();
     await page.waitForFunction(()=>document.querySelector('h1').textContent==='Состояние сети');
-    await page.locator('#langSelect').selectOption('en');
+    await page.locator('#langSeg [data-lang="en"]').click();
     await page.reload(); await page.waitForTimeout(150);
     assert.equal(await page.evaluate(()=>document.documentElement.lang),'en','language is remembered');
 
@@ -246,7 +246,7 @@ const shots = process.env.NETPROBE_SHOTS || os.tmpdir();
       }
       return [...new Set(bad)];
     });
-    const combos = [['netprobe','dark'],['unifi','light'],['unifi','dark']];
+    const combos = [['netprobe','dark'],['netprobe','light'],['unifi','light'],['unifi','dark']];
     for (const [styleName,scheme] of combos) {
       await page.emulateMedia({colorScheme:scheme});
       await page.locator('#styleSelect').selectOption(styleName);
@@ -289,7 +289,29 @@ const shots = process.env.NETPROBE_SHOTS || os.tmpdir();
     assert(await page.locator('.c-area').count()>0,'UniFi style draws the chart fill');
     await page.reload(); await page.waitForTimeout(150);
     assert.equal(await page.evaluate(()=>document.documentElement.dataset.style),'unifi','style is remembered');
-    await page.locator('#langSelect').selectOption('ru'); await page.locator('#styleSelect').selectOption('netprobe');
+    await page.locator('#langSeg [data-lang="ru"]').click(); await page.locator('#styleSelect').selectOption('netprobe');
+    // ---- theme buttons: light / dark / auto, in both styles; auto follows the browser live; the choice survives reload
+    for (const styleName of ['netprobe','unifi']) {
+      await page.locator('#styleSelect').selectOption(styleName);
+      const bg = () => page.evaluate(()=>getComputedStyle(document.body).backgroundColor);
+      const state = () => page.evaluate(()=>({theme:document.documentElement.dataset.theme,scheme:document.documentElement.dataset.scheme,meta:document.getElementById('colorSchemeMeta').content,pressed:[...document.querySelectorAll('#themeSeg [aria-pressed="true"]')].map(b=>b.dataset.theme)}));
+      await page.emulateMedia({colorScheme:'dark'});
+      await page.locator('#themeSeg [data-theme="light"]').click();
+      assert.deepEqual(await state(),{theme:'light',scheme:'light',meta:'light',pressed:['light']},styleName+': Light wins over a dark browser');
+      const light = await bg();
+      await page.locator('#themeSeg [data-theme="dark"]').click();
+      await page.emulateMedia({colorScheme:'light'});
+      assert.deepEqual(await state(),{theme:'dark',scheme:'dark',meta:'dark',pressed:['dark']},styleName+': Dark wins over a light browser');
+      assert.notEqual(await bg(),light,styleName+': the page really changes colour');
+      await page.locator('#themeSeg [data-theme="auto"]').click();
+      assert.deepEqual(await state(),{theme:'auto',scheme:'light',meta:'light',pressed:['auto']},styleName+': Auto follows a light browser');
+      await page.emulateMedia({colorScheme:'dark'});
+      await page.waitForFunction(()=>document.documentElement.dataset.scheme==='dark');
+      await page.locator('#themeSeg [data-theme="light"]').click();
+      await page.reload(); await page.waitForTimeout(150);
+      assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'light','the theme choice is remembered');
+      await page.locator('#themeSeg [data-theme="auto"]').click();
+    }
     await page.emulateMedia({colorScheme:'light'});
     await page.setViewportSize({width:390,height:844});
     const overflow = await page.evaluate(()=>[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>window.innerWidth+1).map(e=>({tag:e.tagName,id:e.id,cls:e.className,right:e.getBoundingClientRect().right})));
@@ -303,6 +325,6 @@ const shots = process.env.NETPROBE_SHOTS || os.tmpdir();
     await page.screenshot({path:path.join(os.tmpdir(),'netprobe-ui-desktop-test.png'),fullPage:true});
     assert.deepEqual(errors,[]);
     assert(!calls.some(c=>c.url==='/api/speedtest/run'),'test must not trigger a Speedtest');
-    console.log('PASS: offline startup/retained real metrics, stale samples, null graph gaps, per-target and per-IP history, max-loss peaks, strict settings contract, period dropdown 1 min..1 month, Unraid-router-Internet path from real targets, RU/EN dropdown, NetProbe/UniFi styles (light+dark) without overflow and with AA contrast, narrow layout, no live Speedtest or browser errors');
+    console.log('PASS: offline startup/retained real metrics, stale samples, null graph gaps, per-target and per-IP history, max-loss peaks, strict settings contract, period dropdown 1 min..1 month, Unraid-router-Internet path from real targets, RU/EN buttons, light/dark/auto theme buttons, NetProbe/UniFi styles (light+dark) without overflow and with AA contrast, narrow layout, no live Speedtest or browser errors');
   } finally { await browser.close(); }
 })().catch(e=>{console.error(e);process.exitCode=1});
