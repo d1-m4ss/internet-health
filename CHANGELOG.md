@@ -5,6 +5,8 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+## 1.5.0 — 2026-10-27
+
 - **UniFi style:** a neutral charcoal palette; green only marks an OK status. The host lines under *Internet* are compact rows with 6 px status dots instead of
   green blocks, tiles carry the status as a dot, key numbers are bolder.
 - **Classic style:** tighter cards (12–16 px), compact tables with monospace IPs, ping and percentages, a divider under every row and brighter column headers.

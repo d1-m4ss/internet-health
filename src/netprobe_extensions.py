@@ -31,7 +31,7 @@ from urllib.parse import urljoin, urlsplit
 from zoneinfo import ZoneInfo
 
 
-VERSION = "1.4.5-dev"  # the only place: scripts/release.py sets it; GET /api/about and the page footer show it
+VERSION = "1.5.0"  # the only place: scripts/release.py sets it; GET /api/about and the page footer show it
 
 DEFAULTS = dict(enabled=True, loss_pct=10.0, latency_ms=150.0,
                 jitter_ms=80.0, dns_ms=250.0, confirm_samples=2, recovery_samples=2, turbo=False)
