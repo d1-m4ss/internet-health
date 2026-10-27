@@ -5,6 +5,8 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+## 1.4.2 — 2026-10-27
+
 - **One silent DNS server of several is an interruption, not an outage.** If at least one other DNS server answers, a server that gave no
   answer is *degraded* (amber banner, "working with interruptions"); the check is *down* (red) only when every DNS server is silent. Alerts
   already treated a single dead DNS server as a warning, so the page now agrees with them.
