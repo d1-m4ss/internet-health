@@ -5,6 +5,8 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+## 1.4.4 — 2026-10-27
+
 - Language and theme are one-click buttons in the header: **RU / EN** (no dropdown) and **Light / Dark / Auto**. Auto follows the browser's setting live;
   the choice is remembered in this browser. Classic now has a light theme too (it used to be dark only); UniFi no longer depends on the browser alone.
 - Maintainers: an Unraid plugin is prepared in `unraid-plugin/` (installs the notification bridge and the Docker template; built by
