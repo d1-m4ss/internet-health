@@ -548,6 +548,9 @@ def fetch_latest_speedtest():
 # -------------------------
 
 
+_gateway_logged = [None]  # the web page asks on every refresh: say it when the gateway changes, not every time
+
+
 def get_default_gateway():
     """Return the default gateway IP inside the container, or None."""
     try:
@@ -555,10 +558,12 @@ def get_default_gateway():
             ["sh", "-c", "ip route | awk '/default/ {print $3; exit}'"],
             text=True,
         ).strip()
-        if out:
-            logger.info("Detected default gateway inside container: %s", out)
-        else:
-            logger.warning("No default gateway detected via ip route")
+        if out != _gateway_logged[0]:
+            _gateway_logged[0] = out
+            if out:
+                logger.info("Detected default gateway inside container: %s", out)
+            else:
+                logger.warning("No default gateway detected via ip route")
         return out or None
     except Exception as exc:
         logger.error("Failed to get default gateway: %s", exc)
@@ -681,6 +686,8 @@ def notification_roles(gateway):
 # Servers that produced at least one DNS reply (any rcode that proves the server is alive) in the
 # current probe cycle; it feeds alerting.
 _dns_answers = {}
+_dns_errors = {}    # the last error of each server in the current cycle: why a silent server was silent
+_dns_silent = set()  # servers reported as silent, so the log says it once when it starts and once when it ends
 
 
 def measure_dns_latency(domain, server, count):
@@ -699,7 +706,8 @@ def measure_dns_latency(domain, server, count):
             resolver.resolve(domain, "A", lifetime=3)
         except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
             pass
-        except Exception:
+        except Exception as exc:
+            _dns_errors[server] = "%s: %s" % (type(exc).__name__, str(exc)[:160])
             continue
         times.append((time.perf_counter() - start) * 1000.0)
         _dns_answers[server] = _dns_answers.get(server, 0) + 1
@@ -943,6 +951,7 @@ def run_probe_cycle(gw):
     dns_times = []
     dns_per_server = {}
     _dns_answers.clear()
+    _dns_errors.clear()
     for server_ip in DNS_SERVERS:
         measured = measure_dns_latency_multi(
             DNS_TEST_SITES,
@@ -959,6 +968,16 @@ def run_probe_cycle(gw):
         avg_dns = THRESHOLD_DNS_LATENCY * 2  # no server answered: the same penalty a failed ping gets
     else:
         avg_dns = 0.0
+
+    for server_ip in DNS_SERVERS:
+        if _dns_answers.get(server_ip):
+            if server_ip in _dns_silent:
+                _dns_silent.discard(server_ip)
+                logger.info("DNS server %s answers again", server_ip)
+        elif server_ip not in _dns_silent:
+            _dns_silent.add(server_ip)
+            logger.warning("DNS server %s gave no answer to any query (last error: %s)", server_ip,
+                           _dns_errors.get(server_ip, "none"))
 
     # ---------- Score + persistence ----------
     score = compute_score(avg_loss, avg_latency, avg_jitter, avg_dns)

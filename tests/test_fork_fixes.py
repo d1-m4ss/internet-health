@@ -77,6 +77,20 @@ class DnsTests(AppCase):
         self.assertAlmostEqual(latency, 20.0, places=3, msg="(10 ms + 30 ms) / 2; the 3 s timeout is not a latency")
         self.assertEqual(module._dns_answers["8.8.8.8"], 2)
 
+    def test_a_silent_server_is_logged_once_with_the_reason_and_again_when_it_answers(self):
+        module = self.load()
+        ping = {"host": "google.com", "latency": 10.0, "jitter": 1.0, "loss": 0.0, "address": None, "measured": True, "sample_ts": 1}
+        silent = [dns.resolver.LifetimeTimeout()] * 3
+        with patch.object(module, "run_ping", return_value=ping), patch.object(module, "insert_measurement"), \
+             patch.object(module, "insert_dns_measurements"), self.assertLogs("netprobe", "INFO") as logs:
+            for outcomes in (silent, silent, [None] * 3, [None] * 3):
+                with self.resolver(outcomes):
+                    module.run_probe_cycle(None)
+        lines = [r.getMessage() for r in logs.records if "DNS server 8.8.8.8" in r.getMessage()]
+        self.assertEqual(len(lines), 2, lines)
+        self.assertRegex(lines[0], r"gave no answer to any query \(last error: LifetimeTimeout")
+        self.assertEqual(lines[1], "DNS server 8.8.8.8 answers again")
+
     def test_a_server_that_answers_nothing_has_no_latency(self):
         module = self.load()
         with self.resolver([dns.resolver.LifetimeTimeout(), dns.resolver.NoNameservers(), dns.resolver.LifetimeTimeout()]):
@@ -114,6 +128,17 @@ class DnsTests(AppCase):
             module.run_probe_cycle(None)
         self.assertEqual(insert.call_args.args[4], 12.0)
         self.assertEqual(insert_dns.call_args.args[1], {"8.8.8.8": 12.0})
+
+
+class GatewayLogTests(AppCase):
+    def test_the_gateway_is_logged_when_it_changes_not_on_every_call(self):
+        module = self.load()
+        with patch.object(module.subprocess, "check_output", side_effect=["172.17.0.1\n"] * 3 + ["172.18.0.1\n"]), \
+             self.assertLogs("netprobe", "INFO") as logs:
+            gateways = [module.get_default_gateway() for _ in range(4)]
+        self.assertEqual(gateways, ["172.17.0.1"] * 3 + ["172.18.0.1"])
+        self.assertEqual([r.getMessage() for r in logs.records],
+                         ["Detected default gateway inside container: 172.17.0.1", "Detected default gateway inside container: 172.18.0.1"])
 
 
 class IndexTests(AppCase):

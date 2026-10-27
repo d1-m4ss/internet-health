@@ -186,6 +186,19 @@ class ReviewFixTests(unittest.TestCase):
         self.assertLessEqual(len(notes), 9)
 
 
+    def test_one_silent_dns_server_of_several_is_an_interruption_not_an_outage(self):
+        for _ in range(2):
+            self.record([self.ping()], dns={"8.8.8.8": 12.0}, dns_failed=["1.1.1.1"])
+        silent = [e for e in self.events() if e["target"] == "dns:1.1.1.1"]
+        self.assertEqual([e["state"] for e in silent], ["DEGRADED"])
+        self.assertEqual(silent[0]["reasons"], ["No DNS answer"])
+        self.assertFalse([e for e in self.events() if e["target"] == "dns:8.8.8.8"])
+
+    def test_all_dns_servers_silent_is_an_outage(self):
+        for _ in range(2):
+            self.record([self.ping()], dns={}, dns_failed=["8.8.8.8", "1.1.1.1"])
+        self.assertEqual(sorted(e["state"] for e in self.events() if e["target"].startswith("dns:")), ["DOWN", "DOWN"])
+
     def test_dns_failed_wins_over_a_latency_that_was_only_elapsed_time(self):
         for _ in range(2):
             self.record([self.ping()], dns={"9.9.9.9": 20.0}, dns_failed=["9.9.9.9"])

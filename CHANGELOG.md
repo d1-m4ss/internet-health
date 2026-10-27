@@ -5,6 +5,13 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+- **One silent DNS server of several is an interruption, not an outage.** If at least one other DNS server answers, a server that gave no
+  answer is *degraded* (amber banner, "working with interruptions"); the check is *down* (red) only when every DNS server is silent. Alerts
+  already treated a single dead DNS server as a warning, so the page now agrees with them.
+- **The log says why a DNS server was silent.** Once when it stops answering (`DNS server 1.1.1.1 gave no answer to any query (last error:
+  LifetimeTimeout …)`) and once when it answers again, not every cycle.
+- The line `Detected default gateway inside container` was logged on every refresh of the web page; it is now logged only when the gateway changes.
+
 - The top banner no longer says *targets* for what it counts: DNS servers are checks of their own (7 addresses + 3 DNS servers was shown as
   "1 of 10 targets", while the Targets table lists only the addresses). It now reads "No response from 1 of 10 checks", names a DNS server as
   *DNS 1.1.1.1* instead of `dns:1.1.1.1`, and says when that server's address still answers ping but not DNS queries.

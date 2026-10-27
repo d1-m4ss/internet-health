@@ -1617,10 +1617,10 @@ class Extension:
         return series
 
     @staticmethod
-    def classify(row, cfg):
+    def classify(row, cfg, other_dns_answered=False):
         if row["kind"] == "dns":
-            if row["latency"] is None:
-                return "DOWN", ["No DNS answer"]
+            if row["latency"] is None:  # one silent server of several is an interruption; all of them silent is an outage
+                return ("DEGRADED" if other_dns_answered else "DOWN"), ["No DNS answer"]
             reasons =["DNS %.1f ms" % row["latency"]] if row["latency"] >= cfg["dns_ms"] else []
             return ("DEGRADED" if reasons else "OK"), reasons
         if row["loss"] >= 100:
@@ -1656,6 +1656,7 @@ class Extension:
         for address in dns_failed:  # no DNS reply at all; any measured latency was only elapsed time
             rows.append(dict(target="dns:" + address, address=address, kind="dns",
                              ts=ts, latency=None, jitter=None, loss=None))
+        any_dns_answered = any(r["kind"] == "dns" and r["latency"] is not None for r in rows)
         wan_ip, wan_isp = self.current_wan()
         with self.lock, self.db() as conn:
             cfg = self.effective_settings()
@@ -1668,7 +1669,7 @@ class Extension:
                 conn.execute("""INSERT OR IGNORE INTO np_targets
                     (cycle_ts,ts,target,address,kind,latency,jitter,loss,wan_ip,wan_isp) VALUES (?,?,?,?,?,?,?,?,?,?)""",
                     (ts, row["ts"], target, row["address"], row["kind"], row["latency"], row["jitter"], row["loss"], wan_ip, wan_isp))
-                observed, reasons = self.classify(row, cfg)
+                observed, reasons = self.classify(row, cfg, other_dns_answered=any_dns_answered)
                 active = previous["active"] if previous else "OK"
                 # Leaving OK counts consecutive non-OK samples (DOWN/DEGRADED alternate on lossy links);
                 # once a problem is active, DOWN<->DEGRADED needs the exact same state to repeat.
