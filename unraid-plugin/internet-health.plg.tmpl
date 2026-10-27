@@ -1,0 +1,33 @@
+<?xml version='1.0' standalone='yes'?>
+<PLUGIN name="internet-health" author="d1-m4ss" version="{{VERSION}}" pluginURL="{{PLUGIN_URL}}" support="https://github.com/d1-m4ss/internet-health/issues" icon="{{ICON_URL}}" min="6.9.0">
+<CHANGES>
+{{CHANGES}}
+</CHANGES>
+<DESCRIPTION>
+Internet Health host helpers: the bridge that passes alerts to Unraid notifications (mail and every agent from Settings > Notification Settings)
+and the Docker template. The monitor itself is the container ghcr.io/d1-m4ss/internet-health; this plugin does not install or update it.
+</DESCRIPTION>
+
+<FILE Name="/boot/config/custom/netprobe-unraid-notify.sh" Mode="0755">
+<SHA256>{{SHA256:src/netprobe-unraid-notify.sh}}</SHA256>
+<INLINE><![CDATA[{{INLINE:src/netprobe-unraid-notify.sh}}]]></INLINE>
+</FILE>
+
+<FILE Name="/boot/config/plugins/dynamix/netprobe-notify.cron" Mode="0644">
+<SHA256>{{SHA256:scripts/netprobe-notify.cron}}</SHA256>
+<INLINE><![CDATA[{{INLINE:scripts/netprobe-notify.cron}}]]></INLINE>
+</FILE>
+
+<FILE Name="/boot/config/plugins/internet-health/internet-health.xml" Mode="0644">
+<SHA256>{{SHA256:docs/unraid/internet-health.xml}}</SHA256>
+<INLINE><![CDATA[{{INLINE:docs/unraid/internet-health.xml}}]]></INLINE>
+</FILE>
+
+<FILE Run="/bin/bash">
+<INLINE><![CDATA[{{INLINE:unraid-plugin/install.sh}}]]></INLINE>
+</FILE>
+
+<FILE Run="/bin/bash" Method="remove">
+<INLINE><![CDATA[{{INLINE:unraid-plugin/remove.sh}}]]></INLINE>
+</FILE>
+</PLUGIN>

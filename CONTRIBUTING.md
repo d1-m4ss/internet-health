@@ -15,6 +15,11 @@
 5. Screenshots in `docs/screenshots` come from `node tests/screenshots.cjs` (invented data, English UI). Never add
    screenshots or fixtures taken from a real network: no real IP addresses, hostnames, router names or Speedtest servers.
 
+## Unraid plugin
+
+Prepared but not published: see [docs/UNRAID-PLUGIN.md](docs/UNRAID-PLUGIN.md). If you change the bridge, its cron file or the Docker template, add
+a dated entry to `unraid-plugin/CHANGES.txt`.
+
 ## Releasing
 
 Versions follow [semver](https://semver.org): `1.2.3`. The version lives in one place, `VERSION` in `src/netprobe_extensions.py`

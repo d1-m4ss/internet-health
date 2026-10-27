@@ -1,0 +1,2 @@
+###2026.10.27
+- First version: installs the Unraid notification bridge (script and cron) and the Docker template.

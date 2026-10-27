@@ -20,3 +20,4 @@ my-NetProbe.xml
 backups/
 .notify-token-*
 .alert-settings-*
+dist/

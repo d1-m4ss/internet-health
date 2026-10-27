@@ -17,7 +17,7 @@ jobs:
       - run: pip install -r requirements.txt
 
       - name: Shell syntax
-        run: bash -n src/netprobe-unraid-notify.sh && bash -n scripts/smoke-image.sh
+        run: bash -n src/netprobe-unraid-notify.sh && bash -n scripts/smoke-image.sh && bash -n unraid-plugin/install.sh && bash -n unraid-plugin/remove.sh
 
       - name: Unit and integration tests
         run: python -m unittest discover -s tests -v

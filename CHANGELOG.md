@@ -5,6 +5,9 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+- Maintainers: an Unraid plugin is prepared in `unraid-plugin/` (installs the notification bridge and the Docker template; built by
+  `scripts/build-plugin.py`, see `docs/UNRAID-PLUGIN.md`). It is not published and changes nothing for the container.
+
 ## 1.4.3 — 2026-10-27
 
 - The banner for a silent DNS server reads "Interruptions: 1 of 10 checks" (it said "1 checks") and shows the hint *answers ping, not DNS queries*
