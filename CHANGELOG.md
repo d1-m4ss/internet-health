@@ -5,6 +5,9 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+- The banner for a silent DNS server reads "Interruptions: 1 of 10 checks" (it said "1 checks") and shows the hint *answers ping, not DNS queries*
+  for an amber check as well, not only for a red one.
+
 ## 1.4.2 — 2026-10-27
 
 - **One silent DNS server of several is an interruption, not an outage.** If at least one other DNS server answers, a server that gave no
