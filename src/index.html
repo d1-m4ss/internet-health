@@ -656,7 +656,7 @@
       'ctl.language':'Язык','ctl.style':'Стиль','head.eyebrow':'Мониторинг интернета','path.server':'Сервер','head.title':'Состояние сети','head.refresh':'Обновить данные',
       'side.connecting':'Подключение…','side.live':'Данные получены','side.stale':'Замеры устарели','side.offline':'Нет полного ответа API',
       'status.last':'Последний замер','status.checking':'Проверяем сеть…','status.waiting':'Ожидание данных мониторинга',
-      'status.unavailable':'API недоступен или ответ неполный','status.noFresh':'Нет свежих замеров','status.down':'Нет ответа от целей: {n} из {total}','status.degraded':'Перебои на целях: {n}','status.d.bad':'Проблемные цели: {names}','status.unconfirmed':'Состояние целей ещё не подтверждено','status.ok':'Цели работают штатно',
+      'status.unavailable':'API недоступен или ответ неполный','status.noFresh':'Нет свежих замеров','status.down':'Нет ответа: {n} из {total} проверок','status.degraded':'Перебои в проверках: {n}','status.d.bad':'Проблемные проверки: {names}','status.dnsPing':'(ping проходит, на DNS-запросы не отвечает)','status.unconfirmed':'Состояние целей ещё не подтверждено','status.ok':'Цели работают штатно',
       'status.d.lastReal':'Показаны последние реальные данные; проверьте время замеров.','status.d.waitReal':'Ожидание реальных данных мониторинга.','status.d.outdated':'Мониторинг не предоставил свежий замер.','status.d.cycle':'Пауза между циклами: {i} сек · {p} ping на цель · последовательные пробы',
       'metrics.title':'Интернет','metrics.aria':'Основные метрики','metric.score':'Качество соединения','metric.loss':'Потеря пакетов','metric.latency':'Задержка','metric.jitter':'Джиттер','metric.dns':'Ответ DNS',
       'mf.score':'Комплексная оценка качества','mf.loss':'Среднее по всем ICMP-целям','mf.latency':'Средняя RTT','mf.jitter':'max − min RTT','mf.dns':'Среднее по DNS-серверам',
@@ -722,7 +722,7 @@
       'ctl.language':'Language','ctl.style':'Style','head.eyebrow':'Internet monitoring','path.server':'Server','head.title':'Network status','head.refresh':'Refresh',
       'side.connecting':'Connecting…','side.live':'Data received','side.stale':'Samples are stale','side.offline':'API response incomplete',
       'status.last':'Last sample','status.checking':'Checking the network…','status.waiting':'Waiting for monitoring data',
-      'status.unavailable':'API unavailable or response incomplete','status.noFresh':'No fresh samples','status.down':'No response from {n} of {total} targets','status.degraded':'Interruptions on {n} targets','status.d.bad':'Problem targets: {names}','status.unconfirmed':'Target state is not confirmed yet','status.ok':'All targets are healthy',
+      'status.unavailable':'API unavailable or response incomplete','status.noFresh':'No fresh samples','status.down':'No response from {n} of {total} checks','status.degraded':'Interruptions in {n} checks','status.d.bad':'Problem checks: {names}','status.dnsPing':'(answers ping, not DNS queries)','status.unconfirmed':'Target state is not confirmed yet','status.ok':'All targets are healthy',
       'status.d.lastReal':'Showing the last real data; check the sample time.','status.d.waitReal':'Waiting for real monitoring data.','status.d.outdated':'Monitoring has not provided a fresh sample.','status.d.cycle':'Pause between cycles: {i} s · {p} pings per target · sequential probes',
       'metrics.title':'Internet','metrics.aria':'Key metrics','metric.score':'Connection quality','metric.loss':'Packet loss','metric.latency':'Latency','metric.jitter':'Jitter','metric.dns':'DNS response',
       'mf.score':'Composite quality score','mf.loss':'Average over all ICMP targets','mf.latency':'Average RTT','mf.jitter':'max − min RTT','mf.dns':'Average over DNS servers',
@@ -848,6 +848,10 @@
   function statusLabel(name, id) {
     $(id).textContent = state.errors[name] ? t('err.apiDown', {kept: state.loaded.has(name) ? t('err.kept') : '', e: state.errors[name]}) : '';
   }
+  /* A DNS server is a check of its own (`dns:1.1.1.1`), not a row of the address table: name it as the page does elsewhere, and say when its
+     address still answers ping, so "1 of 10 checks" is not read as a missing address. */
+  const badName = x => x.kind !== 'dns' ? x.target : 'DNS ' + x.target.slice(4)
+    + (x.state === 'DOWN' && live().some(p => p.kind !== 'dns' && p.target === x.target.slice(4) && p.state === 'OK') ? ' ' + t('status.dnsPing') : '');
   function renderStatus() {
     const d = state.latest, failures = Object.keys(state.errors), coreMissing = !state.loaded.has('latest') || !state.loaded.has('targets');
     const outdated = stale(d?.ts), bad = live().filter(x => x.state === 'DOWN' || x.state === 'DEGRADED');
@@ -858,7 +862,7 @@
     $('sourceTag').className = 'tag' + (mode === 'LIVE' ? '' : ' offline');
     $('statusDot').className = 'status-dot' + (unavailable || outdated || down.length ? ' offline' : bad.length || unknown || !live().length ? ' warning' : '');
     $('statusName').textContent = unavailable ? t('status.unavailable') : outdated ? t('status.noFresh') : down.length ? t('status.down', {n: down.length, total: live().length}) : bad.length ? t('status.degraded', {n: bad.length}) : unknown || !live().length ? t('status.unconfirmed') : t('status.ok');
-    $('statusDescription').textContent = unavailable ? (d ? t('status.d.lastReal') : t('status.d.waitReal')) : outdated ? t('status.d.outdated') : bad.length ? t('status.d.bad', {names: bad.slice(0, 4).map(x => x.target).join(', ') + (bad.length > 4 ? ' …' : '')}) : t('status.d.cycle', {i: state.config?.probe_interval ?? '—', p: state.config?.ping_count ?? '—'});
+    $('statusDescription').textContent = unavailable ? (d ? t('status.d.lastReal') : t('status.d.waitReal')) : outdated ? t('status.d.outdated') : bad.length ? t('status.d.bad', {names: bad.slice(0, 4).map(badName).join(', ') + (bad.length > 4 ? ' …' : '')}) : t('status.d.cycle', {i: state.config?.probe_interval ?? '—', p: state.config?.ping_count ?? '—'});
     $('updatedAt').textContent = when(d?.ts);
     for (const [id, key] of [['scoreValue','score'],['lossValue','avg_loss_pct'],['latencyValue','avg_latency_ms'],['jitterValue','avg_jitter_ms'],['dnsValue','avg_dns_latency_ms']]) $(id).textContent = fmt(d?.[key]);
     $('sidebarMode').textContent = mode === 'LIVE' ? t('side.live') : mode === 'STALE' ? t('side.stale') : t('side.offline');

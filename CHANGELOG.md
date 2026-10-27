@@ -5,6 +5,10 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+- The top banner no longer says *targets* for what it counts: DNS servers are checks of their own (7 addresses + 3 DNS servers was shown as
+  "1 of 10 targets", while the Targets table lists only the addresses). It now reads "No response from 1 of 10 checks", names a DNS server as
+  *DNS 1.1.1.1* instead of `dns:1.1.1.1`, and says when that server's address still answers ping but not DNS queries.
+
 ## 1.4.1 — 2026-10-26
 
 - **Fixed: the Speedtest chart blew its text up on wide screens.** It was drawn in a fixed 640-unit canvas and stretched to the card, so on a

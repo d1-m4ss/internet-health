@@ -11,7 +11,7 @@ const shots = process.env.NETPROBE_SHOTS || os.tmpdir();
   const browser = await chromium.launch({headless: true, ...(process.env.CHROME_PATH ? {executablePath: process.env.CHROME_PATH} : {})});
   try {
     const page = await browser.newPage({reducedMotion:'reduce', locale:'ru-RU'});
-    let offline = true, edgeState = 'DOWN', routerName = 'ASUS RT-AX86U';
+    let offline = true, edgeState = 'DOWN', dnsDown = false, routerName = 'ASUS RT-AX86U';
     const calls = [];
     const now = Math.floor(Date.now()/1000);
     const row = {ts:now, score:88,avg_loss_pct:2,avg_latency_ms:31,avg_jitter_ms:4,avg_dns_latency_ms:null};
@@ -26,7 +26,7 @@ const shots = process.env.NETPROBE_SHOTS || os.tmpdir();
       const payload = url.pathname === '/api/config' ? {probe_interval:30,ping_count:4,gateway_ip:'192.0.2.1',router_ip:'192.0.2.2',router_name:routerName,sites:['edge.example'],speedtest_backend:'python',speedtest_backends_available:{python:true,ookla:false},speedtest_secure:true} :
         url.pathname === '/api/score/latest' ? {data:row} :
         url.pathname === '/api/history' ? {data:[{...row,ts:now-30,max_loss_pct:25},{...row,ts:now-300,avg_loss_pct:0,max_loss_pct:0}]} :
-        url.pathname === '/api/targets/recent' ? {started_at:now-60,data:[{target:'192.0.2.1',address:'192.0.2.1',kind:'ping',ts:now,latency:0.4,jitter:0.1,loss:0,avg_latency:0.4,max_latency:0.6,avg_loss:0,samples:2,state:'OK'},{target:'192.0.2.2',address:'192.0.2.2',kind:'ping',ts:now,latency:0.9,jitter:0.2,loss:0,avg_latency:0.9,max_latency:1.2,avg_loss:0,samples:2,state:'OK'},{target:'dns:8.8.8.8',address:'8.8.8.8',kind:'dns',ts:now,latency:4.2,jitter:null,loss:null,avg_latency:4,max_latency:6,avg_loss:null,samples:2,state:'OK'},{target:'dns:1.1.1.1',address:'1.1.1.1',kind:'dns',ts:now,latency:3.1,jitter:null,loss:null,avg_latency:3,max_latency:5,avg_loss:null,samples:2,state:'OK'},{target:'edge.example',address:'192.0.2.7',kind:'ping',ts:now,latency:null,jitter:null,loss:100,avg_latency:31,max_latency:40,avg_loss:20,samples:2,state:edgeState,addresses:[{address:'192.0.2.7',samples:1,avg_latency:31,max_latency:40,avg_loss:20,max_loss:100},{address:'192.0.2.8',samples:1,avg_latency:35,max_latency:42,avg_loss:0,max_loss:0}]}]} :
+        url.pathname === '/api/targets/recent' ? {started_at:now-60,data:[{target:'192.0.2.1',address:'192.0.2.1',kind:'ping',ts:now,latency:0.4,jitter:0.1,loss:0,avg_latency:0.4,max_latency:0.6,avg_loss:0,samples:2,state:'OK'},{target:'192.0.2.2',address:'192.0.2.2',kind:'ping',ts:now,latency:0.9,jitter:0.2,loss:0,avg_latency:0.9,max_latency:1.2,avg_loss:0,samples:2,state:'OK'},{target:'dns:8.8.8.8',address:'8.8.8.8',kind:'dns',ts:now,latency:4.2,jitter:null,loss:null,avg_latency:4,max_latency:6,avg_loss:null,samples:2,state:'OK'},{target:'dns:1.1.1.1',address:'1.1.1.1',kind:'dns',ts:now,latency:dnsDown?null:3.1,jitter:null,loss:null,avg_latency:3,max_latency:5,avg_loss:null,samples:2,state:dnsDown?'DOWN':'OK'},{target:'edge.example',address:'192.0.2.7',kind:'ping',ts:now,latency:null,jitter:null,loss:100,avg_latency:31,max_latency:40,avg_loss:20,samples:2,state:edgeState,addresses:[{address:'192.0.2.7',samples:1,avg_latency:31,max_latency:40,avg_loss:20,max_loss:100},{address:'192.0.2.8',samples:1,avg_latency:35,max_latency:42,avg_loss:0,max_loss:0}]},...(dnsDown?[{target:'1.1.1.1',address:'1.1.1.1',kind:'ping',ts:now,latency:9,jitter:0.5,loss:0,avg_latency:9,max_latency:9.4,avg_loss:0,samples:2,state:'OK'}]:[])]} :
         url.pathname === '/api/targets/history' ? {data:[{ts:now-30,latency:null,jitter:null,loss:20,max_loss:100,address:'192.0.2.7'},{ts:now,latency:31,jitter:4,loss:0,max_loss:0,address:'192.0.2.7'}]} :
         url.pathname === '/api/loss' ? {truncated:false,data:{outages:[{id:2,start_ts:now-900,end_ts:now-860,kind:'internet',status:'sent',duration:40},{id:1,start_ts:now-1800,end_ts:null,kind:'router',status:'open',duration:null}],window:{from:now-3600,to:now},summary:{samples:100,lossy:4,avg_loss:2.5,max_loss:100,episodes:2},targets:[{target:'edge.example',samples:50,lossy:4,avg_loss:5,max_loss:100,episodes:2},{target:'192.0.2.2',samples:50,lossy:0,avg_loss:0,max_loss:0,episodes:0}],episodes:[{target:'edge.example',start:now-600,end:now-540,duration:60,peak:100,avg:75,samples:3},{target:'edge.example',start:now-3000,end:now-3000,duration:0,peak:25,avg:25,samples:1}]}} :
         url.pathname === '/api/events' ? {data:[{id:1,ts:now,target:'edge.example',previous:'OK',state:'DOWN',reasons:['packet loss'],metrics:{loss:100}}]} :
@@ -200,10 +200,14 @@ const shots = process.env.NETPROBE_SHOTS || os.tmpdir();
     const banner = () => page.evaluate(()=>({dot:document.getElementById('statusDot').className,name:document.getElementById('statusName').textContent,desc:document.getElementById('statusDescription').textContent}));
     let b = await banner();
     assert.match(b.dot,/offline/,'a DOWN target must turn the banner red: '+JSON.stringify(b));
-    assert.match(b.name,/Нет ответа от целей: 1 из 5/); assert.match(b.desc,/edge\.example/);
+    assert.match(b.name,/Нет ответа: 1 из 5 проверок/); assert.match(b.desc,/edge\.example/);
     edgeState = 'DEGRADED'; await page.locator('#refreshBtn').click(); await page.waitForFunction(()=>/Перебои/.test(document.getElementById('statusName').textContent));
     b = await banner(); assert.match(b.dot,/warning/,'degradation is amber, not red'); assert.doesNotMatch(b.dot,/offline/);
     edgeState = 'DOWN'; await page.locator('#refreshBtn').click(); await page.waitForFunction(()=>/Нет ответа/.test(document.getElementById('statusName').textContent));
+    // a DNS server that answers nothing while its address answers ping: named as a DNS server (not `dns:…`), with the hint, and the count says "checks"
+    edgeState = 'OK'; dnsDown = true; await page.locator('#refreshBtn').click(); await page.waitForFunction(()=>/DNS 1\.1\.1\.1/.test(document.getElementById('statusDescription').textContent));
+    b = await banner(); assert.match(b.name,/Нет ответа: 1 из \d+ проверок/); assert.equal(b.desc,'Проблемные проверки: DNS 1.1.1.1 (ping проходит, на DNS-запросы не отвечает)');
+    edgeState = 'DOWN'; dnsDown = false; await page.locator('#refreshBtn').click(); await page.waitForFunction(()=>/edge\.example/.test(document.getElementById('statusDescription').textContent));
 
     // ---- the router label comes from the configuration, with a neutral default
     assert.equal(await page.locator('#nodeRouter .node-name').textContent(),'ASUS RT-AX86U'); assert.equal(await page.locator('#devCard .dev-title strong').textContent(),'ASUS RT-AX86U');
