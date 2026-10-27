@@ -66,7 +66,7 @@ as it is — only change the `./data` path to a folder of the NAS. On Unraid use
 
 ## First steps in the page
 
-1. The first measurements appear after about a minute. Language (English / Russian) and style (Classic / UniFi) are in the page header.
+1. The first measurements appear after about a minute. Language (English / Russian) and style (Classic / UniFi / Control) are in the page header.
 2. *Settings → Integrations*: switch Telegram on to get messages (see [Notifications](#notifications)).
 3. *Speedtest* tab: pick the service (Fast.com, Cloudflare or Ookla) and, if you want, a schedule (for example every night at 04:00).
 4. *Settings*: optionally *Show my external IP and provider*, and *Keep history* to limit how long data is kept.

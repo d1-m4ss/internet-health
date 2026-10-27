@@ -246,15 +246,24 @@ const shots = process.env.NETPROBE_SHOTS || os.tmpdir();
       }
       return [...new Set(bad)];
     });
-    const combos = [['netprobe','dark'],['netprobe','light'],['unifi','light'],['unifi','dark']];
+    const combos = [['netprobe','dark'],['netprobe','light'],['unifi','light'],['unifi','dark'],['control','dark'],['control','light']];
     for (const [styleName,scheme] of combos) {
       await page.emulateMedia({colorScheme:scheme});
       await page.locator('#styleSelect').selectOption(styleName);
       await page.waitForFunction(s=>document.documentElement.dataset.style===s,styleName);
       const vis = sel => page.evaluate(q=>{const e=document.querySelector(q);return !!e&&getComputedStyle(e).display!=='none'&&e.getClientRects().length>0},sel);
       if (styleName === 'unifi') {
+        assert(!(await vis('#ctlTree')),'UniFi has no Control host tree'); assert(!(await vis('#ctlTabs')),'UniFi has no Control tabs');
         for (const sel of ['#unifiLeft','#devCard','#netCard','#thrCard','#uptimeCard','#tilesCard','#checksCard','#unifiTabs','.site-pill','.net-tab']) assert(await vis(sel),'UniFi layout shows '+sel);
         assert(!(await vis('.metrics')),'UniFi replaces the five metric cards with chips and left cards');
+        // neutral palette: green is for the OK status only; the host lines are compact rows with 6 px dots, the grid gap is 12 px
+        await page.setViewportSize({width:1440,height:1000}); await page.waitForTimeout(120);
+        const calm = await page.evaluate(()=>{const st=q=>getComputedStyle(document.querySelector(q)),root=getComputedStyle(document.documentElement);
+          return {miniBg:st('.mini').backgroundColor,dotW:st('.mini .dot').width,dotH:st('.mini .dot').height,dotBg:st('.mini .dot').backgroundColor,ok:root.getPropertyValue('--ok').trim(),okBg:root.getPropertyValue('--ok-bg').trim(),gap:st('main').rowGap,
+            tileBg:document.querySelector('.tile[data-s="ok"] .tile-icon')?st('.tile[data-s="ok"] .tile-icon').backgroundColor:null,unkBg:root.getPropertyValue('--unk-bg').trim()};});
+        assert.equal(calm.miniBg,'rgba(0, 0, 0, 0)','the host lines are not green blocks'); assert.equal(calm.dotW,'6px'); assert.equal(calm.dotH,'6px'); assert.equal(calm.gap,'12px','UniFi grid gap');
+        assert.notEqual(calm.dotBg,'rgba(0, 0, 0, 0)','the dot carries the status colour');
+        if (calm.tileBg) { const probe = await page.evaluate(c=>{const d=document.createElement('i');d.style.color=c;document.body.append(d);const v=getComputedStyle(d).color;d.remove();return v},calm.okBg); assert.notEqual(calm.tileBg,probe,'an OK tile is neutral, not green'); }
         // bottom tabs show exactly one section at a time
         for (const [tab,shown] of [['targets','#targets'],['dns','#dnsCard'],['events','#eventsCard'],['speedtest','#speedtest'],['settings','#settingsCard'],['loss','#lossCard'],['diagnostics','#diagCard']]) {
           await page.locator(`#unifiTabs [data-tab="${tab}"]`).click();
@@ -272,9 +281,59 @@ const shots = process.env.NETPROBE_SHOTS || os.tmpdir();
         assert.match(facts.checks,/80%/,'Internet success rate is 100 - average loss of the real target'); assert.match(facts.dev,/192\.0\.2\.2/); assert.match(facts.net,/0 /);
         assert.match(facts.chip,/\d/,'metric chip shows the live value');
         assert(!/Нет данных/.test(facts.checks)||true);
+      } else if (styleName === 'control') {
+        // Master-Detail command center: one screen without page scroll, top bar, host tree, tabs
+        await page.setViewportSize({width:1440,height:1000}); await page.waitForTimeout(200);
+        assert(await page.evaluate(()=>document.documentElement.scrollHeight<=window.innerHeight),'Control fits one screen (100vh), no page scroll');
+        for (const sel of ['#ctlTree','#ctlTabs','#pathCard','.metrics','#speedMetric','.main-status']) assert(await vis(sel),'Control shows '+sel);
+        for (const sel of ['#uptimeCard','#tilesCard','.unifi-tabs']) assert(!(await vis(sel)) || sel==='#uptimeCard','Control hides '+sel);
+        assert(await page.evaluate(()=>[...document.querySelectorAll('aside')].every(e=>getComputedStyle(e).display==='none')),'the icon rail is replaced by the host tree');
+        const showsTab = async (tab,shown,hidden) => { await page.locator(`#ctlTabs [data-ctab="${tab}"]`).click(); for (const sel of shown) assert(await vis(sel),`tab ${tab} shows ${sel}`); for (const sel of hidden) assert(!(await vis(sel)),`tab ${tab} hides ${sel}`); assert.equal(await page.locator(`#ctlTabs [aria-selected="true"]`).getAttribute('data-ctab'),tab); };
+        await showsTab('overview',['#targets','#checksCard','#uptimeCard'],['#dnsCard','#diagnostics','#speedtest']);
+        await showsTab('history',['#diagnostics','#lossCard','#speedtest'],['#targets','#dnsCard']);
+        await showsTab('dns',['#dnsCard','#eventsCard','#settingsCard','#diagCard'],['#targets','#diagnostics']);
+        await showsTab('overview',['#targets'],['#dnsCard']);
+        // metrics: the five of the page plus the last Speedtest, all in the top bar
+        assert.equal(await page.locator('.metrics .metric').evaluateAll(es=>es.filter(e=>e.getClientRects().length).length),6,'top bar: five metrics and the Speedtest');
+        // host tree: one row per target in groups, each with a status dot and a latency value
+        const rows = page.locator('#ctlHosts .ctl-host:not(.ctl-all)'); const n = await rows.count(); assert(n>=5,'the tree lists the targets: '+n);
+        assert(await page.evaluate(()=>[...document.querySelectorAll('#ctlHosts .ctl-host:not(.ctl-all)')].every(r=>r.querySelector('.dot')&&/\d|—/.test(r.querySelector('.ctl-ms').textContent)&&r.dataset.s)),'every row has a status dot and a value');
+        await page.waitForFunction(()=>document.querySelectorAll('#ctlHosts .ctl-spark i').length>0,null,{timeout:5000});
+        // quick filter by text
+        const firstName = (await rows.first().getAttribute('data-target'));
+        await page.locator('#ctlFilter').fill(firstName.slice(0,4));
+        const kept = await page.evaluate(()=>[...document.querySelectorAll('#ctlHosts .ctl-host:not(.ctl-all)')].map(r=>r.dataset.target));
+        assert(kept.includes(firstName),'the filter keeps the matching host (it also matches the measured IP): '+JSON.stringify(kept));
+        await page.locator('#ctlFilter').fill('zzzz-no-such-host');
+        assert.equal(await page.locator('#ctlHosts .ctl-host:not(.ctl-all)').count(),0,'a filter that matches nothing leaves no rows'); assert(await vis('#ctlHosts .ctl-empty'));
+        await page.locator('#ctlFilter').fill('');
+        // problems only: with everything healthy the list is empty and says so
+        await page.locator('#ctlProblems').click();
+        assert.equal(await page.locator('#ctlProblems').getAttribute('aria-pressed'),'true');
+        const bad = await page.evaluate(()=>[...document.querySelectorAll('#ctlHosts .ctl-host:not(.ctl-all)')].map(r=>r.dataset.s));
+        assert(bad.every(x=>x!=='ok'),'Problems shows no healthy host: '+JSON.stringify(bad));
+        await page.locator('#ctlProblems').click();
+        // a click on a host focuses the detail pane on it only
+        const target = await rows.first().getAttribute('data-target');
+        await page.locator(`#ctlHosts [data-target="${target}"]`).click();
+        assert.equal(await page.locator(`#ctlHosts [data-target="${target}"]`).getAttribute('aria-selected'),'true');
+        const shown = await page.evaluate(()=>[...document.querySelectorAll('#targetsBody tr')].filter(r=>getComputedStyle(r).display!=='none').map(r=>r.querySelector('.target-button')?.dataset.target));
+        assert.deepEqual(shown,[target],'the targets table narrows to the chosen host');
+        assert.equal(await page.locator('#chartTarget').inputValue(),target,'the chart follows the chosen host');
+        await page.locator('#ctlHosts .ctl-all').click();
+        assert(await page.evaluate(()=>[...document.querySelectorAll('#targetsBody tr')].filter(r=>getComputedStyle(r).display!=='none').length)>1,'All hosts restores the table');
+        // the tab and the style choice survive a reload
+        await page.locator('#ctlTabs [data-ctab="history"]').click(); await page.reload(); await page.waitForTimeout(200);
+        assert.equal(await page.locator('#ctlTabs [aria-selected="true"]').getAttribute('data-ctab'),'history','the tab is remembered');
+        await page.locator('#ctlTabs [data-ctab="overview"]').click();
       } else {
         for (const sel of ['#unifiLeft','#uptimeCard','#tilesCard','#checksCard','#unifiTabs','.site-pill']) assert(!(await vis(sel)),'NetProbe style hides UniFi-only block '+sel);
         assert(await vis('.metrics'),'NetProbe style keeps the five metric cards');
+        // Classic: tight cards, compact monospace tables with a divider under every row, brighter column headers (dark)
+        await page.setViewportSize({width:1440,height:1000}); await page.waitForTimeout(120);
+        const tight = await page.evaluate(()=>{const st=q=>getComputedStyle(document.querySelector(q));return {pad:parseFloat(st('.card').paddingTop),metricPad:parseFloat(st('.metric').paddingTop),mono:st('#targetsBody td:nth-child(2)').fontFamily,cell:parseFloat(st('#targetsBody td').paddingTop),rowLine:st('#targetsBody td').borderBottomWidth,th:st('.table th').color,thLine:st('.table th').borderBottomWidth};});
+        assert(tight.pad<=16&&tight.metricPad<=16,'card padding is 12-16 px: '+JSON.stringify(tight)); assert(tight.cell<=8,'compact table rows'); assert.match(tight.mono,/mono|Menlo|Consolas/i,'table values are monospace');
+        assert.equal(tight.rowLine,'1px'); assert.equal(tight.thLine,'1px'); if (scheme === 'dark') assert.equal(tight.th,'rgb(160, 174, 192)','column headers are #A0AEC0');
       }
       for (const [w,h] of [[1440,1000],[390,844]]) {
         await page.setViewportSize({width:w,height:h}); await page.waitForTimeout(120);
@@ -325,6 +384,6 @@ const shots = process.env.NETPROBE_SHOTS || os.tmpdir();
     await page.screenshot({path:path.join(os.tmpdir(),'netprobe-ui-desktop-test.png'),fullPage:true});
     assert.deepEqual(errors,[]);
     assert(!calls.some(c=>c.url==='/api/speedtest/run'),'test must not trigger a Speedtest');
-    console.log('PASS: offline startup/retained real metrics, stale samples, null graph gaps, per-target and per-IP history, max-loss peaks, strict settings contract, period dropdown 1 min..1 month, Unraid-router-Internet path from real targets, RU/EN buttons, light/dark/auto theme buttons, NetProbe/UniFi styles (light+dark) without overflow and with AA contrast, narrow layout, no live Speedtest or browser errors');
+    console.log('PASS: offline startup/retained real metrics, stale samples, null graph gaps, per-target and per-IP history, max-loss peaks, strict settings contract, period dropdown 1 min..1 month, Unraid-router-Internet path from real targets, RU/EN buttons, light/dark/auto theme buttons, NetProbe/UniFi/Control styles (light+dark), Control: one screen, host tree, tabs, filter, focus without overflow and with AA contrast, narrow layout, no live Speedtest or browser errors');
   } finally { await browser.close(); }
 })().catch(e=>{console.error(e);process.exitCode=1});

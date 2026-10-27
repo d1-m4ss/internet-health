@@ -40,7 +40,7 @@ wget -O /boot/config/plugins/dockerMan/templates-user/my-InternetHealth.xml \
 | Run as user / group (advanced) | `99` / `100` (nobody / users, стандарт Unraid); `0` — работать от root |
 
 *Apply*, затем откройте `http://<unraid>:8788`. Первый цикл проб появляется примерно через минуту. Язык (русский / английский) и стиль
-(Classic / UniFi) — в шапке страницы. Можно и через compose: [INSTALL.ru.md](INSTALL.ru.md#вариант-2-docker-compose).
+(Classic / UniFi / Control) — в шапке страницы. Можно и через compose: [INSTALL.ru.md](INSTALL.ru.md#вариант-2-docker-compose).
 
 ## Уведомления
 

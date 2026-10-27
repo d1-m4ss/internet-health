@@ -5,6 +5,13 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+- **UniFi style:** a neutral charcoal palette; green only marks an OK status. The host lines under *Internet* are compact rows with 6 px status dots instead of
+  green blocks, tiles carry the status as a dot, key numbers are bolder.
+- **Classic style:** tighter cards (12–16 px), compact tables with monospace IPs, ping and percentages, a divider under every row and brighter column headers.
+- **New style "Control"** (Master-Detail command center): one screen without page scroll on a desktop window. A top bar with the status, the path
+  server → router → Internet, WAN / ISP and the metrics including the last Speedtest; a host tree on the left (status dot, latency, last-hour mini-histogram,
+  text filter, *Problems* only); tabs on the right — *Connectivity & tables*, *History & charts*, *DNS & diagnostics*. A click on a host narrows the table
+  and the chart to it. Narrow or short windows fall back to the UniFi layout.
 ## 1.4.4 — 2026-10-27
 
 - Language and theme are one-click buttons in the header: **RU / EN** (no dropdown) and **Light / Dark / Auto**. Auto follows the browser's setting live;

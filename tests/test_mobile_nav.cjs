@@ -1,4 +1,4 @@
-// The navigation bar must stay pinned to the top while a phone-sized page scrolls (both styles).
+// The navigation bar must stay pinned to the top while a phone-sized page scrolls (all three styles).
 const { chromium } = require('playwright');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -8,7 +8,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
 (async () => {
   const browser = await chromium.launch({headless: true, ...(process.env.CHROME_PATH ? {executablePath: process.env.CHROME_PATH} : {})});
   try {
-    for (const style of ['netprobe', 'unifi']) {
+    for (const style of ['netprobe', 'unifi', 'control']) {
       for (const [width, height] of [[390, 844], [768, 1024]]) {
         const page = await browser.newPage({viewport: {width, height}, reducedMotion: 'reduce', locale: 'en-US'});
         const errors = [];
@@ -63,7 +63,7 @@ const ui = process.env.NETPROBE_UI || path.join(root, 'src/index.html');
     await desktop.evaluate(() => window.scrollTo(0, 800));
     const side = await desktop.locator('aside').boundingBox();
     assert(side.y >= -0.5 && side.y <= 1 && side.width > 150, 'desktop side bar stays pinned');
-    console.log('PASS: menu stays pinned while scrolling (phone and tablet widths, both styles), does not cover jump targets, desktop sidebar unchanged');
+    console.log('PASS: menu stays pinned while scrolling (phone and tablet widths, all three styles), does not cover jump targets, desktop sidebar unchanged');
   } finally {
     await browser.close();
   }

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ru" data-style="netprobe">
+<html lang="ru" data-style="netprobe" data-family="classic">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -13,11 +13,11 @@
       var lang = null, style = null, theme = null;
       try { lang = localStorage.getItem('netprobe.lang'); style = localStorage.getItem('netprobe.style'); theme = localStorage.getItem('netprobe.theme'); } catch (e) {}
       if (lang !== 'ru' && lang !== 'en') lang = /^(ru|uk|be|kk)/i.test(navigator.language || '') ? 'ru' : 'en';
-      if (style !== 'netprobe' && style !== 'unifi') style = 'netprobe';
+      if (style !== 'netprobe' && style !== 'unifi' && style !== 'control') style = 'netprobe';
       if (theme !== 'light' && theme !== 'dark') theme = 'auto';
       var scheme = theme === 'auto' ? (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme;
       var root = document.documentElement;
-      root.lang = lang; root.dataset.style = style; root.dataset.theme = theme; root.dataset.scheme = scheme;
+      root.lang = lang; root.dataset.style = style; root.dataset.family = style === 'netprobe' ? 'classic' : 'unifi'; root.dataset.theme = theme; root.dataset.scheme = scheme;
       document.getElementById('colorSchemeMeta').content = scheme;
     })();
   </script>
@@ -200,7 +200,7 @@
     @media(max-width:560px) { .metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px} .metric{padding:15px} .metric-val{font-size:25px} .main-status{padding:16px;align-items:flex-start} .status-right{display:none} .card{padding:17px} .head h1{font-size:23px} .flex-tabs{max-width:100%;overflow-x:auto} .table{min-width:0} .table th:nth-child(3),.table td:nth-child(3){display:none} .metrics .metric:first-child{grid-column:span 2} .chart-select{width:100%} .head-actions .tag{max-width:100%;white-space:normal} .head-actions{width:100%} .setting-grid{gap:9px} }
 
     /* ===== Style "unifi": calm neutral palette, one blue accent, flat bordered cards, icon rail ===== */
-    html[data-style="unifi"], html[data-scheme="light"] {
+    html[data-family="unifi"], html[data-scheme="light"] {
       --page:#f4f6f9;--side:#ffffff;--panel:#ffffff;--line:#dde2e9;--line2:#e9edf2;
       --text:#18212d;--text2:#3d4a5a;--mute:#566274;--accent:#0a62d0;--accent-ink:#0a4fa6;
       --nav-hover:#eaf1fb;--btn-bg:#ffffff;--btn-line:#c9d1db;--btn-hover:#f1f4f8;--btn-ink:#18212d;
@@ -212,8 +212,8 @@
       --chart-line:#0a62d0;--chart-fill-opacity:.12;--chart-peak:#c26a00;--chart-grid:#e3e8ee;--chart-text:#566274;
       --log-bg:#f1f4f8;--status-bg:var(--panel);--sel-row:#eaf1fb;
     }
-    html[data-style="unifi"] { --rad:10px;--rad-sm:8px;--pad:16px 18px }
-    html[data-style="unifi"][data-scheme="dark"] {
+    html[data-family="unifi"] { --rad:10px;--rad-sm:8px;--pad:16px 18px }
+    html[data-family="unifi"][data-scheme="dark"] {
         --page:#0f1318;--side:#151a21;--panel:#181e26;--line:#2a323d;--line2:#232a34;
         --text:#e8edf3;--text2:#c2cbd6;--mute:#9aa6b5;--accent:#5aa2ff;--accent-ink:#9cc8ff;
         --nav-hover:#1d2733;--btn-bg:#1d242d;--btn-line:#374150;--btn-hover:#252d38;--btn-ink:#e8edf3;
@@ -225,60 +225,60 @@
         --chart-line:#5aa2ff;--chart-fill-opacity:.16;--chart-peak:#f0b840;--chart-grid:#252d38;--chart-text:#9aa6b5;
         --log-bg:#10151b;--status-bg:var(--panel);--sel-row:#1c2836;
     }
-    html[data-style="unifi"] body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;letter-spacing:0 }
-    html[data-style="unifi"] .layout { grid-template-columns:64px minmax(0,1fr) }
-    html[data-style="unifi"] aside { padding:14px 8px;align-items:center }
-    html[data-style="unifi"] .brand { padding:0 0 18px }
-    html[data-style="unifi"] .brand-icon { width:36px;height:36px;border-radius:9px;background:var(--accent);border-color:var(--accent);color:#fff }
-    html[data-style="unifi"] .brand > span:last-child,html[data-style="unifi"] .nav-head,html[data-style="unifi"] .side-foot > div:last-child { display:none }
-    html[data-style="unifi"] nav { width:100%;gap:4px }
-    html[data-style="unifi"] nav a { justify-content:center;padding:11px 0;color:var(--text2);border-radius:var(--rad-sm) }
-    html[data-style="unifi"] nav a.selected { box-shadow:none;background:var(--nav-hover);color:var(--accent-ink) }
-    html[data-style="unifi"] .nav-icon { font-size:19px;width:auto }
-    html[data-style="unifi"] .nav-label { position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap }
-    html[data-style="unifi"] .side-foot { border:0;padding:0;margin-top:auto }
-    html[data-style="unifi"] .side-foot strong { position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0) }
-    html[data-style="unifi"] .pulse { margin:0;width:10px;height:10px;background:var(--ok) }
-    html[data-style="unifi"] main { padding:0 24px 40px }
-    html[data-style="unifi"] .head { position:sticky;top:0;z-index:5;background:var(--page);margin:0 -24px 16px;padding:10px 24px;border-bottom:1px solid var(--line) }
-    html[data-style="unifi"] .eyebrow { display:none }
-    html[data-style="unifi"] h1 { font-size:17px;letter-spacing:0;margin:0;font-weight:650 }
-    html[data-style="unifi"] h2 { font-size:15px;font-weight:650;letter-spacing:0 }
-    html[data-style="unifi"] .tag { display:inline-flex;align-items:center;gap:7px;background:var(--ok-bg);border-color:var(--ok-line);color:var(--ok);font-weight:650;border-radius:6px;padding:5px 10px }
-    html[data-style="unifi"] .tag::before { content:"";width:8px;height:8px;border-radius:50%;background:currentColor }
-    html[data-style="unifi"] .tag.offline { background:var(--bad-bg);border-color:var(--bad-line);color:var(--bad) }
-    html[data-style="unifi"] .btn { font-weight:550;padding:7px 12px }
-    html[data-style="unifi"] .main-status { border-left:4px solid var(--ok);padding:14px 18px }
-    html[data-style="unifi"] .main-status:has(.status-dot.warning) { border-left-color:var(--warn) }
-    html[data-style="unifi"] .main-status:has(.status-dot.offline) { border-left-color:var(--bad) }
-    html[data-style="unifi"] .status-dot { box-shadow:none;width:10px;height:10px }
-    html[data-style="unifi"] .status-text { font-size:15px;letter-spacing:0 }
-    html[data-style="unifi"] .metrics-title { display:block;grid-column:1/-1;font-weight:650;font-size:15px;padding:14px 18px 0;color:var(--text) }
-    html[data-style="unifi"] .metrics { gap:0;background:var(--panel);border:1px solid var(--line);border-radius:var(--rad);overflow:hidden }
-    html[data-style="unifi"] .metric { background:transparent;border:0;border-radius:0;border-right:1px solid var(--line2);min-height:0;padding:12px 18px 14px }
-    html[data-style="unifi"] .metric:last-child { border-right:0 }
-    html[data-style="unifi"] .metric-label { color:var(--mute);margin-bottom:6px }
-    html[data-style="unifi"] .metric-val { font-size:30px;letter-spacing:-.5px;font-weight:650 }
-    html[data-style="unifi"] .metric-val small { color:var(--mute) }
-    html[data-style="unifi"] .metric-footer { color:var(--mute);margin-top:4px }
-    html[data-style="unifi"] .table th { color:var(--mute);font-weight:600;letter-spacing:.4px;font-size:11px;padding:8px 6px }
-    html[data-style="unifi"] .table td { padding:8px 6px }
-    html[data-style="unifi"] .table tbody tr:hover { background:var(--sel-row) }
-    html[data-style="unifi"] .pill { border-radius:6px;font-weight:650;font-size:11px;padding:3px 8px }
-    html[data-style="unifi"] .metric-label,html[data-style="unifi"] .form-line label,html[data-style="unifi"] .setting-grid label { color:var(--mute) }
-    html[data-style="unifi"] .info-note,html[data-style="unifi"] .footer,html[data-style="unifi"] .event .event-time { color:var(--mute) }
-    html[data-style="unifi"] summary { color:var(--accent-ink) }
-    html[data-style="unifi"] .check input { accent-color:var(--accent) }
-    html[data-style="unifi"] .event-dot { display:none } html[data-style="unifi"] .event-icon { display:inline }
-    html[data-style="unifi"] .event { padding:7px 0;border-bottom:1px solid var(--line2) } html[data-style="unifi"] .event:last-child { border-bottom:0 }
-    html[data-style="unifi"] .events { gap:0 }
-    html[data-style="unifi"] .log-box { color:var(--text2) }
-    html[data-style="unifi"] .node { background:transparent }
-    html[data-style="unifi"] .node-icon { border-radius:50% }
-    html[data-style="unifi"] .link-ms { font-weight:600 }
-    html[data-style="unifi"] .brand-icon,html[data-style="unifi"] a.btn.primary,html[data-style="unifi"] .btn.primary { color:#fff }
-    @media(max-width:930px) { html[data-style="unifi"] .layout { grid-template-columns:1fr } html[data-style="unifi"] aside { padding:8px 12px;flex-direction:row;justify-content:flex-start;gap:14px } html[data-style="unifi"] .brand { padding:0 } html[data-style="unifi"] nav { display:flex;width:auto;flex:1;overflow-x:auto } html[data-style="unifi"] nav a { padding:8px 12px } html[data-style="unifi"] .nav-icon { display:inline-flex } html[data-style="unifi"] main { padding:0 16px 32px } html[data-style="unifi"] .head { margin:0 -16px 14px;padding:10px 16px } }
-    @media(max-width:560px) { html[data-style="unifi"] .metric { border-right:0;border-bottom:1px solid var(--line2) } html[data-style="unifi"] .metrics .metric:first-child { grid-column:auto } html[data-style="unifi"] .metrics { grid-template-columns:repeat(2,minmax(0,1fr)) } html[data-style="unifi"] .metric:nth-child(odd) { border-right:1px solid var(--line2) } }
+    html[data-family="unifi"] body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;letter-spacing:0 }
+    html[data-family="unifi"] .layout { grid-template-columns:64px minmax(0,1fr) }
+    html[data-family="unifi"] aside { padding:14px 8px;align-items:center }
+    html[data-family="unifi"] .brand { padding:0 0 18px }
+    html[data-family="unifi"] .brand-icon { width:36px;height:36px;border-radius:9px;background:var(--accent);border-color:var(--accent);color:#fff }
+    html[data-family="unifi"] .brand > span:last-child,html[data-family="unifi"] .nav-head,html[data-family="unifi"] .side-foot > div:last-child { display:none }
+    html[data-family="unifi"] nav { width:100%;gap:4px }
+    html[data-family="unifi"] nav a { justify-content:center;padding:11px 0;color:var(--text2);border-radius:var(--rad-sm) }
+    html[data-family="unifi"] nav a.selected { box-shadow:none;background:var(--nav-hover);color:var(--accent-ink) }
+    html[data-family="unifi"] .nav-icon { font-size:19px;width:auto }
+    html[data-family="unifi"] .nav-label { position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap }
+    html[data-family="unifi"] .side-foot { border:0;padding:0;margin-top:auto }
+    html[data-family="unifi"] .side-foot strong { position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0) }
+    html[data-family="unifi"] .pulse { margin:0;width:10px;height:10px;background:var(--ok) }
+    html[data-family="unifi"] main { padding:0 24px 40px }
+    html[data-family="unifi"] .head { position:sticky;top:0;z-index:5;background:var(--page);margin:0 -24px 16px;padding:10px 24px;border-bottom:1px solid var(--line) }
+    html[data-family="unifi"] .eyebrow { display:none }
+    html[data-family="unifi"] h1 { font-size:17px;letter-spacing:0;margin:0;font-weight:650 }
+    html[data-family="unifi"] h2 { font-size:15px;font-weight:650;letter-spacing:0 }
+    html[data-family="unifi"] .tag { display:inline-flex;align-items:center;gap:7px;background:var(--ok-bg);border-color:var(--ok-line);color:var(--ok);font-weight:650;border-radius:6px;padding:5px 10px }
+    html[data-family="unifi"] .tag::before { content:"";width:8px;height:8px;border-radius:50%;background:currentColor }
+    html[data-family="unifi"] .tag.offline { background:var(--bad-bg);border-color:var(--bad-line);color:var(--bad) }
+    html[data-family="unifi"] .btn { font-weight:550;padding:7px 12px }
+    html[data-family="unifi"] .main-status { border-left:4px solid var(--ok);padding:14px 18px }
+    html[data-family="unifi"] .main-status:has(.status-dot.warning) { border-left-color:var(--warn) }
+    html[data-family="unifi"] .main-status:has(.status-dot.offline) { border-left-color:var(--bad) }
+    html[data-family="unifi"] .status-dot { box-shadow:none;width:10px;height:10px }
+    html[data-family="unifi"] .status-text { font-size:15px;letter-spacing:0 }
+    html[data-family="unifi"] .metrics-title { display:block;grid-column:1/-1;font-weight:650;font-size:15px;padding:14px 18px 0;color:var(--text) }
+    html[data-family="unifi"] .metrics { gap:0;background:var(--panel);border:1px solid var(--line);border-radius:var(--rad);overflow:hidden }
+    html[data-family="unifi"] .metric { background:transparent;border:0;border-radius:0;border-right:1px solid var(--line2);min-height:0;padding:12px 18px 14px }
+    html[data-family="unifi"] .metric:last-child { border-right:0 }
+    html[data-family="unifi"] .metric-label { color:var(--mute);margin-bottom:6px }
+    html[data-family="unifi"] .metric-val { font-size:30px;letter-spacing:-.5px;font-weight:650 }
+    html[data-family="unifi"] .metric-val small { color:var(--mute) }
+    html[data-family="unifi"] .metric-footer { color:var(--mute);margin-top:4px }
+    html[data-family="unifi"] .table th { color:var(--mute);font-weight:600;letter-spacing:.4px;font-size:11px;padding:8px 6px }
+    html[data-family="unifi"] .table td { padding:8px 6px }
+    html[data-family="unifi"] .table tbody tr:hover { background:var(--sel-row) }
+    html[data-family="unifi"] .pill { border-radius:6px;font-weight:650;font-size:11px;padding:3px 8px }
+    html[data-family="unifi"] .metric-label,html[data-family="unifi"] .form-line label,html[data-family="unifi"] .setting-grid label { color:var(--mute) }
+    html[data-family="unifi"] .info-note,html[data-family="unifi"] .footer,html[data-family="unifi"] .event .event-time { color:var(--mute) }
+    html[data-family="unifi"] summary { color:var(--accent-ink) }
+    html[data-family="unifi"] .check input { accent-color:var(--accent) }
+    html[data-family="unifi"] .event-dot { display:none } html[data-family="unifi"] .event-icon { display:inline }
+    html[data-family="unifi"] .event { padding:7px 0;border-bottom:1px solid var(--line2) } html[data-family="unifi"] .event:last-child { border-bottom:0 }
+    html[data-family="unifi"] .events { gap:0 }
+    html[data-family="unifi"] .log-box { color:var(--text2) }
+    html[data-family="unifi"] .node { background:transparent }
+    html[data-family="unifi"] .node-icon { border-radius:50% }
+    html[data-family="unifi"] .link-ms { font-weight:600 }
+    html[data-family="unifi"] .brand-icon,html[data-family="unifi"] a.btn.primary,html[data-family="unifi"] .btn.primary { color:#fff }
+    @media(max-width:930px) { html[data-family="unifi"] .layout { grid-template-columns:1fr } html[data-family="unifi"] aside { padding:8px 12px;flex-direction:row;justify-content:flex-start;gap:14px } html[data-family="unifi"] .brand { padding:0 } html[data-family="unifi"] nav { display:flex;width:auto;flex:1;overflow-x:auto } html[data-family="unifi"] nav a { padding:8px 12px } html[data-family="unifi"] .nav-icon { display:inline-flex } html[data-family="unifi"] main { padding:0 16px 32px } html[data-family="unifi"] .head { margin:0 -16px 14px;padding:10px 16px } }
+    @media(max-width:560px) { html[data-family="unifi"] .metric { border-right:0;border-bottom:1px solid var(--line2) } html[data-family="unifi"] .metrics .metric:first-child { grid-column:auto } html[data-family="unifi"] .metrics { grid-template-columns:repeat(2,minmax(0,1fr)) } html[data-family="unifi"] .metric:nth-child(odd) { border-right:1px solid var(--line2) } }
 
     /* ----- UniFi-only components (hidden in the NetProbe style) ----- */
     .unifi-only { display:none }
@@ -314,75 +314,75 @@
     .chk-pct { font-size:13px;font-weight:650;color:var(--ok) } .chk[data-s="warn"] .chk-pct { color:var(--warn) } .chk[data-s="bad"] .chk-pct { color:var(--bad) } .chk[data-s="unknown"] .chk-pct { color:var(--mute) }
 
     /* ----- Style "unifi": a different screen — top bar, floating icon rail, left info cards, topology strip, health chips, uptime bar, tabs ----- */
-    html[data-style="unifi"] .unifi-only { display:block }
-    html[data-style="unifi"] .layout { grid-template-columns:76px minmax(0,1fr) }
-    html[data-style="unifi"] aside { margin:12px 0 12px 12px;height:calc(100vh - 24px);top:12px;border:1px solid var(--line);border-radius:12px }
-    html[data-style="unifi"] main { max-width:none;display:grid;grid-template-columns:minmax(300px,340px) minmax(0,1fr);grid-template-areas:"head head" "left status" "left path" "left chart" "left uptime" "left tiles" "left checks" "left tabs" "left foot";gap:12px;align-content:start;padding:12px 16px 32px 12px }
-    html[data-style="unifi"] .head { grid-area:head;position:relative;margin:0;top:0;z-index:5;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);align-items:center }
-    html[data-style="unifi"] .head > div:not(.unifi-top):not(.head-actions) { position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0) }
-    html[data-style="unifi"] .unifi-top { display:flex;align-items:center;gap:8px }
-    html[data-style="unifi"] .site-pill { display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:6px 12px;font-size:13px;font-weight:600;color:var(--text);background:var(--panel) }
-    html[data-style="unifi"] .site-dot { width:9px;height:9px;border-radius:50%;background:var(--unk) } .site-dot[data-s="ok"] { background:var(--ok) } .site-dot[data-s="warn"] { background:var(--warn) } .site-dot[data-s="bad"] { background:var(--bad) }
-    html[data-style="unifi"] .net-tab { display:inline-flex;align-items:center;gap:7px;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:650;color:var(--accent-ink);background:var(--nav-hover) }
-    html[data-style="unifi"] .net-tab svg { width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2 }
-    html[data-style="unifi"] .wordmark { display:block;position:absolute;left:50%;transform:translateX(-50%);font-weight:750;letter-spacing:.5px;color:var(--mute);opacity:.55;pointer-events:none }
-    @media(max-width:1599px) { html[data-style="unifi"] .wordmark { display:none } }
-    html[data-style="unifi"] .unifi-left { grid-area:left;display:grid;gap:12px;align-content:start;align-self:start;position:sticky;top:12px }
-    html[data-style="unifi"] .top-stack { grid-area:status;display:grid;gap:12px }
-    html[data-style="unifi"] .main-status,html[data-style="unifi"] .wan-card { margin:0 }
-    html[data-style="unifi"] #pathCard { grid-area:path;margin:0 }
-    html[data-style="unifi"] .metrics { display:none }
-    html[data-style="unifi"] #diagnostics { grid-area:chart }
-    html[data-style="unifi"] #uptimeCard { grid-area:uptime } html[data-style="unifi"] #tilesCard { grid-area:tiles } html[data-style="unifi"] #checksCard { grid-area:checks }
-    html[data-style="unifi"] .grid-content { grid-area:tabs;display:block;margin:0 }
-    html[data-style="unifi"] .footer { grid-area:foot;padding-top:4px }
-    html[data-style="unifi"] .stack { display:contents }
-    html[data-style="unifi"] .unifi-tabs { display:flex;flex-wrap:wrap;gap:2px;margin-bottom:12px;border-bottom:1px solid var(--line) }
-    html[data-style="unifi"] .unifi-tabs button { border:0;background:none;padding:9px 14px;color:var(--text2);font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px }
-    html[data-style="unifi"] .unifi-tabs button:hover { color:var(--accent-ink) }
-    html[data-style="unifi"] .unifi-tabs button.active { color:var(--accent-ink);border-bottom-color:var(--accent) }
-    html[data-style="unifi"] .grid-content section.card { display:none }
-    html[data-style="unifi"] .grid-content[data-tab="targets"] #targets, html[data-style="unifi"] .grid-content[data-tab="dns"] #dnsCard, html[data-style="unifi"] .grid-content[data-tab="events"] #eventsCard,
-    html[data-style="unifi"] .grid-content[data-tab="speedtest"] #speedtest, html[data-style="unifi"] .grid-content[data-tab="settings"] #settingsCard, html[data-style="unifi"] .grid-content[data-tab="diagnostics"] #diagCard { display:block }
+    html[data-family="unifi"] .unifi-only { display:block }
+    html[data-family="unifi"] .layout { grid-template-columns:76px minmax(0,1fr) }
+    html[data-family="unifi"] aside { margin:12px 0 12px 12px;height:calc(100vh - 24px);top:12px;border:1px solid var(--line);border-radius:12px }
+    html[data-family="unifi"] main { max-width:none;display:grid;grid-template-columns:minmax(300px,340px) minmax(0,1fr);grid-template-areas:"head head" "left status" "left path" "left chart" "left uptime" "left tiles" "left checks" "left tabs" "left foot";gap:12px;align-content:start;padding:12px 16px 32px 12px }
+    html[data-family="unifi"] .head { grid-area:head;position:relative;margin:0;top:0;z-index:5;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);align-items:center }
+    html[data-family="unifi"] .head > div:not(.unifi-top):not(.head-actions) { position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0) }
+    html[data-family="unifi"] .unifi-top { display:flex;align-items:center;gap:8px }
+    html[data-family="unifi"] .site-pill { display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:6px 12px;font-size:13px;font-weight:600;color:var(--text);background:var(--panel) }
+    html[data-family="unifi"] .site-dot { width:9px;height:9px;border-radius:50%;background:var(--unk) } .site-dot[data-s="ok"] { background:var(--ok) } .site-dot[data-s="warn"] { background:var(--warn) } .site-dot[data-s="bad"] { background:var(--bad) }
+    html[data-family="unifi"] .net-tab { display:inline-flex;align-items:center;gap:7px;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:650;color:var(--accent-ink);background:var(--nav-hover) }
+    html[data-family="unifi"] .net-tab svg { width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2 }
+    html[data-family="unifi"] .wordmark { display:block;position:absolute;left:50%;transform:translateX(-50%);font-weight:750;letter-spacing:.5px;color:var(--mute);opacity:.55;pointer-events:none }
+    @media(max-width:1599px) { html[data-family="unifi"] .wordmark { display:none } }
+    html[data-family="unifi"] .unifi-left { grid-area:left;display:grid;gap:12px;align-content:start;align-self:start;position:sticky;top:12px }
+    html[data-family="unifi"] .top-stack { grid-area:status;display:grid;gap:12px }
+    html[data-family="unifi"] .main-status,html[data-family="unifi"] .wan-card { margin:0 }
+    html[data-family="unifi"] #pathCard { grid-area:path;margin:0 }
+    html[data-family="unifi"] .metrics { display:none }
+    html[data-family="unifi"] #diagnostics { grid-area:chart }
+    html[data-family="unifi"] #uptimeCard { grid-area:uptime } html[data-family="unifi"] #tilesCard { grid-area:tiles } html[data-family="unifi"] #checksCard { grid-area:checks }
+    html[data-family="unifi"] .grid-content { grid-area:tabs;display:block;margin:0 }
+    html[data-family="unifi"] .footer { grid-area:foot;padding-top:4px }
+    html[data-family="unifi"] .stack { display:contents }
+    html[data-family="unifi"] .unifi-tabs { display:flex;flex-wrap:wrap;gap:2px;margin-bottom:12px;border-bottom:1px solid var(--line) }
+    html[data-family="unifi"] .unifi-tabs button { border:0;background:none;padding:9px 14px;color:var(--text2);font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px }
+    html[data-family="unifi"] .unifi-tabs button:hover { color:var(--accent-ink) }
+    html[data-family="unifi"] .unifi-tabs button.active { color:var(--accent-ink);border-bottom-color:var(--accent) }
+    html[data-family="unifi"] .grid-content section.card { display:none }
+    html[data-family="unifi"] .grid-content[data-tab="targets"] #targets, html[data-family="unifi"] .grid-content[data-tab="dns"] #dnsCard, html[data-family="unifi"] .grid-content[data-tab="events"] #eventsCard,
+    html[data-family="unifi"] .grid-content[data-tab="speedtest"] #speedtest, html[data-family="unifi"] .grid-content[data-tab="settings"] #settingsCard, html[data-family="unifi"] .grid-content[data-tab="diagnostics"] #diagCard { display:block }
     /* topology strip: round icons, names under them, dotted links with the RTT in colour */
-    html[data-style="unifi"] .path-head h2 { font-size:14px }
-    html[data-style="unifi"] .node { flex-direction:column;border:0;text-align:center;background:none;padding:4px 6px }
-    html[data-style="unifi"] .node-text { justify-items:center }
-    html[data-style="unifi"] .node-icon { border-radius:50%;width:44px;height:44px }
-    html[data-style="unifi"] .link { padding:0 4px;align-self:start;margin-top:8px }
-    html[data-style="unifi"] .link-line { border-top-style:dotted;border-top-width:3px }
-    html[data-style="unifi"] .link[data-s="ok"] .link-line { border-top-style:dotted }
+    html[data-family="unifi"] .path-head h2 { font-size:14px }
+    html[data-family="unifi"] .node { flex-direction:column;border:0;text-align:center;background:none;padding:4px 6px }
+    html[data-family="unifi"] .node-text { justify-items:center }
+    html[data-family="unifi"] .node-icon { border-radius:50%;width:44px;height:44px }
+    html[data-family="unifi"] .link { padding:0 4px;align-self:start;margin-top:8px }
+    html[data-family="unifi"] .link-line { border-top-style:dotted;border-top-width:3px }
+    html[data-family="unifi"] .link[data-s="ok"] .link-line { border-top-style:dotted }
     /* chart: hatched plot area, metric chips with a colour key and the live value */
-    html[data-style="unifi"] #metricTabs { background:none;padding:0;gap:6px;flex-wrap:wrap }
-    html[data-style="unifi"] #metricTabs button { border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:4px 10px;color:var(--text2);display:inline-flex;align-items:center;gap:0 }
-    html[data-style="unifi"] #metricTabs button::before { content:"";width:10px;height:3px;border-radius:2px;background:var(--chip,var(--accent));margin-right:7px }
-    html[data-style="unifi"] #metricTabs button.active { border-color:var(--accent);color:var(--accent-ink);background:var(--nav-hover) }
-    html[data-style="unifi"] .chip-val { display:inline;font-weight:650;font-variant-numeric:tabular-nums }
-    html[data-style="unifi"] #metricTabs [data-metric="avg_latency_ms"] { --chip:#7a4cdb } html[data-style="unifi"] #metricTabs [data-metric="avg_jitter_ms"] { --chip:#0e8f9b }
-    html[data-style="unifi"] #metricTabs [data-metric="avg_dns_latency_ms"] { --chip:#d6409f } html[data-style="unifi"] #metricTabs [data-metric="score"] { --chip:#1a8f4b }
-    html[data-style="unifi"] #diagnostics[data-metric="avg_latency_ms"] { --chart-line:#7a4cdb } html[data-style="unifi"] #diagnostics[data-metric="avg_jitter_ms"] { --chart-line:#0e8f9b }
-    html[data-style="unifi"] #diagnostics[data-metric="avg_dns_latency_ms"] { --chart-line:#d6409f } html[data-style="unifi"] #diagnostics[data-metric="score"] { --chart-line:#1a8f4b }
-    html[data-style="unifi"] #diagnostics[data-metric="avg_loss_pct"] { --chart-line:#d12f35 }
+    html[data-family="unifi"] #metricTabs { background:none;padding:0;gap:6px;flex-wrap:wrap }
+    html[data-family="unifi"] #metricTabs button { border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:4px 10px;color:var(--text2);display:inline-flex;align-items:center;gap:0 }
+    html[data-family="unifi"] #metricTabs button::before { content:"";width:10px;height:3px;border-radius:2px;background:var(--chip,var(--accent));margin-right:7px }
+    html[data-family="unifi"] #metricTabs button.active { border-color:var(--accent);color:var(--accent-ink);background:var(--nav-hover) }
+    html[data-family="unifi"] .chip-val { display:inline;font-weight:650;font-variant-numeric:tabular-nums }
+    html[data-family="unifi"] #metricTabs [data-metric="avg_latency_ms"] { --chip:#7a4cdb } html[data-family="unifi"] #metricTabs [data-metric="avg_jitter_ms"] { --chip:#0e8f9b }
+    html[data-family="unifi"] #metricTabs [data-metric="avg_dns_latency_ms"] { --chip:#d6409f } html[data-family="unifi"] #metricTabs [data-metric="score"] { --chip:#6b7a90 }
+    html[data-family="unifi"] #diagnostics[data-metric="avg_latency_ms"] { --chart-line:#7a4cdb } html[data-family="unifi"] #diagnostics[data-metric="avg_jitter_ms"] { --chart-line:#0e8f9b }
+    html[data-family="unifi"] #diagnostics[data-metric="avg_dns_latency_ms"] { --chart-line:#d6409f } html[data-family="unifi"] #diagnostics[data-metric="score"] { --chart-line:#6b7a90 }
+    html[data-family="unifi"] #diagnostics[data-metric="avg_loss_pct"] { --chart-line:#d12f35 }
     /* NetProbe style: every metric has its own colour, so loss, delay, jitter and DNS are never the same line */
-    html:not([data-style="unifi"]) #diagnostics[data-metric="avg_loss_pct"] { --chart-line:#ef8b91 } html:not([data-style="unifi"]) #diagnostics[data-metric="avg_latency_ms"] { --chart-line:#6fcdf5 }
-    html:not([data-style="unifi"]) #diagnostics[data-metric="avg_jitter_ms"] { --chart-line:#b79bff } html:not([data-style="unifi"]) #diagnostics[data-metric="avg_dns_latency_ms"] { --chart-line:#7ee787 }
-    html[data-style="unifi"] .event { display:flex;padding:10px 4px } html[data-style="unifi"] .event-content { flex:1;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 16px }
-    html[data-style="unifi"] .event-time { display:contents }
-    html[data-style="unifi"] .event-time .when { grid-column:2;grid-row:1;text-align:right;white-space:nowrap }
-    html[data-style="unifi"] .event-time .why { grid-column:1;grid-row:2 } html[data-style="unifi"] .event-time .why:not(:empty)::before { content:none }
-    html[data-style="unifi"] .event-content > div:first-child { grid-column:1;grid-row:1;color:var(--text);font-weight:600 }
+    html:not([data-family="unifi"]) #diagnostics[data-metric="avg_loss_pct"] { --chart-line:#ef8b91 } html:not([data-family="unifi"]) #diagnostics[data-metric="avg_latency_ms"] { --chart-line:#6fcdf5 }
+    html:not([data-family="unifi"]) #diagnostics[data-metric="avg_jitter_ms"] { --chart-line:#b79bff } html:not([data-family="unifi"]) #diagnostics[data-metric="avg_dns_latency_ms"] { --chart-line:#7ee787 }
+    html[data-family="unifi"] .event { display:flex;padding:10px 4px } html[data-family="unifi"] .event-content { flex:1;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 16px }
+    html[data-family="unifi"] .event-time { display:contents }
+    html[data-family="unifi"] .event-time .when { grid-column:2;grid-row:1;text-align:right;white-space:nowrap }
+    html[data-family="unifi"] .event-time .why { grid-column:1;grid-row:2 } html[data-family="unifi"] .event-time .why:not(:empty)::before { content:none }
+    html[data-family="unifi"] .event-content > div:first-child { grid-column:1;grid-row:1;color:var(--text);font-weight:600 }
     @media(max-width:1100px) {
-      html[data-style="unifi"] main { grid-template-columns:minmax(0,1fr);grid-template-areas:"head" "status" "path" "left" "chart" "uptime" "tiles" "checks" "tabs" "foot" }
-      html[data-style="unifi"] .wordmark { display:none }
-      html[data-style="unifi"] .unifi-left { grid-template-columns:repeat(auto-fit,minmax(260px,1fr));position:static }
+      html[data-family="unifi"] main { grid-template-columns:minmax(0,1fr);grid-template-areas:"head" "status" "path" "left" "chart" "uptime" "tiles" "checks" "tabs" "foot" }
+      html[data-family="unifi"] .wordmark { display:none }
+      html[data-family="unifi"] .unifi-left { grid-template-columns:repeat(auto-fit,minmax(260px,1fr));position:static }
     }
-    @media(max-width:930px) { html[data-style="unifi"] aside { margin:0;height:auto;position:sticky;top:0;z-index:30;border-radius:0;border-width:0 0 1px } html[data-style="unifi"] .layout { grid-template-columns:1fr } html[data-style="unifi"] main { padding:8px 8px 24px } html[data-style="unifi"] .head { position:static } }
+    @media(max-width:930px) { html[data-family="unifi"] aside { margin:0;height:auto;position:sticky;top:0;z-index:30;border-radius:0;border-width:0 0 1px } html[data-family="unifi"] .layout { grid-template-columns:1fr } html[data-family="unifi"] main { padding:8px 8px 24px } html[data-family="unifi"] .head { position:static } }
     @media(max-width:700px) {
-      html[data-style="unifi"] .node { flex-direction:row;text-align:left;border:1px solid var(--line);padding:10px 12px } html[data-style="unifi"] .node-text { justify-items:start }
-      html[data-style="unifi"] .link { margin-top:0;align-self:auto }
-      html[data-style="unifi"] .checks-grid { grid-template-columns:repeat(2,minmax(0,1fr)) }
-      html[data-style="unifi"] .head { flex-wrap:wrap;gap:8px } html[data-style="unifi"] .head-actions { width:100% }
-      html[data-style="unifi"] .unifi-tabs button { padding:8px 9px;font-size:13px }
+      html[data-family="unifi"] .node { flex-direction:row;text-align:left;border:1px solid var(--line);padding:10px 12px } html[data-family="unifi"] .node-text { justify-items:start }
+      html[data-family="unifi"] .link { margin-top:0;align-self:auto }
+      html[data-family="unifi"] .checks-grid { grid-template-columns:repeat(2,minmax(0,1fr)) }
+      html[data-family="unifi"] .head { flex-wrap:wrap;gap:8px } html[data-family="unifi"] .head-actions { width:100% }
+      html[data-family="unifi"] .unifi-tabs button { padding:8px 9px;font-size:13px }
     }
 
     /* Classic in the light theme: it reuses the light palette above; the few text colours written for the dark page become tokens */
@@ -404,8 +404,8 @@
 
     /* ----- compare mode: several metrics / several targets (e.g. DNS servers) on one chart ----- */
     :root { --s1:#4edbc0;--s2:#6fcdf5;--s3:#f0bf78;--s4:#ef8b91;--s5:#b79bff;--s6:#7ee787;--s7:#ffa657;--s8:#ff7eb6;--s9:#79c0ff;--s10:#d2a8ff }
-    html[data-style="unifi"], html[data-scheme="light"] { --s1:#0a62d0;--s2:#7a4cdb;--s3:#0e8f9b;--s4:#d6409f;--s5:#1a8f4b;--s6:#c26a00;--s7:#d12f35;--s8:#5b6b7f;--s9:#6d8a00;--s10:#0b86b3 }
-    html[data-style="unifi"][data-scheme="dark"] { --s1:#5aa2ff;--s2:#a98bff;--s3:#4cc9d4;--s4:#f080c8;--s5:#54c47f;--s6:#f0a23a;--s7:#f27b74;--s8:#9aa6b5;--s9:#b4d44a;--s10:#52c1ec }
+    html[data-family="unifi"], html[data-scheme="light"] { --s1:#0a62d0;--s2:#7a4cdb;--s3:#0e8f9b;--s4:#d6409f;--s5:#1a8f4b;--s6:#c26a00;--s7:#d12f35;--s8:#5b6b7f;--s9:#6d8a00;--s10:#0b86b3 }
+    html[data-family="unifi"][data-scheme="dark"] { --s1:#5aa2ff;--s2:#a98bff;--s3:#4cc9d4;--s4:#f080c8;--s5:#54c47f;--s6:#f0a23a;--s7:#f27b74;--s8:#9aa6b5;--s9:#b4d44a;--s10:#52c1ec }
     .chart-wrap { position:relative }
     .cmp-toggle { padding:6px 12px;font-size:12px }
     #diagnostics[data-compare="1"] .cmp-toggle { background:var(--tab-active);color:var(--tab-active-ink);border-color:var(--accent) }
@@ -466,8 +466,110 @@
     .turbo-dialog h2 { margin:0 0 10px;font-size:17px } .turbo-dialog p { margin:0 0 10px;font-size:13px;line-height:1.5;color:var(--text2);overflow-wrap:anywhere } .turbo-dialog b { color:var(--text) }
     .turbo-dialog .settings-actions { justify-content:flex-end }
     @media(max-width:700px) { .loss-sum { grid-template-columns:repeat(2,minmax(0,1fr)) } }
-    html[data-style="unifi"] .grid-content[data-tab="loss"] #lossCard { display:block }
+    html[data-family="unifi"] .grid-content[data-tab="loss"] #lossCard { display:block }
     @media (prefers-reduced-motion: reduce) { *,*::before,*::after { transition:none!important;animation:none!important;scroll-behavior:auto!important } }
+
+    /* ===== Refinement of the UniFi style: neutral charcoal, green only for an OK status, compact rows with 6 px status dots, 12 px grid ===== */
+    html[data-family="unifi"][data-scheme="dark"] { --page:#121417;--side:#121417;--panel:#171a1f;--line:#262c34;--line2:#1E2228;--mute:#8C96A6;--nav-hover:#1E2228;--btn-bg:#1E2228;--btn-hover:#262c34;--input-bg:#121417;--tabs-bg:#121417;--tab-active:#262c34;--sel-row:#1E2228;--unk-bg:#1E2228;--log-bg:#0e1013;--chart-grid:#1E2228 }
+    .dot { display:inline-block;width:6px;height:6px;border-radius:50%;flex:none;background:var(--unk) }
+    [data-s="ok"] > .dot { background:var(--ok) } [data-s="warn"] > .dot { background:var(--warn) } [data-s="bad"] > .dot { background:var(--bad) }
+    .mini-row { display:grid;grid-template-columns:minmax(0,1fr);gap:0;margin-top:10px }
+    .mini,.mini[data-s] { display:flex;align-items:center;justify-content:flex-start;gap:8px;padding:6px 0;border-top:1px solid var(--line2);border-radius:0;background:none }
+    .mini-label { flex:1;min-width:0;text-align:left;font-size:13px;color:var(--text2) }
+    .mini .mini-ms,.mini[data-s] .mini-ms { order:3;font-size:13px;font-weight:700;color:var(--text) }
+    html[data-family="unifi"] .kv dd { font-weight:700;color:var(--text) }
+    html[data-family="unifi"] .chk-pct { color:var(--text);font-weight:700 }
+    html[data-family="unifi"] .node-icon[data-s="ok"],html[data-family="unifi"] .node[data-s="ok"] .node-icon,html[data-family="unifi"] .tile[data-s="ok"] .tile-icon { background:var(--unk-bg);color:var(--text2);border-color:var(--unk-line) }
+    html[data-family="unifi"] .link[data-s="ok"] .link-ms { color:var(--text) }
+    html[data-family="unifi"] .tile-icon { position:relative }
+    html[data-family="unifi"] .tile-icon::after { content:"";position:absolute;right:-3px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--unk);border:2px solid var(--panel) }
+    html[data-family="unifi"] .tile[data-s="ok"] .tile-icon::after { background:var(--ok) } html[data-family="unifi"] .tile[data-s="warn"] .tile-icon::after { background:var(--warn) } html[data-family="unifi"] .tile[data-s="bad"] .tile-icon::after { background:var(--bad) }
+    html[data-family="unifi"] .tile-ms { color:var(--text);font-weight:600 }
+
+    /* ===== Refinement of the Classic style: tighter cards, compact monospace tables, clear row dividers ===== */
+    html[data-style="netprobe"] { --pad:14px 16px;--mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace }
+    html[data-style="netprobe"] main { padding:20px 28px 32px }
+    html[data-style="netprobe"] .head { margin-bottom:14px }
+    html[data-style="netprobe"] .main-status { padding:12px 16px;margin-bottom:12px }
+    html[data-style="netprobe"] .path,html[data-style="netprobe"] .wan-card,html[data-style="netprobe"] .metrics { margin-bottom:12px }
+    html[data-style="netprobe"] .path-head { margin-bottom:8px }
+    html[data-style="netprobe"] .node { padding:8px 12px }
+    html[data-style="netprobe"] .metrics { gap:12px }
+    html[data-style="netprobe"] .metric { padding:12px 16px;min-height:0 }
+    html[data-style="netprobe"] .metric-label { margin-bottom:6px }
+    html[data-style="netprobe"] .metric-footer { margin-top:4px }
+    html[data-style="netprobe"] .card-head { margin-bottom:10px }
+    html[data-style="netprobe"] .grid-content,html[data-style="netprobe"] .stack { gap:12px }
+    html[data-style="netprobe"] .grid-content { margin-top:12px }
+    html[data-style="netprobe"] .table th,html[data-style="netprobe"] .table td { padding:7px 8px }
+    html[data-style="netprobe"] .table th { border-bottom:1px solid var(--line);color:var(--mute) }
+    html[data-style="netprobe"]:not([data-scheme="light"]) .table th { color:#A0AEC0 }
+    html[data-style="netprobe"] .table td { border-bottom:1px solid var(--line) }
+    html[data-style="netprobe"] .table td,html[data-style="netprobe"] .table .sub,html[data-style="netprobe"] .dns-row .mono,html[data-style="netprobe"] .dns-row .muted { font-family:var(--mono);font-size:12px }
+    html[data-style="netprobe"] .wan-val { font-family:var(--mono) }
+    html[data-style="netprobe"] .table .host,html[data-style="netprobe"] .table .host .target-button { font-family:var(--mono);font-size:13px }
+    html[data-style="netprobe"] .dns-row { padding:8px 0;border-bottom:1px solid var(--line) }
+    html[data-style="netprobe"] .metric-val { font-family:var(--mono);letter-spacing:-.5px }
+
+    /* ===== Style "control": Master-Detail command center. One screen (no page scroll): top bar, host tree on the left, tabs on the right ===== */
+    .ctl-only { display:none }
+    .ctl-top,.ctl-detail { display:contents }
+    html[data-style="control"][data-scheme="dark"] { --page:#08090C;--side:#08090C;--panel:#0c0f15;--line:#1E2638;--line2:#161c29;--text:#dbe3ef;--text2:#94A3B8;--mute:#8391a8;--accent:#00E5FF;--accent-ink:#5cecff;--nav-hover:#121826;
+      --btn-bg:#111723;--btn-line:#26314a;--btn-hover:#18202f;--btn-ink:#dbe3ef;--primary-bg:#0e7490;--primary-line:#0e7490;--primary-hover:#0f8aab;--input-bg:#090b10;--input-line:#26314a;--tabs-bg:#090b10;--tab-active:#162033;--tab-ink:#94A3B8;--tab-active-ink:#ffffff;
+      --ok:#10B981;--warn:#F59E0B;--bad:#EF4444;--unk:#8391a8;--ok-bg:#0b2a22;--warn-bg:#2b2108;--bad-bg:#301315;--unk-bg:#111723;--ok-line:#136b52;--warn-line:#7a5410;--bad-line:#7d2a2d;--unk-line:#26314a;
+      --chart-line:#00E5FF;--chart-grid:#161c29;--chart-text:#8391a8;--log-bg:#06070a;--sel-row:#121826 }
+    html[data-style="control"] { --mono:ui-monospace,"JetBrains Mono","Fira Code",SFMono-Regular,Menlo,Consolas,monospace;--rad:8px;--rad-sm:6px;--pad:12px 14px }
+    html[data-style="control"] .kv dd,html[data-style="control"] .table td,html[data-style="control"] .table .sub,html[data-style="control"] .metric-val,html[data-style="control"] .link-ms,html[data-style="control"] .wan-val,
+    html[data-style="control"] .mini-ms,html[data-style="control"] .tile-ms,html[data-style="control"] .chk-pct,html[data-style="control"] .dns-row .mono,html[data-style="control"] .dns-row .muted,html[data-style="control"] .node-sub,html[data-style="control"] .ctl-ms { font-family:var(--mono) }
+    .ctl-host { display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:2px 8px;width:100%;text-align:left;border:1px solid transparent;border-radius:var(--rad-sm);background:none;color:var(--text);padding:6px 8px }
+    .ctl-host:hover { background:var(--sel-row) } .ctl-host[aria-selected="true"] { border-color:var(--accent);background:var(--nav-hover) }
+    .ctl-name { min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:600 } .ctl-ms { font-size:13px;font-weight:700 } .ctl-ms small { font-size:10px;font-weight:500;color:var(--mute) }
+    .ctl-all { grid-template-columns:minmax(0,1fr) auto } .ctl-all .ctl-ms { color:var(--mute) }
+    .ctl-spark { grid-column:1 / -1;display:flex;align-items:flex-end;gap:1px;height:14px } .ctl-spark:empty { display:none }
+    .ctl-spark i { flex:1;min-width:1px;background:var(--text2);opacity:.55;border-radius:1px 1px 0 0 } .ctl-spark i.lost { background:var(--bad);opacity:1 }
+    .ctl-group { margin:10px 8px 4px;color:var(--mute);font-size:10px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase } .ctl-empty { padding:10px 8px;color:var(--mute);font-size:12px }
+    .ctl-tree-head { padding:4px 4px 8px;font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:1.4px }
+    .ctl-filter { display:flex;gap:6px;margin-bottom:8px } .ctl-filter input { flex:1;min-width:0;background:var(--input-bg);color:var(--text);border:1px solid var(--input-line);border-radius:var(--rad-sm);padding:6px 8px;font-size:13px }
+    .chip-btn { border:1px solid var(--line);border-radius:var(--rad-sm);background:var(--panel);color:var(--text2);padding:4px 9px;font-size:12px;font-weight:600 } .chip-btn[aria-pressed="true"] { border-color:var(--accent);color:var(--accent-ink);background:var(--nav-hover) }
+    .ctl-tabs { gap:2px;border-bottom:1px solid var(--line);flex:none }
+    .ctl-tabs button { border:0;background:none;color:var(--text2);padding:9px 14px;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px } .ctl-tabs button:hover { color:var(--accent-ink) }
+    .ctl-tabs button.active { color:var(--accent-ink);border-bottom-color:var(--accent) }
+    @media (min-width:1100px) and (min-height:640px) {
+      html[data-style="control"],html[data-style="control"] body { height:100%;overflow:hidden }
+      html[data-style="control"] .layout { display:block;min-height:0;height:100vh }
+      html[data-style="control"] aside { display:none }
+      html[data-style="control"] .ctl-only { display:block }
+      html[data-style="control"] main { height:100vh;max-width:none;overflow:hidden;padding:10px 12px;gap:10px 12px;grid-template-columns:272px minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr) auto;grid-template-areas:"head head" "top top" "tree detail" "foot foot" }
+      html[data-style="control"] .head { grid-area:head;padding:6px 10px } html[data-style="control"] .footer { grid-area:foot;padding:0;text-align:left;font-size:10px }
+      html[data-style="control"] .ctl-top { grid-area:top;display:flex;flex-wrap:wrap;gap:10px 12px;align-items:stretch }
+      html[data-style="control"] .top-stack { display:flex;flex-direction:column;gap:6px;flex:1 1 230px;min-width:0 }
+      html[data-style="control"] .main-status { padding:8px 12px;margin:0;flex:1 } html[data-style="control"] .status-sub,html[data-style="control"] .status-right { display:none } html[data-style="control"] .status-text { font-size:15px }
+      html[data-style="control"] .wan-card { padding:6px 12px;margin:0 } html[data-style="control"] .wan-card .card-head { margin:0 } html[data-style="control"] .wan-card h2,html[data-style="control"] .wan-meta,html[data-style="control"] .wan-card .btn { display:none }
+      html[data-style="control"] .wan-grid { margin:0;gap:2px 16px } html[data-style="control"] .wan-val { font-size:13px;font-weight:650 }
+      html[data-style="control"] #pathCard { flex:2 1 440px;margin:0;padding:8px 12px;align-self:stretch;display:flex;align-items:center } html[data-style="control"] #pathCard .path-head { display:none } html[data-style="control"] #pathCard .path-row { flex:1;display:flex;align-items:center;gap:6px;min-width:0 } html[data-style="control"] #pathCard .node { flex:0 1 auto;min-width:0 } html[data-style="control"] #pathCard .link { flex:0 0 68px } html[data-style="control"] #pathCard .node { flex:1 1 0;overflow:hidden } html[data-style="control"] #pathCard .node-text { min-width:0;overflow:hidden } html[data-style="control"] #pathCard .node-name { text-overflow:ellipsis;white-space:nowrap;overflow:hidden } html[data-style="control"] #pathCard .node-name { min-width:0;display:block;font-size:13px } html[data-style="control"] #pathCard .node-icon { width:24px;height:24px;flex:none } html[data-style="control"] #pathCard .node-icon svg { width:15px;height:15px }
+      html[data-style="control"] .node { flex-direction:row;gap:8px;padding:2px 4px;text-align:left } html[data-style="control"] .node-text { justify-items:start } html[data-style="control"] .node-text > span:last-child,html[data-style="control"] .node-sub { display:none }
+      html[data-style="control"] .node-icon { width:30px;height:30px } html[data-style="control"] .node-icon svg { width:18px;height:18px } html[data-style="control"] .link-cap { display:none } html[data-style="control"] .link { margin-top:0;align-self:center }
+      html[data-style="control"] .metrics { display:grid;grid-template-columns:repeat(6,minmax(78px,1fr));gap:8px;margin:0;flex:3 1 520px }
+      html[data-style="control"] .metric { padding:8px 10px;min-height:0;display:flex;flex-direction:column;justify-content:center } html[data-style="control"] .metric-label { margin:0 0 2px;font-size:11px } html[data-style="control"] .metric-val { font-size:17px;white-space:nowrap } html[data-style="control"] .metric-footer { display:none }
+      html[data-style="control"] #speedMetric .metric-footer { display:block;font-size:10px;margin-top:1px }
+      html[data-style="control"] .ctl-tree { grid-area:tree;display:flex;flex-direction:column;min-height:0;border:1px solid var(--line);border-radius:var(--rad);background:var(--panel);padding:10px }
+      html[data-style="control"] .metrics-title { display:none } html[data-style="control"] .metric-label { line-height:1.2;min-height:2.4em;display:flex;align-items:flex-end }
+      html[data-style="control"] .node-name,html[data-style="control"] .wan-val { white-space:nowrap;overflow:hidden;text-overflow:ellipsis }
+      html[data-style="control"] .ctl-hosts { flex:1;min-height:0;overflow-y:auto }
+      html[data-style="control"] .ctl-detail { grid-area:detail;display:flex;flex-direction:column;gap:12px;min-height:0;overflow-y:auto;padding-right:2px }
+      html[data-style="control"] .ctl-detail > :not(.ctl-tabs):not(.grid-content) { display:none }
+      html[data-style="control"] .ctl-tabs { display:flex;position:sticky;top:0;z-index:4;background:var(--page);padding-top:2px }
+      html[data-style="control"] .grid-content,html[data-style="control"] .stack { display:contents }
+      html[data-style="control"] .unifi-tabs { display:none }
+      html[data-style="control"] #ctlDetail .grid-content section.card { display:none }
+      html[data-style="control"] #ctlDetail[data-ctab="overview"] #unifiLeft { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;position:static }
+      html[data-style="control"] #ctlDetail[data-ctab="overview"] #uptimeCard,html[data-style="control"] #ctlDetail[data-ctab="overview"] #checksCard,html[data-style="control"] #ctlDetail[data-ctab="overview"] #targets,
+      html[data-style="control"] #ctlDetail[data-ctab="history"] #diagnostics,html[data-style="control"] #ctlDetail[data-ctab="history"] #lossCard,html[data-style="control"] #ctlDetail[data-ctab="history"] #speedtest,
+      html[data-style="control"] #ctlDetail[data-ctab="dns"] #dnsCard,html[data-style="control"] #ctlDetail[data-ctab="dns"] #eventsCard,html[data-style="control"] #ctlDetail[data-ctab="dns"] #settingsCard,html[data-style="control"] #ctlDetail[data-ctab="dns"] #diagCard { display:block }
+      html[data-style="control"] #targetsBody[data-focus="1"] tr:not(.selected) { display:none }
+      html[data-style="control"] #ctlDetail[data-ctab="overview"] #targets { order:1 } html[data-style="control"] #ctlDetail[data-ctab="overview"] #checksCard { order:2 } html[data-style="control"] #ctlDetail[data-ctab="overview"] #uptimeCard { order:3 } html[data-style="control"] #ctlDetail[data-ctab="overview"] #unifiLeft { order:4 }
+      html[data-style="control"] .card,html[data-style="control"] .metric { box-shadow:none }
+    }
   </style>
 </head>
 <body>
@@ -490,26 +592,11 @@
       <div class="head-actions">
         <div class="toggle" id="langSeg" role="group" data-i18n-attr="aria-label:ctl.language"><button type="button" data-lang="ru" lang="ru">RU</button><button type="button" data-lang="en" lang="en">EN</button></div>
         <div class="toggle" id="themeSeg" role="group" data-i18n-attr="aria-label:ctl.theme"><button type="button" data-theme="light" data-i18n="theme.light">Светлая</button><button type="button" data-theme="dark" data-i18n="theme.dark">Тёмная</button><button type="button" data-theme="auto" data-i18n="theme.auto" data-i18n-attr="title:theme.autoTip">Авто</button></div>
-        <label class="pick"><span data-i18n="ctl.style">Стиль</span><select id="styleSelect"><option value="netprobe">Classic</option><option value="unifi">UniFi</option></select></label>
+        <label class="pick"><span data-i18n="ctl.style">Стиль</span><select id="styleSelect"><option value="netprobe">Classic</option><option value="unifi">UniFi</option><option value="control">Control</option></select></label>
         <span class="tag" id="sourceTag">…</span><button class="btn" id="refreshBtn" data-i18n="head.refresh">Обновить данные</button>
       </div>
     </header>
-    <div class="unifi-left unifi-only" id="unifiLeft">
-      <section class="card" id="devCard">
-        <div class="dev-head"><span class="node-icon" id="devIcon" data-s="unknown" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3.5" y="12.5" width="17" height="7" rx="1.8"/><path d="M7.5 16h.01M11 16h.01M7 12.5 5 6M17 12.5l2-6M12 12.5V5.5"/></svg></span><div class="dev-title"><strong id="devName">Router</strong><span class="sub" id="devSub">—</span></div><span class="pill" id="devPill">—</span></div>
-        <div class="counters" id="devCounters"></div>
-        <dl class="kv" id="devKv"></dl>
-      </section>
-      <section class="card" id="netCard">
-        <div class="card-row"><strong data-i18n="net.title">Интернет</strong><button type="button" class="link-btn" id="goSpeed" data-i18n="net.speedLink">Speedtest</button></div>
-        <dl class="kv" id="netKv"></dl>
-        <div class="mini-row" id="miniRow"></div>
-      </section>
-      <section class="card" id="thrCard">
-        <div class="card-row"><strong data-i18n="thr.title">Пороги уведомлений</strong><button type="button" class="link-btn" id="goSettings" data-i18n="thr.configure">Настроить</button></div>
-        <div class="thr-chips" id="thrChips"></div>
-      </section>
-    </div>
+    <div class="ctl-top">
     <div class="top-stack">
     <section class="main-status">
       <div class="status-left"><span id="statusDot" class="status-dot offline"></span><div><div id="statusName" class="status-text">…</div><div class="status-sub" id="statusDescription"></div></div></div>
@@ -547,7 +634,32 @@
       <div class="metric"><div class="metric-label" data-i18n="metric.latency">Задержка</div><div class="metric-val"><span id="latencyValue">—</span><small> ms</small></div><div class="metric-footer" data-i18n="mf.latency">Средняя RTT</div></div>
       <div class="metric"><div class="metric-label" data-i18n="metric.jitter">Джиттер</div><div class="metric-val"><span id="jitterValue">—</span><small> ms</small></div><div class="metric-footer" data-i18n="mf.jitter">max − min RTT</div></div>
       <div class="metric"><div class="metric-label" data-i18n="metric.dns">Ответ DNS</div><div class="metric-val"><span id="dnsValue">—</span><small> ms</small></div><div class="metric-footer" data-i18n="mf.dns">Среднее по DNS-серверам</div></div>
+      <div class="metric ctl-only" id="speedMetric"><div class="metric-label" data-i18n="metric.speed">Скорость</div><div class="metric-val"><span id="speedValue">—</span><small> Mbps</small></div><div class="metric-footer" id="speedFooter">—</div></div>
     </section>
+    </div>
+    <div class="ctl-tree ctl-only" id="ctlTree" role="complementary" data-i18n-attr="aria-label:ctl.tree">
+      <div class="ctl-tree-head"><strong data-i18n="ctl.tree">Дерево узлов</strong></div>
+      <div class="ctl-filter"><input type="search" id="ctlFilter" autocomplete="off" data-i18n-attr="placeholder:ctl.filter;aria-label:ctl.filter"><button type="button" class="chip-btn" id="ctlProblems" aria-pressed="false" data-i18n="ctl.problems">Проблемы</button></div>
+      <div class="ctl-hosts" id="ctlHosts"></div>
+    </div>
+    <div class="ctl-detail" id="ctlDetail" data-ctab="overview">
+      <div class="ctl-tabs ctl-only" id="ctlTabs" role="tablist"><button type="button" role="tab" data-ctab="overview" data-i18n="ctl.tabOverview">Связность и таблицы</button><button type="button" role="tab" data-ctab="history" data-i18n="ctl.tabHistory">История и графики</button><button type="button" role="tab" data-ctab="dns" data-i18n="ctl.tabDns">DNS и диагностика</button></div>
+    <div class="unifi-left unifi-only" id="unifiLeft">
+      <section class="card" id="devCard">
+        <div class="dev-head"><span class="node-icon" id="devIcon" data-s="unknown" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3.5" y="12.5" width="17" height="7" rx="1.8"/><path d="M7.5 16h.01M11 16h.01M7 12.5 5 6M17 12.5l2-6M12 12.5V5.5"/></svg></span><div class="dev-title"><strong id="devName">Router</strong><span class="sub" id="devSub">—</span></div><span class="pill" id="devPill">—</span></div>
+        <div class="counters" id="devCounters"></div>
+        <dl class="kv" id="devKv"></dl>
+      </section>
+      <section class="card" id="netCard">
+        <div class="card-row"><strong data-i18n="net.title">Интернет</strong><button type="button" class="link-btn" id="goSpeed" data-i18n="net.speedLink">Speedtest</button></div>
+        <dl class="kv" id="netKv"></dl>
+        <div class="mini-row" id="miniRow"></div>
+      </section>
+      <section class="card" id="thrCard">
+        <div class="card-row"><strong data-i18n="thr.title">Пороги уведомлений</strong><button type="button" class="link-btn" id="goSettings" data-i18n="thr.configure">Настроить</button></div>
+        <div class="thr-chips" id="thrChips"></div>
+      </section>
+    </div>
     <section class="card" id="diagnostics" data-compare="0">
       <div class="chart-top"><div><h2 id="chartTitle">…</h2><div class="card-sub" id="chartSubtitle"></div></div><label class="pick" id="wanPickChart" hidden><span class="hide" data-i18n="wan.source">WAN</span><select id="wanSelectChart" class="chart-select" data-i18n-attr="aria-label:wan.source"></select></label><label class="pick"><span class="hide" data-i18n="chart.periodLabel">Период</span><select id="periodSelect" class="chart-select" data-i18n-attr="aria-label:chart.periodLabel"><option value="60" data-i18n="period.1m">1 минута</option><option value="300" data-i18n="period.5m">5 минут</option><option value="900" data-i18n="period.15m">15 минут</option><option value="3600" selected data-i18n="period.1h">1 час</option><option value="21600" data-i18n="period.6h">6 часов</option><option value="86400" data-i18n="period.24h">24 часа</option><option value="259200" data-i18n="period.3d">3 дня</option><option value="604800" data-i18n="period.1w">Неделя</option><option value="2592000" data-i18n="period.1mo">Месяц (30 дн.)</option><option value="custom" data-i18n="period.custom">Свой период…</option></select></label></div>
       <div class="chart-top" style="margin-bottom:0"><div class="chart-controls"><label class="hide" for="chartTarget" data-i18n="chart.targetLabel">Цель графика</label><select id="chartTarget" class="chart-select"><option value="">…</option></select><details id="comparePicker" class="cmp-picker"><summary><span id="cmpSummary">…</span></summary><div class="cmp-menu" id="cmpMenu"></div></details><div class="flex-tabs" id="metricTabs"><button data-metric="avg_loss_pct" class="active"><span data-i18n="mt.loss">Потери</span><span class="chip-val" data-chip="avg_loss_pct"></span></button><button data-metric="avg_latency_ms"><span data-i18n="mt.latency">Задержка</span><span class="chip-val" data-chip="avg_latency_ms"></span></button><button data-metric="avg_jitter_ms"><span data-i18n="mt.jitter">Джиттер</span><span class="chip-val" data-chip="avg_jitter_ms"></span></button><button data-metric="avg_dns_latency_ms"><span>DNS</span><span class="chip-val" data-chip="avg_dns_latency_ms"></span></button><button data-metric="score"><span data-i18n="mt.score">Качество</span><span class="chip-val" data-chip="score"></span></button></div><button type="button" class="btn cmp-toggle" id="compareToggle" aria-pressed="false" data-i18n="cmp.toggle">Сравнение</button><button type="button" class="link-btn" id="goLoss" data-i18n="loss.goto">Потери за период →</button></div></div>
@@ -639,6 +751,7 @@
         <section class="card" id="diagCard"><div class="card-head"><div><h2 data-i18n="diag.title">Диагностика</h2><div class="card-sub" data-i18n="diag.sub">Логи и активные настройки</div></div></div><details id="detailsLog"><summary data-i18n="diag.logs">Логи приложения</summary><pre class="log-box" id="logOutput"></pre><div class="section-status" id="logStatus" role="status"></div></details><details><summary data-i18n="diag.config">Конфигурация (без секретов)</summary><pre class="log-box" id="configOutput">…</pre></details></section>
       </div>
     </div>
+    </div>
     <div class="footer">Internet Health · SQLite history · <span id="footerMode">—</span> · <span id="footerVersion"></span></div>
   </main>
 </div>
@@ -672,7 +785,7 @@
       'kv.score':'Качество','kv.hosts':'Узлы отвечают','kv.avgRtt':'Средняя RTT','kv.loss':'Потеря пакетов','kv.speed':'Последний Speedtest',
       'thr.loss':'потери ≥ {v}%','thr.rtt':'RTT ≥ {v} мс','thr.jitter':'джиттер ≥ {v} мс','thr.dns':'DNS ≥ {v} мс','thr.confirm':'тревога: {n} зам.','thr.recover':'восстановление: {n} зам.',
       'brand.sub':'NETWORK HEALTH','nav.aria':'Навигация','nav.overview':'Обзор','nav.targets':'Цели','nav.diagnostics':'Диагностика',
-      'ctl.language':'Язык','ctl.theme':'Тема','theme.light':'Светлая','theme.dark':'Тёмная','theme.auto':'Авто','theme.autoTip':'Как в браузере','ctl.style':'Стиль','head.eyebrow':'Мониторинг интернета','path.server':'Сервер','head.title':'Состояние сети','head.refresh':'Обновить данные',
+      'ctl.language':'Язык','ctl.tree':'Дерево узлов','ctl.filter':'Фильтр узлов','ctl.problems':'Проблемы','ctl.all':'Все узлы','ctl.grpPath':'Маршрут','ctl.grpHosts':'Узлы','ctl.grpDns':'DNS','ctl.none':'Нет узлов','ctl.tabOverview':'Связность и таблицы','ctl.tabHistory':'История и графики','ctl.tabDns':'DNS и диагностика','metric.speed':'Скорость','ctl.theme':'Тема','theme.light':'Светлая','theme.dark':'Тёмная','theme.auto':'Авто','theme.autoTip':'Как в браузере','ctl.style':'Стиль','head.eyebrow':'Мониторинг интернета','path.server':'Сервер','head.title':'Состояние сети','head.refresh':'Обновить данные',
       'side.connecting':'Подключение…','side.live':'Данные получены','side.stale':'Замеры устарели','side.offline':'Нет полного ответа API',
       'status.last':'Последний замер','status.checking':'Проверяем сеть…','status.waiting':'Ожидание данных мониторинга',
       'status.unavailable':'API недоступен или ответ неполный','status.noFresh':'Нет свежих замеров','status.down':'Нет ответа: {n} из {total} проверок','status.degraded':'Перебои: {n} из {total} проверок','status.d.bad':'Проблемные проверки: {names}','status.dnsPing':'(ping проходит, на DNS-запросы не отвечает)','status.unconfirmed':'Состояние целей ещё не подтверждено','status.ok':'Цели работают штатно',
@@ -738,7 +851,7 @@
       'kv.score':'Quality','kv.hosts':'Hosts reachable','kv.avgRtt':'Average RTT','kv.loss':'Packet loss','kv.speed':'Last Speedtest',
       'thr.loss':'loss ≥ {v}%','thr.rtt':'RTT ≥ {v} ms','thr.jitter':'jitter ≥ {v} ms','thr.dns':'DNS ≥ {v} ms','thr.confirm':'alert after {n} samples','thr.recover':'recover after {n} samples',
       'brand.sub':'NETWORK HEALTH','nav.aria':'Navigation','nav.overview':'Overview','nav.targets':'Targets','nav.diagnostics':'Diagnostics',
-      'ctl.language':'Language','ctl.theme':'Theme','theme.light':'Light','theme.dark':'Dark','theme.auto':'Auto','theme.autoTip':'Follow the browser','ctl.style':'Style','head.eyebrow':'Internet monitoring','path.server':'Server','head.title':'Network status','head.refresh':'Refresh',
+      'ctl.language':'Language','ctl.tree':'Host tree','ctl.filter':'Filter hosts','ctl.problems':'Problems','ctl.all':'All hosts','ctl.grpPath':'Path','ctl.grpHosts':'Hosts','ctl.grpDns':'DNS','ctl.none':'No hosts','ctl.tabOverview':'Connectivity & tables','ctl.tabHistory':'History & charts','ctl.tabDns':'DNS & diagnostics','metric.speed':'Speed','ctl.theme':'Theme','theme.light':'Light','theme.dark':'Dark','theme.auto':'Auto','theme.autoTip':'Follow the browser','ctl.style':'Style','head.eyebrow':'Internet monitoring','path.server':'Server','head.title':'Network status','head.refresh':'Refresh',
       'side.connecting':'Connecting…','side.live':'Data received','side.stale':'Samples are stale','side.offline':'API response incomplete',
       'status.last':'Last sample','status.checking':'Checking the network…','status.waiting':'Waiting for monitoring data',
       'status.unavailable':'API unavailable or response incomplete','status.noFresh':'No fresh samples','status.down':'No response from {n} of {total} checks','status.degraded':'Interruptions: {n} of {total} checks','status.d.bad':'Problem checks: {names}','status.dnsPing':'(answers ping, not DNS queries)','status.unconfirmed':'Target state is not confirmed yet','status.ok':'All targets are healthy',
@@ -791,7 +904,8 @@
     }
   };
   let lang = document.documentElement.lang === 'en' ? 'en' : 'ru';
-  let styleName = document.documentElement.dataset.style === 'unifi' ? 'unifi' : 'netprobe';
+  let styleName = ['unifi', 'control'].includes(document.documentElement.dataset.style) ? document.documentElement.dataset.style : 'netprobe';
+  const unifiLike = () => styleName !== 'netprobe';   // UniFi and Control share the UniFi blocks (left cards, tiles, tabs)
   /* theme: 'auto' follows the browser's light/dark setting live; the choice is remembered in this browser only */
   let theme = ['light', 'dark'].includes(document.documentElement.dataset.theme) ? document.documentElement.dataset.theme : 'auto';
   const darkQuery = window.matchMedia ? matchMedia('(prefers-color-scheme: dark)') : null;
@@ -934,6 +1048,7 @@
   }
   function renderTargets() {
     const ping = state.targets.filter(x => x.kind !== 'dns');
+    $('targetsBody').dataset.focus = ping.some(x => x.target === state.target) ? '1' : '';   // Control: a chosen host narrows the table to that host
     const pill = s => `<span class="pill ${['OK','DOWN','DEGRADED'].includes(s) ? s : ''}">${escape(stateLabel(s))}</span>`;
     $('targetsBody').innerHTML = ping.length ? ping.map(x => `<tr class="${state.target === x.target ? 'selected' : ''}"><td><button class="target-button host" data-target="${escape(x.target)}">${escape(x.target)}</button><div class="sub">${escape(x.address || t('targets.ipUnknown'))}</div></td><td>${fmt(x.loss)}% ${t('targets.loss')}<div class="sub">RTT ${fmt(x.latency)} · jitter ${fmt(x.jitter)} ms</div><div class="sub">${escape(when(x.ts))}${staleRow(x.ts) ? ' · ' + t('targets.stale') : ''}</div></td><td>RTT ${fmt(x.avg_latency)} / max ${fmt(x.max_latency)} ms<div class="sub">${t('targets.lossShort')} ${fmt(x.avg_loss)}% · ${t('targets.samples', {n: numeric(x.samples) ? x.samples : '—'})}</div>${wanBreakdown(x)}</td><td>${pill(x.state)}</td></tr>${Array.isArray(x.addresses) && x.addresses.length > 1 ? `<tr><td colspan="4"><details style="margin:0;border:0;padding:0"><summary>${t('targets.ipPeriod', {n: x.addresses.length})}</summary>${x.addresses.map(a => `<div class="dns-row">${a.address ? `<button class="target-button" data-target="${escape(x.target)}" data-address="${escape(a.address)}">${escape(a.address)}</button>` : `<span class="muted">${t('targets.ipUnknown')}</span>`}<span class="sub">${t('targets.samples', {n: a.samples})} · RTT ${fmt(a.avg_latency)} / max ${fmt(a.max_latency)} ms · ${t('targets.loss')} ${fmt(a.avg_loss)}% / max ${fmt(a.max_loss)}%</span></div>`).join('')}</details></td></tr>` : ''}`).join('') : `<tr><td colspan="4" class="muted">${state.loaded.has('targets') ? t('targets.none') : t('targets.unavailable')}</td></tr>`;
     $('chartTarget').innerHTML = `<option value="">${escape(t('chart.all'))}</option>` + state.targets.map(x => `<option value="${escape(x.target)}">${escape(x.target)}${x.kind === 'dns' ? ' · DNS' : ''}</option>`).join('');
@@ -990,7 +1105,7 @@
       ...(lossMode ? [{label: t('tip.max'), cls: 's2', fmt: v => fmt(v, 2) + ' %', points: data.filter(d => numeric(peakOf(d))).map(d => ({ts: d.ts, v: peakOf(d)}))}] : [])]};
     const tickTimes = width < 600 ? [first, last] : [first, (first + last)/2, last];
     const ticks = tickTimes.map((ts, i) => `<text class="c-text" x="${(tickTimes.length === 2 ? [L, L+w] : [L, L+w/2, L+w])[i]}" y="${H-6}" text-anchor="${(tickTimes.length === 2 ? ['start','end'] : ['start','middle','end'])[i]}">${escape(width < 600 ? new Date(ts*1000).toLocaleTimeString(locale(), {hour:'2-digit', minute:'2-digit'}) : when(ts))}</text>`).join('');
-    const hatch = styleName === 'unifi' ? `<defs><pattern id="npHatch" width="7" height="7" patternUnits="userSpaceOnUse"><path class="c-grid" d="M0 7H7M7 0V7" stroke-width=".6" fill="none"/></pattern></defs><rect x="${L}" y="${T}" width="${w}" height="${h}" fill="url(#npHatch)" opacity=".7"/>` : '';
+    const hatch = unifiLike() ? `<defs><pattern id="npHatch" width="7" height="7" patternUnits="userSpaceOnUse"><path class="c-grid" d="M0 7H7M7 0V7" stroke-width=".6" fill="none"/></pattern></defs><rect x="${L}" y="${T}" width="${w}" height="${h}" fill="url(#npHatch)" opacity=".7"/>` : '';
     svg.innerHTML = hatch + grid + (area ? `<path class="c-area" d="${area}"/>` : '') + `<path class="c-line" d="${path}" stroke-width="2.3" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>` + points + ticks + `<line class="c-cursor" y1="${T}" y2="${T+h}" x1="0" x2="0" visibility="hidden"/>`;
   }
 
@@ -1300,7 +1415,10 @@
     const sp = state.speed;
     $('netKv').innerHTML = kvHtml([[t('kv.score'), numeric(state.latest?.score) ? state.latest.score.toFixed(1) + ' / 100' : '—'], [t('kv.hosts'), net.length ? `${okHosts} / ${net.length}` : '—'], [t('kv.avgRtt'), ms(avg)], [t('kv.loss'), numeric(state.latest?.avg_loss_pct) ? state.latest.avg_loss_pct.toFixed(1) + ' %' : '—'], [t('kv.speed'), sp ? `↓ ${fmt(sp.download_mbps, 0)}  ↑ ${fmt(sp.upload_mbps, 0)} Mbps` : '—']]);
     const sites = net.filter(x => !/^[\d.:]+$/.test(x.target)).concat(net.filter(x => /^[\d.:]+$/.test(x.target))).slice(0, 3);
-    $('miniRow').innerHTML = sites.map(x => `<div class="mini" data-s="${sevOf(fresh(x) ? x.state : 'UNKNOWN')}"><span class="mini-ms">${escape(numeric(rtt(x)) ? rtt(x).toFixed(0) + ' ms' : '—')}</span><span class="mini-label">${escape(x.target)}</span></div>`).join('');
+    $('miniRow').innerHTML = sites.map(x => `<div class="mini" data-s="${sevOf(fresh(x) ? x.state : 'UNKNOWN')}"><i class="dot" aria-hidden="true"></i><span class="mini-label">${escape(x.target)}</span><span class="mini-ms">${escape(numeric(rtt(x)) ? rtt(x).toFixed(0) + ' ms' : '—')}</span></div>`).join('');
+    // top bar: last Speedtest
+    $('speedValue').textContent = sp ? `${fmt(sp.download_mbps, 0)} / ${fmt(sp.upload_mbps, 0)}` : '—';
+    $('speedFooter').textContent = t('kv.speed');
     // thresholds summary
     const st = state.settings;
     $('thrChips').innerHTML = st ? [t('thr.loss', {v: st.loss_pct}), t('thr.rtt', {v: st.latency_ms}), t('thr.jitter', {v: st.jitter_ms}), t('thr.dns', {v: st.dns_ms}), t('thr.confirm', {n: st.confirm_samples}), t('thr.recover', {n: st.recovery_samples})].map(x => `<span class="thr-chip">${escape(x)}</span>`).join('') : '';
@@ -1316,10 +1434,56 @@
     $('checksGrid').innerHTML = checks.map(([label, v]) => { const sev = !numeric(v) ? 'unknown' : v >= 99 ? 'ok' : v >= 90 ? 'warn' : 'bad'; return `<div class="chk" data-s="${sev}"><span class="chk-label">${escape(label)}</span><span class="chk-bar"><i style="width:${numeric(v) ? Math.max(2, Math.min(100, v)).toFixed(1) : 0}%"></i></span><span class="chk-pct">${escape(pctText(v))}</span></div>`; }).join('');
     renderUptime();
   }
+  /* ---------- Control style: host tree (master) with a latency mini-histogram, and the detail tabs ---------- */
+  const CTAB_OF = {targets:'overview', loss:'history', speedtest:'history', dns:'dns', events:'dns', settings:'dns', diagnostics:'dns'};
+  let treeText = '', treeProblems = false, sparkAt = 0;
+  const sparks = {};
+  function setCtab(tab) {
+    if (!['overview', 'history', 'dns'].includes(tab)) tab = 'overview';
+    $('ctlDetail').dataset.ctab = tab; store('netprobe.ctab', tab);
+    document.querySelectorAll('#ctlTabs button').forEach(b => { b.classList.toggle('active', b.dataset.ctab === tab); b.setAttribute('aria-selected', String(b.dataset.ctab === tab)); });
+  }
+  /* last hour of one host as 24 bars: height = average latency, red = some packets lost, a gap = no data */
+  function sparkHtml(rows) {
+    if (!rows || !rows.length) return '';
+    const N = 24, per = rows.length / N, bars = [];
+    for (let i = 0; i < N; i++) {
+      const part = rows.slice(Math.floor(i * per), Math.max(Math.floor(i * per) + 1, Math.floor((i + 1) * per))).filter(Boolean);
+      const lat = part.map(r => r.latency).filter(numeric), lost = part.some(r => numeric(r.loss) && r.loss > 0 || numeric(r.max_loss) && r.max_loss > 0);
+      bars.push({v: lat.length ? lat.reduce((a, b) => a + b, 0) / lat.length : null, lost});
+    }
+    const max = Math.max(1, ...bars.map(b => b.v ?? 0));
+    return bars.map(b => `<i${b.lost ? ' class="lost"' : ''} style="height:${b.v === null ? (b.lost ? 100 : 0) : Math.max(8, Math.round(b.v / max * 100))}%"></i>`).join('');
+  }
+  function renderTree() {
+    const box = $('ctlHosts'); if (!box) return;
+    const cfg = state.config || {}, all = live(), fresh = x => x && !stale(x.ts);
+    const kindOf = x => x.kind === 'dns' ? 'dns' : (x.target === cfg.gateway_ip || x.target === cfg.router_ip) ? 'path' : 'hosts';
+    const needle = treeText.trim().toLowerCase();
+    const row = x => {
+      const sev = sevOf(fresh(x) ? x.state : 'UNKNOWN'), label = x.kind === 'dns' ? 'DNS ' + x.target.slice(4) : x.target;
+      const v = fresh(x) && numeric(x.latency) ? x.latency.toFixed(1) : '—';
+      return `<button type="button" class="ctl-host" role="option" data-s="${sev}" data-target="${escape(x.target)}" aria-selected="${state.target === x.target}" title="${escape(label)} · ${escape(stateLabel(x.state))}"><i class="dot" aria-hidden="true"></i><span class="ctl-name">${escape(label)}</span><span class="ctl-ms">${escape(v)}<small> ms</small></span><span class="ctl-spark" aria-hidden="true">${sparkHtml(sparks[x.target])}</span></button>`;
+    };
+    const shown = all.filter(x => (!needle || (x.target + ' ' + (x.address || '')).toLowerCase().includes(needle)) && (!treeProblems || !fresh(x) || x.state !== 'OK'));
+    const groups = ['path', 'hosts', 'dns'].map(g => [g, shown.filter(x => kindOf(x) === g)]).filter(([, l]) => l.length);
+    box.innerHTML = `<button type="button" class="ctl-host ctl-all" data-target="" role="option" aria-selected="${!state.target}"><span class="ctl-name">${escape(t('ctl.all'))}</span><span class="ctl-ms">${all.length}</span></button>`
+      + (groups.length ? groups.map(([g, l]) => `<div class="ctl-group" role="presentation">${escape(t('ctl.grp' + g[0].toUpperCase() + g.slice(1)))}</div>` + l.map(row).join('')).join('') : `<div class="ctl-empty">${escape(t('ctl.none'))}</div>`);
+  }
+  async function loadSparks() {
+    if (styleName !== 'control' || Date.now() - sparkAt < 55000) return;
+    sparkAt = Date.now();
+    await Promise.allSettled(live().map(async x => {
+      const r = await api(`/api/targets/history?target=${encodeURIComponent(x.target)}&range=3600`);
+      if (Array.isArray(r.data)) sparks[x.target] = r.data.slice().sort((a, b) => a.ts - b.ts);
+    }));
+    renderTree();
+  }
   function openTab(tab) {
     document.querySelector('.grid-content').dataset.tab = tab;
     document.querySelectorAll('#unifiTabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
     if (tab === 'settings') $('alertSettings').open = true;
+    if (styleName === 'control') setCtab(CTAB_OF[tab]);
   }
 
   /* ---------- custom period ---------- */
@@ -1377,7 +1541,7 @@
   }
   let drawQueued = false;
   const scheduleDraw = () => { if (drawQueued) return; drawQueued = true; requestAnimationFrame(() => { drawQueued = false; draw(); }); };  // show each answer as it arrives
-  const draw = () => { renderLoss(); renderUnifi(); renderStatus(); renderPath(); renderTargets(); renderChart(); renderEvents(); renderSpeed(); renderSchedule(); renderPublicIp(); renderTelegram(); renderBackups(); renderHistory(); renderWanPickers(); renderSettings(); renderConfig(); renderMsgs(); if (!state.logs.length) $('logOutput').textContent = state.logRead && $('detailsLog').open ? t('diag.noLines') : t('diag.logHint'); };
+  const draw = () => { renderLoss(); renderUnifi(); renderTree(); renderStatus(); renderPath(); renderTargets(); renderChart(); renderEvents(); renderSpeed(); renderSchedule(); renderPublicIp(); renderTelegram(); renderBackups(); renderHistory(); renderWanPickers(); renderSettings(); renderConfig(); renderMsgs(); if (!state.logs.length) $('logOutput').textContent = state.logRead && $('detailsLog').open ? t('diag.noLines') : t('diag.logHint'); };
   async function loadChart() {
     const request = ++state.chartRequest, key = chartKey(), target = state.target, query = rq() + wanParam(), address = state.address;
     try {
@@ -1408,13 +1572,14 @@
     { const mark = String(state.speed?.ts ?? state.speed?.timestamp ?? 0); if (mark !== state.speedSeriesMark) { state.speedSeriesMark = mark; loadSpeedSeries(); } }
     loadVersion(); loadTelegram(); loadBackups(); loadPrefs().then(() => { loadPublicIp(); loadWanSources(); }); // optional extras never hold the dashboard back (a slow lookup service must not delay the data)
     await Promise.allSettled([state.cmp.on ? loadCompare() : loadChart(), ...tasks.map(async ([name, url, apply]) => { try { const result = await api(url); if ((name === 'targets' || name === 'events' || name === 'summary' || name === 'loss' || name === 'live') && rk !== rangeKey()) return; apply(result); delete state.errors[name]; state.loaded.add(name); scheduleDraw(); } catch (e) { state.errors[name] = errorText(e); } })]);
-    state.refreshing = false; $('refreshBtn').disabled = false; draw();
+    state.refreshing = false; $('refreshBtn').disabled = false; draw(); loadSparks();
     if (state.refreshQueued) { state.refreshQueued = false; refresh(); }
   }
   function selectTarget(target, address = '') {
     state.target = target; state.address = address;
     if (target && (!targetKeys[state.metric] || state.targets.some(x => x.target === target && x.kind === 'dns'))) state.metric = 'avg_latency_ms';
-    delete state.errors.chart; renderTargets(); renderChart(); loadChart();
+    delete state.errors.chart; renderTargets(); renderChart(); loadChart(); renderTree();
+    if (styleName === 'control' && target && $('ctlDetail').dataset.ctab === 'dns') setCtab('history');
   }
   async function saveSettings(event) {
     event.preventDefault();
@@ -1831,10 +1996,10 @@
   });
   $('lossEpisodes').addEventListener('click', event => { const b = event.target.closest('[data-episode]'); if (b) zoomEpisode(Number(b.dataset.episode)); });
   $('lossTargets').addEventListener('click', event => { const b = event.target.closest('[data-loss-target]'); if (b) { state.lossTarget = b.dataset.lossTarget; state.loss = null; renderLoss(); refresh(); } });
-  $('goLoss').addEventListener('click', () => { if (styleName === 'unifi') { openTab('loss'); $('unifiTabs').scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start'}); } else $('lossCard').scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start'}); });
+  $('goLoss').addEventListener('click', () => { if (unifiLike()) { openTab('loss'); $('unifiTabs').scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start'}); } else $('lossCard').scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start'}); });
   document.querySelectorAll('nav a').forEach(a => a.addEventListener('click', () => {
     document.querySelectorAll('nav a').forEach(b => b.classList.toggle('selected', a === b));
-    if (styleName === 'unifi' && ['#targets', '#speedtest'].includes(a.getAttribute('href'))) openTab(a.getAttribute('href').slice(1)); // UniFi shows these cards as tabs; reveal the one the link points to
+    if (unifiLike() && ['#targets', '#speedtest'].includes(a.getAttribute('href'))) openTab(a.getAttribute('href').slice(1)); // UniFi shows these cards as tabs; reveal the one the link points to
   }));
   for (const id of ['targetsBody', 'dnsList']) $(id).addEventListener('click', event => { const target = event.target.closest('[data-target]'); if (target) { selectTarget(target.dataset.target, target.dataset.address || ''); $('diagnostics').scrollIntoView({behavior: reduceMotion() ? 'auto' : 'smooth', block:'start'}); } });
   $('unifiTabs').addEventListener('click', event => { const b = event.target.closest('[data-tab]'); if (b) openTab(b.dataset.tab); });
@@ -1849,7 +2014,11 @@
   $('turboDialog').addEventListener('close', () => $('turboInfo').focus());
   $('langSeg').addEventListener('click', e => { const b = e.target.closest('button[data-lang]'); if (!b) return; lang = b.dataset.lang === 'en' ? 'en' : 'ru'; store('netprobe.lang', lang); applyStatic(); draw(); });
   $('themeSeg').addEventListener('click', e => { const b = e.target.closest('button[data-theme]'); if (!b) return; theme = ['light', 'dark'].includes(b.dataset.theme) ? b.dataset.theme : 'auto'; store('netprobe.theme', theme); applyTheme(); applyStatic(); });
-  $('styleSelect').addEventListener('change', () => { styleName = $('styleSelect').value === 'unifi' ? 'unifi' : 'netprobe'; store('netprobe.style', styleName); document.documentElement.dataset.style = styleName; applyStatic(); renderChart(); renderUnifi(); });
+  $('styleSelect').addEventListener('change', () => { styleName = ['unifi', 'control'].includes($('styleSelect').value) ? $('styleSelect').value : 'netprobe'; store('netprobe.style', styleName); document.documentElement.dataset.style = styleName; document.documentElement.dataset.family = styleName === 'netprobe' ? 'classic' : 'unifi'; applyStatic(); renderChart(); renderUnifi(); renderTree(); loadSparks(); });
+  $('ctlTabs').addEventListener('click', e => { const b = e.target.closest('button[data-ctab]'); if (b) setCtab(b.dataset.ctab); });
+  $('ctlHosts').addEventListener('click', e => { const b = e.target.closest('[data-target]'); if (b) selectTarget(b.dataset.target); });
+  $('ctlFilter').addEventListener('input', () => { treeText = $('ctlFilter').value; renderTree(); });
+  $('ctlProblems').addEventListener('click', () => { treeProblems = !treeProblems; $('ctlProblems').setAttribute('aria-pressed', String(treeProblems)); renderTree(); });
   new ResizeObserver(() => renderChart()).observe($('primaryChart'));
   { let w = 0; new ResizeObserver(() => { const n = Math.round($('speedChart').clientWidth); if (n && n !== w) { w = n; renderSpeedChart(); } }).observe($('speedChart')); }
   { const bar = document.querySelector('aside'), pin = () => document.documentElement.style.setProperty('--stick-h', (matchMedia('(max-width:930px)').matches ? Math.ceil(bar.getBoundingClientRect().height) : 0) + 'px'); new ResizeObserver(pin).observe(bar); pin(); }
@@ -1867,6 +2036,7 @@
     if (sc && ['10', 'range', 'all'].includes(sc.hist)) state.speedHist = sc.hist;
   } catch (e) { /* storage is optional */ }
   applyStatic(); $('sourceTag').textContent = t('side.connecting'); $('sidebarMode').textContent = t('side.connecting'); $('statusName').textContent = t('status.checking'); $('statusDescription').textContent = t('status.waiting');
+  { let c = null; try { c = localStorage.getItem('netprobe.ctab'); } catch (e) {} setCtab(c); }
   draw(); refresh(); setInterval(refresh, 30000); setInterval(() => { renderStatus(); if ($('detailsLog').open) loadLogs(); }, 3000);
 })();
 </script>

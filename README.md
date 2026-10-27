@@ -66,7 +66,7 @@ and backups: **[docs/INSTALL.md](docs/INSTALL.md)**; Unraid (template and Unraid
   The Telegram token is stored with mode 600 and never shown again.
 - **Database backups and retention.** *Back up now* writes a consistent copy while monitoring keeps running (the 5 newest are kept, downloadable).
   *Keep history* for 7 / 30 / 90 / 180 days or 1 year deletes older records once a night; off by default.
-- **Two UI styles (Classic and UniFi), two languages**, a phone layout with a pinned one-row menu. One self-contained HTML page: no CDN,
+- **Three UI styles (Classic, UniFi, Control), light / dark / auto theme, two languages**, a phone layout with a pinned one-row menu. One self-contained HTML page: no CDN,
   no external fonts, works offline on your LAN.
 - **Careful by default.** It runs as an unprivileged user (99:100 unless you choose another), needs no Docker socket, no extra privileges and
   no host mounts besides its data folder. The only outbound requests are the probes, the Speedtest you run or schedule, the messages you

@@ -1,10 +1,11 @@
 # Roadmap
 
-Planned, not started. Order is not a promise.
+Order is not a promise.
 
-## Interface redesign: three layouts
+## Interface redesign: three layouts — done
 
-A restyling of the page, one layout per theme. Each keeps the data and the light/dark/auto theme buttons.
+Implemented as the UniFi (1), Classic (2) and Control (3) styles, see the CHANGELOG. The original brief is kept below. Not done: a separate
+"Provider" node in the Control route chain (the provider is shown in the WAN / ISP block next to it). A restyling of the page, one layout per theme. Each keeps the data and the light/dark/auto theme buttons.
 
 1. **Compact / high-density grid.** Neutral charcoal greys (`#121417`, `#1E2228`, `#8C96A6`); green only for an active OK status. The left panel becomes
    compact rows with 6 px status dots instead of large green blocks. Larger key numbers, a fixed 12 px gap between widgets.

@@ -40,7 +40,7 @@ wget -O /boot/config/plugins/dockerMan/templates-user/my-InternetHealth.xml \
 | Run as user / group (advanced) | `99` / `100` (nobody / users, the Unraid default); `0` runs as root |
 
 *Apply*, then open `http://<unraid>:8788`. The first probe cycle takes about a minute to appear. Language (English / Russian) and style
-(Classic / UniFi) are in the page header. Compose works too: [INSTALL.md](INSTALL.md#option-2-docker-compose).
+(Classic / UniFi / Control) are in the page header. Compose works too: [INSTALL.md](INSTALL.md#option-2-docker-compose).
 
 ## Notifications
 
