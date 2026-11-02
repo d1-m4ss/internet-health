@@ -1,7 +1,7 @@
 # Internet Health: monitoring with a web page, Speedtest (Fast.com, Cloudflare) and Telegram alerts.
 # It started as a fork of NetProbe_Python (MIT, see THIRD_PARTY_NOTICES.md) and is built from source on a pinned base image.
 # The base (Debian 13, Python 3.14) is pinned by digest; Dependabot proposes newer digests and package versions.
-FROM python:3.14-slim@sha256:35caba83af2fe6da9a5d922f9b0156f21d1246a48278c58a08bd253303ba42e8
+FROM python:3.14-slim@sha256:cd89c30eda26ee911a4611b18680086e0ea42e6f5f8cbe653d07fa7958c9cec8
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
