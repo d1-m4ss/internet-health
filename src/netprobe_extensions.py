@@ -712,6 +712,7 @@ class Extension:
     @contextmanager
     def db(self):
         conn = sqlite3.connect(self.db_path, timeout=5)
+        conn.execute("PRAGMA synchronous=NORMAL")
         conn.row_factory = sqlite3.Row
         try:
             yield conn

@@ -5,6 +5,9 @@ The project is called **Internet Health** (formerly “Internet Pulse” in 1.0.
 
 ## Unreleased
 
+- The database now runs in SQLite WAL mode with `synchronous=NORMAL`: a write appends to one log instead of writing a rollback journal and the database file with two
+  fsyncs (300 commits: 0.75 s instead of 2.9 s on Unraid). Less disk wear and fewer waits on slow or spun-down disks. The mode is switched on the first start; `-wal` and `-shm`
+  files appear next to `netprobe.sqlite` (normal). A power cut can lose the last seconds of samples, never corrupt the database.
 ## 1.5.0 — 2026-10-27
 
 - **UniFi style:** a neutral charcoal palette; green only marks an OK status. The host lines under *Internet* are compact rows with 6 px status dots instead of

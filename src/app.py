@@ -279,11 +279,17 @@ logger.info("Live log poll interval: %ss", LIVE_LOG_POLL_SECONDS)
 def get_db_connection():
     """Return a connection to the SQLite database (writers wait up to 30 s for a lock)."""
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    return sqlite3.connect(DB_PATH, timeout=30)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.execute("PRAGMA synchronous=NORMAL")  # with the WAL a commit needs no fsync of the main file; a power cut can lose the last seconds, never corrupt
+    return conn
 
 
 def ensure_db():
     conn = get_db_connection()
+    # WAL: a transaction appends to one log instead of writing a rollback journal and the database and syncing twice. The mode is stored in the file.
+    mode = conn.execute("PRAGMA journal_mode=WAL").fetchone()[0]
+    if str(mode).lower() != "wal":
+        logger.warning("SQLite journal mode is %s, not WAL (the file system may not support it); history is still saved", mode)
     cur = conn.cursor()
 
     id_col = "id INTEGER PRIMARY KEY AUTOINCREMENT"
