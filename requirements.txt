@@ -7,5 +7,5 @@ itsdangerous==2.2.0
 click==8.5.0
 blinker==1.9.0
 dnspython==2.9.0
-gunicorn==26.2.0
+gunicorn==27.0.1
 packaging==26.3
